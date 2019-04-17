@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: configure-alertmanager-operator
-  namespace: configure-alertmanager-operator
+  namespace: openshift-monitoring
 spec:
   replicas: 1
   selector:
@@ -16,7 +16,7 @@ spec:
       serviceAccountName: configure-alertmanager-operator
       containers:
         - name: configure-alertmanager-operator
-          image: quay.io/openshift-sre/configure-alertmanager-operator:latest
+          image: quay.io/openshift-sre/configure-alertmanager-operator:v0.1.4-2019-04-17-c1bde9a3
           command:
           - configure-alertmanager-operator
           imagePullPolicy: Always

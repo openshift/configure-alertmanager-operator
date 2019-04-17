@@ -2,8 +2,7 @@ SHELL := /bin/bash
 include version.mk
 include project.mk
 
-IMAGE_URI=quay.io/openshift-sre/configure-alertmanager-operator:latest
-
+IMAGE_REPOSITORY=openshift-sre
 OPERATOR_IMAGE_URI=${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}/${IMAGE_NAME}:v${VERSION_FULL}
 
 VERSION_MAJOR=0
