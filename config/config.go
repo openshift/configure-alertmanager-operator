@@ -16,5 +16,5 @@ package config
 
 const (
 	OperatorName      string = "configure-alertmanager-operator"
-	OperatorNamespace string = "configure-alertmanager-operator"
+	OperatorNamespace string = "openshift-monitoring"
 )
