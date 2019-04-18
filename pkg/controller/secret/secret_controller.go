@@ -386,7 +386,6 @@ func removeFromRoutes(r []*alertmanager.Route, i int) []*alertmanager.Route {
 func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request, amconfig *alertmanager.Config, receivername string) {
 	fmt.Println("DEBUG: Checking for receiver", receivername, "in Alertmanager config")
 	for i, receiver := range amconfig.Receivers {
-		fmt.Println("DEBUG: Found Receiver named:", receiver.Name, "Checking against receivername:", receivername)
 		if receiver.Name == receivername {
 			fmt.Println("DEBUG: Deleting receiver named:", receiver.Name)
 			amconfig.Receivers = removeFromReceivers(amconfig.Receivers, i)
@@ -394,7 +393,6 @@ func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request
 	}
 
 	for i, route := range amconfig.Route.Routes {
-		fmt.Println("DEBUG: Found Route for reeceiver named:", route.Receiver, "Checking against receivername:", receivername)
 		if route.Receiver == receivername {
 			fmt.Println("DEBUG: Deleting Route for Receiver:", route.Receiver)
 			amconfig.Route.Routes = removeFromRoutes(amconfig.Route.Routes, i)
