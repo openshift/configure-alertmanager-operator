@@ -1,11 +1,12 @@
-include standard.mk
 include project.mk
-SHELL := /usr/bin/env bash
+include standard.mk
 
-OPERATOR_IMAGE_URI=${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}/${IMAGE_NAME}:v${VERSION_FULL}
+SHELL := /usr/bin/env bash
 
 VERSION_MAJOR=0
 VERSION_MINOR=1
+
+IMAGE_REGISTRY=quay.io
 
 BINFILE=build/_output/bin/configure-alertmanager-operator
 MAINPACKAGE=./cmd/manager
@@ -15,7 +16,7 @@ GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 default: go-build
 
 .PHONY: all
-all: check dockerbuild
+all: check docker-build
 
 .PHONY: isclean
 isclean:
