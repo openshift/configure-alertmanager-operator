@@ -42,7 +42,7 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
-  digest = "1:c61f4f97321a37adcb5b4fd4fd61209cd553e46c99ee606c465553541b12a229"
+  digest = "1:0c4193043b1a33c7f9ba4ea42b8af2c09bb3d51970212d42e4dac8aa217b4ca5"
   name = "github.com/coreos/prometheus-operator"
   packages = [
     "pkg/apis/monitoring",
@@ -51,8 +51,8 @@
     "pkg/client/versioned/typed/monitoring/v1",
   ]
   pruneopts = "NT"
-  revision = "72ec4b9b16ef11700724dc71fec77112536eed40"
-  version = "v0.26.0"
+  revision = "7a25bf6b6bb2347dacb235659b73bc210117acc7"
+  version = "v0.29.0"
 
 [[projects]]
   digest = "1:4b8b5811da6970495e04d1f4e98bb89518cc3cfc3b3f456bdb876ed7b6c74049"
@@ -305,8 +305,7 @@
   version = "1.0.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:bb1a054db2952ea23a436d9e32639676c5f0edb9f6f6b4b415324f65524c1a35"
+  digest = "1:674610d54812d3c36ab7861fc826176bf581a9426cc09abec0107414c17f89cd"
   name = "github.com/operator-framework/operator-sdk"
   packages = [
     "pkg/k8sutil",
@@ -316,7 +315,8 @@
     "version",
   ]
   pruneopts = "NT"
-  revision = "5a1660b04c5f21498f75aa6c0bf3a01c03eb8aa0"
+  revision = "7e07b20c9e22560fb22a3295b612eae7652b8b14"
+  version = "v0.7.0"
 
 [[projects]]
   digest = "1:93b1d84c5fa6d1ea52f4114c37714cddd84d5b78f151b62bb101128dd51399bf"
@@ -905,11 +905,11 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/operator-framework/operator-sdk/pkg/k8sutil",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
     "github.com/operator-framework/operator-sdk/pkg/metrics",
     "github.com/operator-framework/operator-sdk/version",
-    "github.com/prometheus/client_golang/prometheus",
     "github.com/spf13/pflag",
     "gopkg.in/yaml.v2",
     "k8s.io/api/core/v1",
