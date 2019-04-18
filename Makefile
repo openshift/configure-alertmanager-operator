@@ -1,8 +1,7 @@
-SHELL := /bin/bash
-include version.mk
+include standard.mk
 include project.mk
+SHELL := /usr/bin/env bash
 
-IMAGE_REPOSITORY=openshift-sre
 OPERATOR_IMAGE_URI=${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}/${IMAGE_NAME}:v${VERSION_FULL}
 
 VERSION_MAJOR=0
@@ -12,6 +11,8 @@ BINFILE=build/_output/bin/configure-alertmanager-operator
 MAINPACKAGE=./cmd/manager
 GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
+
+default: go-build
 
 .PHONY: all
 all: check dockerbuild
@@ -25,13 +26,13 @@ check: ## Lint code
 	gofmt -s -l $(shell go list -f '{{ .Dir }}' ./... ) | grep ".*\.go"; if [ "$$?" = "0" ]; then gofmt -s -d $(shell go list -f '{{ .Dir }}' ./... ); exit 1; fi
 	go vet ./cmd/... ./pkg/...
 
-.PHONY: dockerbuild
-dockerbuild:
+.PHONY: docker-build
+docker-build:
 	docker build -f build/Dockerfile . -t ${OPERATOR_IMAGE_URI}
 
 # This part is done by the docker build
-.PHONY: gobuild
-gobuild: ## Build binary
+.PHONY: go-build
+go-build: ## Build binary
 	${GOENV} go build ${GOFLAGS} -a -o ${BINFILE} ${MAINPACKAGE}
 
 .PHONY: env
