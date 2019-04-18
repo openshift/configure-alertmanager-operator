@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configure-alertmanager-operator
+  namespace: openshift-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: configure-alertmanager-operator
+  template:
+    metadata:
+      labels:
+        name: configure-alertmanager-operator
+    spec:
+      serviceAccountName: configure-alertmanager-operator
+      containers:
+        - name: configure-alertmanager-operator
+          image: quay.io/openshift-sre/configure-alertmanager-operator:v0.1.9-fc79391f
+          command:
+          - configure-alertmanager-operator
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "configure-alertmanager-operator"
