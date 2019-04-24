@@ -320,16 +320,20 @@ func addSnitchSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.
 	// Overwrite the existing Watchdog config with the updated version specified above.
 	// This keeps other receivers intact while updating only the Watchdog related receivers.
 	watchdogabsent := true
+	log.Info("DEBUG: Checking for watchdog related receivers")
 	for i, receiver := range amconfig.Receivers {
 		log.Info("DEBUG: Found Receiver named:", receiver.Name)
-		if receiver.Name == "watchdog" {
+		switch receiver.Name {
+		case "watchdog":
 			log.Info("DEBUG: Overwriting watchdog receiver:", receiver.Name)
 			amconfig.Receivers[i].WebhookConfigs = []*alertmanager.WebhookConfig{snitchconfig}
 			watchdogabsent = false
-		} else if receiver.Name == "null" {
+		case "null":
 			// Delete the default 'null' Receiver, because watchdog will become the new default.
 			log.Info("DEBUG: Deleting receiver named:", receiver.Name)
 			amconfig.Receivers = removeFromReceivers(amconfig.Receivers, i)
+		default:
+			log.Info("DEBUG: Skipping receiver named:", receiver.Name)
 		}
 	}
 
@@ -352,16 +356,20 @@ func addSnitchSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.
 
 	// Insert the Route for the Watchdog Receiver.
 	routeabsent := true
+	log.Info("DEBUG: Checking for watchdog related routes")
 	for i, route := range amconfig.Route.Routes {
 		log.Info("DEBUG: Found Route for Receiver:", route.Receiver)
-		if route.Receiver == "watchdog" {
+		switch route.Receiver {
+		case "watchdog":
 			log.Info("DEBUG: Overwriting Watchdog Route for Receiver:", route.Receiver)
 			amconfig.Route.Routes[i] = wdroute
 			routeabsent = false
-		} else if route.Receiver == "null" {
+		case "null":
 			// Remove null route, since the watchdog route replaces it.
 			log.Info("DEBUG: Deleting Route for Receiver:", route.Receiver)
 			amconfig.Route.Routes = removeFromRoutes(amconfig.Route.Routes, i)
+		default:
+			log.Info("DEBUG: Skipping route for receiver named:", route.Receiver)
 		}
 	}
 
