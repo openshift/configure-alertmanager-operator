@@ -88,7 +88,7 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 
 	// This block looks at a specific instance of Secret. This is done for each Secret
 	// in the `openshift-monitoring` namespace. In the case of a deleted Secret,
-	// the associated Alertmanager config is removed.
+	// the Alertmanager config associated with that Secret is removed.
 	instance := &corev1.Secret{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
