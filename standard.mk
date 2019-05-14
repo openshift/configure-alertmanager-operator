@@ -17,7 +17,7 @@ endif
 
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
-CURRENT_COMMIT=$(shell git rev-parse --short=8 HEAD)
+CURRENT_COMMIT=$(shell git rev-parse --short=7 HEAD)
 OPERATOR_VERSION=${VERSION_MAJOR}.${VERSION_MINOR}.${COMMIT_NUMBER}-${CURRENT_COMMIT}
 
 OPERATOR_IMAGE_URI=${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}/${IMAGE_NAME}:v${OPERATOR_VERSION}
@@ -39,8 +39,12 @@ default: gobuild
 
 .PHONY: clean
 clean:
-	rm -rf ./build/_output
-	docker rmi ${OPERATOR_IMAGE_URI} ${OPERATOR_IMAGE_URI_LATEST}
+	rm -rf ./build/_output bundles-staging bundles-production
+	docker rmi \
+		${OPERATOR_IMAGE_URI} \
+		${OPERATOR_IMAGE_URI_LATEST} \
+		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):staging-latest \
+		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):production-latest 2>/dev/null || true
 
 .PHONY: isclean 
 isclean:
@@ -69,8 +73,8 @@ skopeo-push: docker-build
 
 .PHONY: build-catalog-image
 build-catalog-image:
-	$(call create_catalog_image,staging,openshift/$(OPERATOR_NAME),automatortoken,false,bip/bap,/foo/stuff.yaml,build/generate-operator-bundle.py,openshift-sre)
-	$(call create_catalog_image,production,openshift/$(OPERATOR_NAME),automatortoken,true,bip/bap,/foo/stuff.yaml,build/generate-operator-bundle.py,openshift-sre)
+	$(call create_catalog_image,staging,app-sre/saas-configure-alertmanager-operator-bundle,$$AUTOMATOR_GIT_TOKEN,false,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
+	$(call create_catalog_image,production,app-sre/saas-configure-alertmanager-operator-bundle,$$AUTOMATOR_GIT_TOKEN,true,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
 
 .PHONY: gocheck
 gocheck: ## Lint code

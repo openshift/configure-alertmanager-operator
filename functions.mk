@@ -12,13 +12,16 @@
 # Git hash
 # Commit count
 # Operator version
+# https://raw.githubusercontent.com/$(5)/master/$(6)
 define create_catalog_image
-	git clone --branch $(1) "https://app:$(3)@github.com/$(2).git" bundles ;\
+	set -e ;\
+	git clone --branch $(1) "https://app:$(3)@github.com/$(2).git" bundles-$(1) ;\
+	mkdir -p bundles-$(1)/$(OPERATOR_NAME) ;\
 	removed_versions="" ;\
 	if [[ "$$(echo $(4) | tr [:upper:] [:lower:])" == "true" ]]; then \
-		deployed_hash=$$(curl -s 'https://raw.githubusercontent.com/$(5)/master/$(6)' | docker run --rm -i evns/yq -r '.services[]|select(.name="hive").hash') ;\
+		deployed_hash=$$(curl -s 'https://raw.githubusercontent.com/lisa/saas-hive/srep-1186-add-configure-alertmanager-operator-stub/configure-alertmanager-operator/configure-alertmanager-operator.yaml' | docker run --rm -i mikefarah/yq:2.2.0 yq r - '.services[]|select(.name="hive").hash') ;\
 		delete=false ;\
-		for bundle_path in $$(find bundles -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V); do \
+		for bundle_path in $$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V); do \
 			if [[ "$${delete}" == false ]]; then \
 				bundle=$$(echo $$bundle_path | cut -d / -f 3-) ;\
 				version_hash=$$(echo $$bundle | cut -d - -f 2) ;\
@@ -31,26 +34,30 @@ define create_catalog_image
 			fi ;\
 		done ;\
 	fi ;\
-	previous_version=$$(find bundles -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V | tail -n 1) ;\
-	python $(7) bundles $$previous_version $(COMMIT_NUMBER) $(CURRENT_COMMIT) $(OPERATOR_IMAGE_URI) ;\
-	new_version=$$(find bundles -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V | tail -n 1) ;\
+	previous_version=$$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V | tail -n 1| cut -d / -f 3-) ;\
+	if [[ -z $$previous_version ]]; then \
+		previous_version=__undefined__ ;\
+	fi ;\
+	python $(7) bundles-$(1)/$(OPERATOR_NAME) $(OPERATOR_NAME) $(OPERATOR_NAMESPACE) $(OPERATOR_VERSION) $(OPERATOR_IMAGE_URI) $(1) false $$previous_version ;\
+	new_version=$$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V | tail -n 1 | cut -d / -f 3-) ;\
 	if [[ $$new_version == $$previous_version ]]; then \
 		echo "Already built this, so no need to continue" ;\
 		exit 0 ;\
 	fi ;\
-	sed -e "/\!CHANNEL!/$(1)/g" \
+	sed -e "s/!CHANNEL!/$(1)/g" \
 			-e "s/!OPERATOR_NAME!/$(OPERATOR_NAME)/g" \
 			-e "s/!VERSION!/$${new_version}/g" \
-			package.yaml.tmpl > bundles/$(OPERATOR_NAME).package.yaml ;\
-	cd bundles ;\
+			build/templates/package.yaml.tmpl > bundles-$(1)/$(OPERATOR_NAME)/$(OPERATOR_NAME).package.yaml ;\
+	cd bundles-$(1) ;\
 		git add . ;\
 		git commit -m "add version $(COMMIT_NUMBER)-$(CURRENT_COMMIT)\n\nreplaces: $$previous_version\nremoved versions: $$removed_versions" ;\
 		git push origin $(1) ;\
 	cd .. ;\
 	docker build \
 		-f build/Dockerfile.catalog_registry \
-		--build-arg=SRC_BUNDLES=$$(find bundles -mindepth 1 -maxdepth 1 -type d | grep -v .git) \
-		-t quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest ;\
+		--build-arg=SRC_BUNDLES=$$(find bundles-$(1) -mindepth 1 -maxdepth 1 -type d | grep -v .git) \
+		-t quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest \
+		. ;\
 	skopeo copy --dest-creds $$QUAY_USER:$$QUAY_TOKEN \
 		"docker-daemon:quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest" \
 		"docker://quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest" ;\

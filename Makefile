@@ -1,4 +1,4 @@
-SHELL := /usr/bin/env bash
+SHELL := /usr/bin/env bash -x
 
 # Include shared Makefiles
 include project.mk
