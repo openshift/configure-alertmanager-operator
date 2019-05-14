@@ -12,14 +12,13 @@
 # Git hash
 # Commit count
 # Operator version
-# https://raw.githubusercontent.com/$(5)/master/$(6)
 define create_catalog_image
 	set -e ;\
 	git clone --branch $(1) "https://app:$(3)@github.com/$(2).git" bundles-$(1) ;\
 	mkdir -p bundles-$(1)/$(OPERATOR_NAME) ;\
 	removed_versions="" ;\
 	if [[ "$$(echo $(4) | tr [:upper:] [:lower:])" == "true" ]]; then \
-		deployed_hash=$$(curl -s 'https://raw.githubusercontent.com/lisa/saas-hive/srep-1186-add-configure-alertmanager-operator-stub/configure-alertmanager-operator/configure-alertmanager-operator.yaml' | docker run --rm -i mikefarah/yq:2.2.0 yq r - '.services[]|select(.name="hive").hash') ;\
+		deployed_hash=$$(curl -s 'https://raw.githubusercontent.com/$(5)/master/$(6)' | docker run --rm -i mikefarah/yq:2.2.0 yq r - '.services[]|select(.name="hive").hash') ;\
 		delete=false ;\
 		for bundle_path in $$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V); do \
 			if [[ "$${delete}" == false ]]; then \
