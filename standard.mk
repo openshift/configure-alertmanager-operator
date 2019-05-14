@@ -40,6 +40,7 @@ default: gobuild
 .PHONY: clean
 clean:
 	rm -rf ./build/_output
+	docker rmi ${OPERATOR_IMAGE_URI} ${OPERATOR_IMAGE_URI_LATEST}
 
 .PHONY: isclean 
 isclean:
@@ -54,6 +55,22 @@ build: isclean envtest
 push:
 	docker push ${OPERATOR_IMAGE_URI}
 	docker push ${OPERATOR_IMAGE_URI_LATEST}
+
+.PHONY: skopeo-push
+skopeo-push: docker-build
+	skopeo copy \
+		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
+		"docker-daemon:${OPERATOR_IMAGE_URI_LATEST}" \
+		"docker://${OPERATOR_IMAGE_URI_LATEST}"
+	skopeo copy \
+		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
+		"docker-daemon:${OPERATOR_IMAGE_URI}" \
+		"docker://${OPERATOR_IMAGE_URI}"
+
+.PHONY: build-catalog-image
+build-catalog-image:
+	$(call create_catalog_image,staging,openshift/$(OPERATOR_NAME),automatortoken,false,bip/bap,/foo/stuff.yaml,build/generate-operator-bundle.py,openshift-sre)
+	$(call create_catalog_image,production,openshift/$(OPERATOR_NAME),automatortoken,true,bip/bap,/foo/stuff.yaml,build/generate-operator-bundle.py,openshift-sre)
 
 .PHONY: gocheck
 gocheck: ## Lint code
