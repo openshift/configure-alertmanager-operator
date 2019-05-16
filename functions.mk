@@ -49,7 +49,7 @@ define create_catalog_image
 			build/templates/package.yaml.tmpl > bundles-$(1)/$(OPERATOR_NAME)/$(OPERATOR_NAME).package.yaml ;\
 	cd bundles-$(1) ;\
 		git add . ;\
-		git commit -m "add version $(COMMIT_NUMBER)-$(CURRENT_COMMIT)\n\nreplaces: $$previous_version\nremoved versions: $$removed_versions" ;\
+		git commit -m "add version $(COMMIT_NUMBER)-$(CURRENT_COMMIT)" -m "replaces: $$previous_version" -m "removed versions: $$removed_versions" ;\
 		git push origin $(1) ;\
 	cd .. ;\
 	docker build \
