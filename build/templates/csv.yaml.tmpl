@@ -1,0 +1,41 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: #OPERATOR_NAME#-v#OPERATOR_VERSION#
+  namespace: #OPERATOR_NAMESPACE#
+  annotations:
+    categories: A list of comma separated categories that your operator falls under.
+    certified: "false"
+    description: OpenShift cluster provisioning and management at scale.
+    containerImage: #OPERATOR_IMAGE#
+    createdAt: "$TIME"
+    support: OSD SRE
+spec:
+  displayName: #OPERATOR_NAME#
+  description: SRE operator - #OPERATOR_NAME#
+  keywords:
+  - kubernetes
+  - openshift
+  - multi-cluster
+  - cluster
+  version: #OPERATOR_VERSION#
+  provider:
+    name: Red Hat, Inc
+  maturity: alpha
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: false
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions: []
+        # Rules will be added here by the generate-csv.py script.
+      deployments: []
+        # Deployment spec will be added here by the generate-csv.py script.
+
