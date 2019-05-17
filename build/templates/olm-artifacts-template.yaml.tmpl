@@ -41,25 +41,6 @@ objects:
           mediatype: ""
         publisher: Red Hat
         sourceType: grpc
-- apiVersion: hive.openshift.io/v1alpha1
-  kind: SelectorSyncSet
-  metadata:
-    generation: 1
-    name: osd-configure-alertmanager-operator
-  spec:
-    clusterDeploymentSelector:
-      matchLabels:
-        api.openshift.com/managed: "true"
-    resourceApplyMode: sync
-    resources:
-    - apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: openshift-monitoring
-      annotations:
-        openshift.io/node-selector: ""
-      labels:
-        openshift.io/cluster-monitoring: "true"
     - apiVersion: operators.coreos.com/v1alpha1
       kind: Subscription
       metadata:
