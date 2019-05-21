@@ -82,7 +82,7 @@ gocheck: ## Lint code
 	go vet ./cmd/... ./pkg/...
 
 .PHONY: gobuild
-gobuild: gocheck
+gobuild: gocheck gotest
 	${GOENV} go build ${GOFLAGS} -o ${BINFILE} ${MAINPACKAGE}
 
 .PHONY: gotest
