@@ -59,5 +59,5 @@ func RegisterMetrics() error {
 // UpdatePlaceholderGauge ...
 func UpdatePlaceholderGauge() {
 
-	metricPlaceholder.With(prometheus.Labels{"name": "pagerduty-operator"}).Set(float64(1))
+	metricPlaceholder.With(prometheus.Labels{"name": "configure-alertmanager-operator"}).Set(float64(1))
 }
