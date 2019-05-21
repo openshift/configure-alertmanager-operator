@@ -74,14 +74,30 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	}
 	log.Info("DEBUG: Started reconcile loop")
 
+	// Get a list of all Secrets in the `openshift-monitoring` namespace.
+	// This is used for determining which secrets are present so that the necessary
+	// Alertmanager config changes can happen later.
+	secretList := &corev1.SecretList{}
+	opts := client.ListOptions{Namespace: request.Namespace}
+	r.client.List(context.TODO(), &opts, secretList)
+
+	// Check for the presence of specific secrets.
+	pagerDutySecretExists := secretInList("pd-secret", secretList)
+	snitchSecretExists := secretInList("dms-secret", secretList)
+	alertmanagerSecretExists := secretInList("alertmanager-main", secretList)
+
 	// This block looks at a specific instance of Secret. This is done for each Secret
 	// in the `openshift-monitoring` namespace. In the case of a deleted Secret,
-	// the associated Alertmanager config is removed.
+	// the Alertmanager config associated with that Secret is removed.
 	instance := &corev1.Secret{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			log.Info("INFO: This secret has been deleted:", request.Name)
+			if !alertmanagerSecretExists {
+				log.Info("Alertmanager secret does not exist! Unable to modify Alertmanager config. Requeuing")
+				return reconcile.Result{}, nil
+			}
 			if request.Name == "pd-secret" {
 				log.Info("INFO: Pager Duty secret is absent. Removing Pager Duty config from Alertmanager")
 				alertmanagerconfig := getAlertManagerConfig(r, &request)
@@ -102,18 +118,6 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 			return reconcile.Result{}, nil
 		}
 	}
-
-	// Get a list of all Secrets in the `openshift-monitoring` namespace.
-	// This is used for determining which secrets are present so that the necessary
-	// Alertmanager config changes can happen later.
-	secretList := &corev1.SecretList{}
-	opts := client.ListOptions{Namespace: request.Namespace}
-	r.client.List(context.TODO(), &opts, secretList)
-
-	// Check for the presence of specific secrets.
-	pagerDutySecretExists := secretInList("pd-secret", secretList)
-	snitchSecretExists := secretInList("dms-secret", secretList)
-	alertmanagerSecretExists := secretInList("alertmanager-main", secretList)
 
 	// Extract the alertmanager config from the alertmanager-main secret.
 	// If it doesn't exist yet, requeue this request and try again later.
