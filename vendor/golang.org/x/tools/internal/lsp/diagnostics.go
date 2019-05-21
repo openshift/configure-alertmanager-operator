@@ -6,49 +6,68 @@ package lsp
 
 import (
 	"context"
-	"sort"
+	"strings"
 
 	"golang.org/x/tools/internal/lsp/protocol"
 	"golang.org/x/tools/internal/lsp/source"
+	"golang.org/x/tools/internal/span"
 )
 
-func (s *server) cacheAndDiagnose(ctx context.Context, uri protocol.DocumentURI, content string) {
-	sourceURI, err := fromProtocolURI(uri)
+func (s *Server) Diagnostics(ctx context.Context, view source.View, uri span.URI) {
+	if ctx.Err() != nil {
+		s.session.Logger().Errorf(ctx, "canceling diagnostics for %s: %v", uri, ctx.Err())
+		return
+	}
+	reports, err := source.Diagnostics(ctx, view, uri)
 	if err != nil {
-		return // handle error?
+		s.session.Logger().Errorf(ctx, "failed to compute diagnostics for %s: %v", uri, err)
+		return
 	}
-	if err := s.setContent(ctx, sourceURI, []byte(content)); err != nil {
-		return // handle error?
-	}
-	go func() {
-		ctx := s.view.BackgroundContext()
-		if ctx.Err() != nil {
-			return
+
+	s.undeliveredMu.Lock()
+	defer s.undeliveredMu.Unlock()
+
+	for uri, diagnostics := range reports {
+		if err := s.publishDiagnostics(ctx, view, uri, diagnostics); err != nil {
+			if s.undelivered == nil {
+				s.undelivered = make(map[span.URI][]source.Diagnostic)
+			}
+			s.undelivered[uri] = diagnostics
+			continue
 		}
-		reports, err := source.Diagnostics(ctx, s.view, sourceURI)
+		// In case we had old, undelivered diagnostics.
+		delete(s.undelivered, uri)
+	}
+	// Anytime we compute diagnostics, make sure to also send along any
+	// undelivered ones (only for remaining URIs).
+	for uri, diagnostics := range s.undelivered {
+		err := s.publishDiagnostics(ctx, view, uri, diagnostics)
 		if err != nil {
-			return // handle error?
+			s.session.Logger().Errorf(ctx, "failed to deliver diagnostic for %s: %v", uri, err)
 		}
-		for filename, diagnostics := range reports {
-			s.client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
-				URI:         protocol.DocumentURI(source.ToURI(filename)),
-				Diagnostics: toProtocolDiagnostics(ctx, s.view, diagnostics),
-			})
-		}
-	}()
+		// If we fail to deliver the same diagnostics twice, just give up.
+		delete(s.undelivered, uri)
+	}
 }
 
-func (s *server) setContent(ctx context.Context, uri source.URI, content []byte) error {
-	return s.view.SetContent(ctx, uri, content)
+func (s *Server) publishDiagnostics(ctx context.Context, view source.View, uri span.URI, diagnostics []source.Diagnostic) error {
+	protocolDiagnostics, err := toProtocolDiagnostics(ctx, view, diagnostics)
+	if err != nil {
+		return err
+	}
+	s.client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
+		Diagnostics: protocolDiagnostics,
+		URI:         protocol.NewURI(uri),
+	})
+	return nil
 }
 
-func toProtocolDiagnostics(ctx context.Context, v source.View, diagnostics []source.Diagnostic) []protocol.Diagnostic {
+func toProtocolDiagnostics(ctx context.Context, v source.View, diagnostics []source.Diagnostic) ([]protocol.Diagnostic, error) {
 	reports := []protocol.Diagnostic{}
 	for _, diag := range diagnostics {
-		tok := v.FileSet().File(diag.Start)
-		src := diag.Source
-		if src == "" {
-			src = "LSP"
+		_, m, err := getSourceFile(ctx, v, diag.Span.URI())
+		if err != nil {
+			return nil, err
 		}
 		var severity protocol.DiagnosticSeverity
 		switch diag.Severity {
@@ -57,24 +76,16 @@ func toProtocolDiagnostics(ctx context.Context, v source.View, diagnostics []sou
 		case source.SeverityWarning:
 			severity = protocol.SeverityWarning
 		}
+		rng, err := m.Range(diag.Span)
+		if err != nil {
+			return nil, err
+		}
 		reports = append(reports, protocol.Diagnostic{
-			Message:  diag.Message,
-			Range:    toProtocolRange(tok, diag.Range),
+			Message:  strings.TrimSpace(diag.Message), // go list returns errors prefixed by newline
+			Range:    rng,
 			Severity: severity,
-			Source:   src,
+			Source:   diag.Source,
 		})
 	}
-	return reports
-}
-
-func sorted(d []protocol.Diagnostic) {
-	sort.Slice(d, func(i int, j int) bool {
-		if d[i].Range.Start.Line == d[j].Range.Start.Line {
-			if d[i].Range.Start.Character == d[j].Range.Start.Character {
-				return d[i].Message < d[j].Message
-			}
-			return d[i].Range.Start.Character < d[j].Range.Start.Character
-		}
-		return d[i].Range.Start.Line < d[j].Range.Start.Line
-	})
+	return reports, nil
 }
