@@ -36,6 +36,8 @@ define create_catalog_image
 	previous_version=$$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V | tail -n 1| cut -d / -f 3-) ;\
 	if [[ -z $$previous_version ]]; then \
 		previous_version=__undefined__ ;\
+	else \
+		previous_version="$(OPERATOR_NAME).v$${previous_version}" ;\
 	fi ;\
 	python $(7) bundles-$(1)/$(OPERATOR_NAME) $(OPERATOR_NAME) $(OPERATOR_NAMESPACE) $(OPERATOR_VERSION) $(OPERATOR_IMAGE_URI) $(1) false $$previous_version ;\
 	new_version=$$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V | tail -n 1 | cut -d / -f 3-) ;\
