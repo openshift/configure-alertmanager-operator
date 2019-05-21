@@ -57,12 +57,12 @@ define create_catalog_image
 	docker build \
 		-f build/Dockerfile.catalog_registry \
 		--build-arg=SRC_BUNDLES=$$(find bundles-$(1) -mindepth 1 -maxdepth 1 -type d | grep -v .git) \
-		-t quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest \
+		-t quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-latest \
 		. ;\
 	skopeo copy --dest-creds $$QUAY_USER:$$QUAY_TOKEN \
-		"docker-daemon:quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest" \
-		"docker://quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest" ;\
+		"docker-daemon:quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-latest" \
+		"docker://quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-latest" ;\
 	skopeo copy --dest-creds $$QUAY_USER:$$QUAY_TOKEN \
-		"docker-daemon:quay.io/$(8)/$(OPERATOR_NAME):$(1)-latest" \
-		"docker://quay.io/$(8)/$(OPERATOR_NAME):$(1)-$(CURRENT_COMMIT)" 
+		"docker-daemon:quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-latest" \
+		"docker://quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-$(CURRENT_COMMIT)" 
 endef
