@@ -26,16 +26,16 @@ spec:
   - type: OwnNamespace
     supported: true
   - type: SingleNamespace
-    supported: true
-  - type: MultiNamespace
     supported: false
+  - type: MultiNamespace
+    supported: true
   - type: AllNamespaces
     supported: false
   install:
     strategy: deployment
     spec:
       clusterPermissions: []
-        # Rules will be added here by the generate-csv.py script.
+        # Rules will be added here by the generate-operator-bundle.py script.
       deployments: []
-        # Deployment spec will be added here by the generate-csv.py script.
+        # Deployment spec will be added here by the generate-operator-bundle.py script.
 
