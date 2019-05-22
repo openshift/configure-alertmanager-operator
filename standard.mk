@@ -73,8 +73,8 @@ skopeo-push: docker-build
 
 .PHONY: build-catalog-image
 build-catalog-image:
-	$(call create_catalog_image,staging,app-sre/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,false,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
-	$(call create_catalog_image,production,app-sre/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,true,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
+	$(call create_push_catalog_image,staging,app-sre/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,false,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
+	$(call create_push_catalog_image,production,app-sre/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,true,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
 
 .PHONY: gocheck
 gocheck: ## Lint code
