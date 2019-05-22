@@ -15,6 +15,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 
 	yaml "gopkg.in/yaml.v2"
@@ -86,6 +87,18 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	snitchSecretExists := secretInList("dms-secret", secretList)
 	alertmanagerSecretExists := secretInList("alertmanager-main", secretList)
 
+	// Extract the alertmanager config from the alertmanager-main secret.
+	// If it doesn't exist yet, requeue this request and try again later.
+	// Update metrics before exiting so Prometheus is aware of the missing secret.
+	alertmanagerconfig := alertmanager.Config{}
+	if alertmanagerSecretExists {
+		alertmanagerconfig = getAlertManagerConfig(r, &request)
+	} else {
+		log.Info("Alertmanager secret (alertmanager-main) does not exist. Waiting for cluster-monitoring-operator to create it")
+		metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
+		return reconcile.Result{}, nil
+	}
+
 	// This block looks at a specific instance of Secret. This is done for each Secret
 	// in the `openshift-monitoring` namespace. In the case of a deleted Secret,
 	// the Alertmanager config associated with that Secret is removed.
@@ -94,39 +107,31 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	if err != nil {
 		if errors.IsNotFound(err) {
 			log.Info("INFO: This secret has been deleted:", request.Name)
-			if !alertmanagerSecretExists {
-				log.Info("Alertmanager secret does not exist! Unable to modify Alertmanager config. Requeuing")
-				return reconcile.Result{}, nil
-			}
 			if request.Name == "pd-secret" {
 				log.Info("INFO: Pager Duty secret is absent. Removing Pager Duty config from Alertmanager")
 				alertmanagerconfig := getAlertManagerConfig(r, &request)
 				removeConfigFromAlertManager(r, &request, &alertmanagerconfig, "pagerduty")
 				updateAlertManagerConfig(r, &request, &alertmanagerconfig)
+				// Update metrics before exiting so Prometheus is aware of the missing secret.
+				metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
+				return reconcile.Result{}, nil
 			}
 			if request.Name == "dms-secret" {
 				alertmanagerconfig := getAlertManagerConfig(r, &request)
 				log.Info("INFO: Dead Man's Snitch secret is absent. Removing Watchdog config from Alertmanager")
 				removeConfigFromAlertManager(r, &request, &alertmanagerconfig, "watchdog")
 				updateAlertManagerConfig(r, &request, &alertmanagerconfig)
+				// Update metrics before exiting so Prometheus is aware of the missing secret.
+				metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
 				return reconcile.Result{}, nil
 			}
 		} else {
 			// Error and requeue in all other circumstances.
 			// Don't requeue if a Secret is not found. It's valid to have an absent Pager Duty or DMS secret.
 			log.Error(err, "Error reading object. Requeuing request")
+			metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
 			return reconcile.Result{}, nil
 		}
-	}
-
-	// Extract the alertmanager config from the alertmanager-main secret.
-	// If it doesn't exist yet, requeue this request and try again later.
-	alertmanagerconfig := alertmanager.Config{}
-	if alertmanagerSecretExists {
-		alertmanagerconfig = getAlertManagerConfig(r, &request)
-	} else {
-		log.Info("Alertmanager secret (alertmanager-main) does not exist. Waiting for cluster-monitoring-operator to create it")
-		return reconcile.Result{}, nil
 	}
 
 	// If a secret exists, add the necessary configs to Alertmanager.
@@ -142,6 +147,9 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		addSnitchSecretToAlertManagerConfig(r, &request, &alertmanagerconfig, snitchsecret)
 		updateAlertManagerConfig(r, &request, &alertmanagerconfig)
 	}
+
+	// Update metrics after all reconcile operations are complete.
+	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
 
 	reqLogger.Info("Finished reconcile for secret.")
 	return reconcile.Result{}, nil
