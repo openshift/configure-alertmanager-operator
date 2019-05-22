@@ -29,7 +29,7 @@ MAINPACKAGE=./cmd/manager
 GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
-TESTTARGETS := ./pkg/controller/secret
+TESTTARGETS := $(shell go list -e ./... | egrep -v "/(vendor)/")
 # ex, -v
 TESTOPTS :=
 
