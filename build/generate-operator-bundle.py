@@ -42,6 +42,7 @@ if __name__ == '__main__':
     # doesn't exist, create the target version
     os.mkdir(version_dir)
 
+
     # create package content
     package = {}
     package['packageName'] = operator_name
