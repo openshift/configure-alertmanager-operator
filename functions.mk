@@ -12,7 +12,7 @@
 # Git hash
 # Commit count
 # Operator version
-define create_catalog_image
+define create_push_catalog_image
 	set -e ;\
 	git clone --branch $(1) "https://app:$(3)@github.com/$(2).git" bundles-$(1) ;\
 	mkdir -p bundles-$(1)/$(OPERATOR_NAME) ;\
