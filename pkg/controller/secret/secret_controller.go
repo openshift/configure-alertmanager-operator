@@ -257,7 +257,7 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 			"severity",
 		},
 		MatchRE: map[string]string{
-			"namespace": "^openshift$|openshift-.*|default$|kube$|kube-.*|logging$",
+			"namespace": alertmanager.PDRegex,
 		},
 	}
 

@@ -7,6 +7,7 @@ package span
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -45,10 +46,36 @@ func filename(uri URI) (string, error) {
 // NewURI returns a span URI for the string.
 // It will attempt to detect if the string is a file path or uri.
 func NewURI(s string) URI {
+	if u, err := url.PathUnescape(s); err == nil {
+		s = u
+	}
 	if strings.HasPrefix(s, fileScheme+"://") {
 		return URI(s)
 	}
 	return FileURI(s)
+}
+
+func CompareURI(a, b URI) int {
+	if a == b {
+		return 0
+	}
+	// If we have the same URI basename, we may still have the same file URIs.
+	if fa, err := a.Filename(); err == nil {
+		if fb, err := b.Filename(); err == nil {
+			if strings.EqualFold(filepath.Base(fa), filepath.Base(fb)) {
+				// Stat the files to check if they are equal.
+				if infoa, err := os.Stat(fa); err == nil {
+					if infob, err := os.Stat(fb); err == nil {
+						if os.SameFile(infoa, infob) {
+							return 0
+						}
+					}
+				}
+			}
+			return strings.Compare(fa, fb)
+		}
+	}
+	return strings.Compare(string(a), string(b))
 }
 
 // FileURI returns a span URI for the supplied file path.

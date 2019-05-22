@@ -188,7 +188,7 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 			"severity",
 		},
 		MatchRE: map[string]string{
-			"namespace": "^openshift$|openshift-.*|default$|kube$|kube-.*|logging$",
+			"namespace": alertmanager.PDRegex,
 		},
 	}
 	pdreceiver := &alertmanager.Receiver{
