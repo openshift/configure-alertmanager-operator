@@ -16,3 +16,9 @@ The Configure Alertmanager Operator exposes the following Prometheus metrics:
 * dms_secret_exists: indicates that a Secret named `dms-secret` exists in the `openshift-monitoring` namespace.
 * am_secret_contains_pd: indicates the Pager Duty receiver is present in alertmanager.yaml.
 * am_secret_contains_dms: indicates the Dead Man's Snitch receiver is present in alertmanager.yaml.
+
+## Alerts
+The following alerts are added to Prometheus as part of configure-alertmanager-operator:
+* Mismatch between DMS secret and DMS Alertmanager config.
+* Mismatch between PD secret and PD Alertmanager config.
+* Alertmanager config secret does not exist.
