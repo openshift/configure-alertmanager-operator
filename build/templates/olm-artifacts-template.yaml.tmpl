@@ -51,3 +51,36 @@ objects:
         name: configure-alertmanager-operator
         source: configure-alertmanager-operator-registry
         sourceNamespace: openshift-operator-lifecycle-manager
+    - apiVersion: monitoring.coreos.com/v1
+    kind: PrometheusRule
+    metadata:
+      name: configure-alertmanager-operator
+      namespace: openshift-monitoring
+    spec:
+      groups:
+      - name: configure-alertmanager-operator
+        rules:
+        - alert: Mismatch_between_DMS_secret_and_DMS_Alertmanager_config
+          annotations:
+            message: "Mismatch between DMS secret and DMS AlertManager config"
+            link_url: "https://access.redhat.com/articles/4165971"
+          expr: dms_secret_exists + am_secret_contains_dms = 1
+          for: 5m
+          labels:
+            severity: critical
+        - alert: Mismatch_between_PD_secret_and_PD_Alertmanager_config
+          annotations:
+            message: "Mismatch between PD secret and PD AlertManager config"
+            link_url: "https://access.redhat.com/articles/4165971"
+          expr: pd_secret_exists + am_secret_contains_pd = 1
+          for: 5m
+          labels:
+            severity: critical
+        - alert: Alertmanager_config_secret_does_not_exist
+          annotations:
+            message: "Alertmanager config secret does not exist"
+            link_url: "https://access.redhat.com/articles/4165971"
+          expr: am_secret_exists = 0
+          for: 5m
+          labels:
+            severity: critical

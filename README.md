@@ -19,6 +19,6 @@ The Configure Alertmanager Operator exposes the following Prometheus metrics:
 
 ## Alerts
 The following alerts are added to Prometheus as part of configure-alertmanager-operator:
-* Mismatch between DMS secret and DMS Alertmanager config.
-* Mismatch between PD secret and PD Alertmanager config.
-* Alertmanager config secret does not exist.
+* Mismatch_between_DMS_secret_and_DMS_Alertmanager_config. Alerts if the Alertmanager config stays out-of-sync with Dead Man's Snitch secret for 5 minutes.
+* Mismatch_between_PD_secret_and_PD_Alertmanager_config. Alerts if the Alertmanager config stays out-of-sync with the Pager Duty secret for 5 minutes.
+* Alertmanager_config_secret_does_not_exist. Alerts if the `alertmanager-main` secret is missing from `openshift-monitoring` namespace for 5 minutes.
