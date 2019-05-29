@@ -46,7 +46,7 @@ clean:
 		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):staging-latest \
 		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):production-latest 2>/dev/null || true
 
-.PHONY: isclean 
+.PHONY: isclean
 isclean:
 	@(test "${ALLOW_DIRTY_CHECKOUT}" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." && exit 1)
 
@@ -73,8 +73,8 @@ skopeo-push: docker-build
 
 .PHONY: build-catalog-image
 build-catalog-image:
-	$(call create_push_catalog_image,staging,app-sre/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,false,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
-	$(call create_push_catalog_image,production,app-sre/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,true,app-sre/saas-hive,/$(OPERATOR_NAME)/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
+	$(call create_push_catalog_image,staging,service/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,false,service/saas-hive,$(OPERATOR_NAME)-services/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
+	$(call create_push_catalog_image,production,service/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,true,service/saas-hive,$(OPERATOR_NAME)-services/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
 
 .PHONY: gocheck
 gocheck: ## Lint code
