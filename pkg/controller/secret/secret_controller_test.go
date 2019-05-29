@@ -177,7 +177,7 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 			"component":    `{{ .CommonLabels.alertname }}`,
 			"num_firing":   `{{ .Alerts.Firing | len }}`,
 			"num_resolved": `{{ .Alerts.Resolved | len }}`,
-			"resolved":     `{{ template pagerduty.default.instances .Alerts.Resolved }}`,
+			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 		},
 	}
 	pdroute := &alertmanager.Route{
