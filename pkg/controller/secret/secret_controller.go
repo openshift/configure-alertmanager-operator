@@ -228,7 +228,7 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 			"component":    `{{ .CommonLabels.alertname }}`,
 			"num_firing":   `{{ .Alerts.Firing | len }}`,
 			"num_resolved": `{{ .Alerts.Resolved | len }}`,
-			"resolved":     `{{ template pagerduty.default.instances .Alerts.Resolved }}`,
+			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 		},
 	}
 
