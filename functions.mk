@@ -14,11 +14,11 @@
 # Operator version
 define create_push_catalog_image
 	set -e ;\
-	git clone --branch $(1) "https://app:$(3)@github.com/$(2).git" bundles-$(1) ;\
+	git clone --branch $(1) "https://app:$(3)@gitlab.cee.redhat.com/$(2).git" bundles-$(1) ;\
 	mkdir -p bundles-$(1)/$(OPERATOR_NAME) ;\
 	removed_versions="" ;\
 	if [[ "$$(echo $(4) | tr [:upper:] [:lower:])" == "true" ]]; then \
-		deployed_hash=$$(curl -s 'https://raw.githubusercontent.com/$(5)/master/$(6)' | docker run --rm -i mikefarah/yq:2.2.0 yq r - '.services[]|select(.name="hive").hash') ;\
+		deployed_hash=$$(curl -s 'https://gitlab.cee.redhat.com/$(5)/raw/master/$(6)' | docker run --rm -i mikefarah/yq:2.2.0 yq r - '.services[]|select(.name="hive").hash') ;\
 		delete=false ;\
 		for bundle_path in $$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V); do \
 			if [[ "$${delete}" == false ]]; then \
@@ -64,5 +64,5 @@ define create_push_catalog_image
 		"docker://quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-latest" ;\
 	skopeo copy --dest-creds $$QUAY_USER:$$QUAY_TOKEN \
 		"docker-daemon:quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-latest" \
-		"docker://quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-$(CURRENT_COMMIT)" 
+		"docker://quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-$(CURRENT_COMMIT)"
 endef
