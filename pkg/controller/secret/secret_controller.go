@@ -221,6 +221,7 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 	pdconfig := &alertmanager.PagerdutyConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
 		RoutingKey:     pdsecret,
+		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
 		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
 		Details: map[string]string{
 			"link":         `{{ .CommonAnnotations.link }}?`,
