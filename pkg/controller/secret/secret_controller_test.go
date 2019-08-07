@@ -173,7 +173,7 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
 		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
 		Details: map[string]string{
-			"link":         `{{ .CommonAnnotations.link }}?`,
+			"link":         `{{ if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
 			"group":        `{{ .CommonLabels.alertname }}`,
 			"component":    `{{ .CommonLabels.alertname }}`,
 			"num_firing":   `{{ .Alerts.Firing | len }}`,
