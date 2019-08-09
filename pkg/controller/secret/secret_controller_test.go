@@ -188,9 +188,10 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 			"alertname",
 			"severity",
 		},
-		MatchRE: map[string]string{
+		// Commenting this out until we get more labels from prometheus-k8s-alert
+		/*MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
-		},
+		},*/
 	}
 	pdreceiver := &alertmanager.Receiver{
 		Name:             "pagerduty",

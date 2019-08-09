@@ -265,9 +265,10 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 			"alertname",
 			"severity",
 		},
-		MatchRE: map[string]string{
+		// Commenting this out until we get more labels from prometheus-k8s-alert
+		/*MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
-		},
+		},*/
 	}
 
 	// Insert the Route for the Pager Duty Receiver.
