@@ -268,6 +268,7 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		},
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
+			"alertname": "^((?!KubeAPILatencyHigh).)*",
 		},
 	}
 
