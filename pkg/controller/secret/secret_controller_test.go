@@ -191,7 +191,6 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 		},
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
-			"alertname": "^((?!KubeAPILatencyHigh).)*",
 		},
 	}
 	pdreceiver := &alertmanager.Receiver{
