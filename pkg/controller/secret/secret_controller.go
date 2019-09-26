@@ -237,15 +237,20 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 	// Overwrite the existing Pager Duty config with the updated version specified above.
 	// This keeps other receivers intact while updating only the Pager Duty receiver.
 	pagerdutyabsent := true
+	blackholeabsent := true
 	for i, receiver := range amconfig.Receivers {
 		log.Info("DEBUG: Found Receiver named:", receiver.Name)
 		if receiver.Name == "pagerduty" {
 			log.Info("DEBUG: Overwriting Pager Duty config for Receiver:", receiver.Name)
 			amconfig.Receivers[i].PagerdutyConfigs = []*alertmanager.PagerdutyConfig{pdconfig}
 			pagerdutyabsent = false
+		} else if receiver.Name == "blackhole" {
+			log.Info("DEBUG: blackhole receiver already exists")
+			blackholeabsent = false
 		} else {
 			log.Info("DEBUG: Skipping Receiver named", receiver.Name)
 		}
+
 	}
 
 	// Create the Pager Duty config if it doesn't already exist.
@@ -254,6 +259,15 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		newreceiver := &alertmanager.Receiver{
 			Name:             "pagerduty",
 			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
+		}
+		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
+	}
+
+	// Create the Pager Duty config if it doesn't already exist.
+	if blackholeabsent {
+		log.Info("blackhole receiver is absent. Creating new receiver.")
+		newreceiver := &alertmanager.Receiver{
+			Name: "blackhole",
 		}
 		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
 	}
@@ -268,6 +282,14 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		},
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
+		},
+		Routes: []*alertmanager.Route{
+			{
+				Receiver: "blackhole",
+				Match: map[string]string{
+					"alertname": "KubeAPILatencyHigh",
+				},
+			},
 		},
 	}
 

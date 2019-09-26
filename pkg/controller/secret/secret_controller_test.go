@@ -192,13 +192,28 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
 		},
+		Routes: []*alertmanager.Route{
+			{
+				Receiver: "blackhole",
+				Match: map[string]string{
+					"alertname": "KubeAPILatencyHigh",
+				},
+			},
+		},
 	}
 	pdreceiver := &alertmanager.Receiver{
 		Name:             "pagerduty",
 		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
 	}
+
+	blackholereceiver := &alertmanager.Receiver{
+		Name: "blackhole",
+	}
+
 	want.Receivers = append(want.Receivers, pdreceiver)
+	want.Receivers = append(want.Receivers, blackholereceiver)
 	want.Route.Routes = append(want.Route.Routes, pdroute)
+
 	want.Global.PagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
 
 	// Try to get the same result as `want`,
