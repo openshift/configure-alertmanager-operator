@@ -194,7 +194,7 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 		},
 		Routes: []*alertmanager.Route{
 			{
-				Receiver: "blackhole",
+				Receiver: "make-it-warning",
 				Match: map[string]string{
 					"alertname": "KubeAPILatencyHigh",
 				},
@@ -206,12 +206,14 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
 	}
 
-	blackholereceiver := &alertmanager.Receiver{
-		Name: "blackhole",
+	pdconfig.Severity = "warning"
+	makeitwarningabsent := &alertmanager.Receiver{
+		Name:             "make-it-warning",
+		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
 	}
 
 	want.Receivers = append(want.Receivers, pdreceiver)
-	want.Receivers = append(want.Receivers, blackholereceiver)
+	want.Receivers = append(want.Receivers, makeitwarningabsent)
 	want.Route.Routes = append(want.Route.Routes, pdroute)
 
 	want.Global.PagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
