@@ -192,13 +192,30 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
 		},
+		Routes: []*alertmanager.Route{
+			{
+				Receiver: "make-it-warning",
+				Match: map[string]string{
+					"alertname": "KubeAPILatencyHigh",
+				},
+			},
+		},
 	}
 	pdreceiver := &alertmanager.Receiver{
 		Name:             "pagerduty",
 		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
 	}
+
+	pdconfig.Severity = "warning"
+	makeitwarningabsent := &alertmanager.Receiver{
+		Name:             "make-it-warning",
+		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
+	}
+
 	want.Receivers = append(want.Receivers, pdreceiver)
+	want.Receivers = append(want.Receivers, makeitwarningabsent)
 	want.Route.Routes = append(want.Route.Routes, pdroute)
+
 	want.Global.PagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
 
 	// Try to get the same result as `want`,

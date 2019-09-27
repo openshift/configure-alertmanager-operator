@@ -237,15 +237,20 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 	// Overwrite the existing Pager Duty config with the updated version specified above.
 	// This keeps other receivers intact while updating only the Pager Duty receiver.
 	pagerdutyabsent := true
+	makeitwarningabsent := true
 	for i, receiver := range amconfig.Receivers {
 		log.Info("DEBUG: Found Receiver named:", receiver.Name)
 		if receiver.Name == "pagerduty" {
 			log.Info("DEBUG: Overwriting Pager Duty config for Receiver:", receiver.Name)
 			amconfig.Receivers[i].PagerdutyConfigs = []*alertmanager.PagerdutyConfig{pdconfig}
 			pagerdutyabsent = false
+		} else if receiver.Name == "make-it-warning" {
+			log.Info("DEBUG: make-it-warning receiver already exists")
+			makeitwarningabsent = false
 		} else {
 			log.Info("DEBUG: Skipping Receiver named", receiver.Name)
 		}
+
 	}
 
 	// Create the Pager Duty config if it doesn't already exist.
@@ -253,6 +258,17 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		log.Info("Pager Duty receiver is absent. Creating new receiver.")
 		newreceiver := &alertmanager.Receiver{
 			Name:             "pagerduty",
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
+		}
+		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
+	}
+
+	// Create the Pager Duty config if it doesn't already exist.
+	if makeitwarningabsent {
+		log.Info("make-it-warning receiver is absent. Creating new receiver.")
+		pdconfig.Severity = "warning"
+		newreceiver := &alertmanager.Receiver{
+			Name:             "make-it-warning",
 			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
 		}
 		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
@@ -268,6 +284,14 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		},
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
+		},
+		Routes: []*alertmanager.Route{
+			{
+				Receiver: "make-it-warning",
+				Match: map[string]string{
+					"alertname": "KubeAPILatencyHigh",
+				},
+			},
 		},
 	}
 
