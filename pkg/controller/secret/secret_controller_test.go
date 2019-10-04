@@ -208,8 +208,7 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 
 	pdconfig.Severity = "warning"
 	makeitwarningabsent := &alertmanager.Receiver{
-		Name:             "make-it-warning",
-		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
+		Name: "make-it-warning",
 	}
 
 	want.Receivers = append(want.Receivers, pdreceiver)
