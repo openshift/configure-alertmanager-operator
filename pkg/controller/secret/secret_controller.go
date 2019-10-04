@@ -268,8 +268,7 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		log.Info("make-it-warning receiver is absent. Creating new receiver.")
 		pdconfig.Severity = "warning"
 		newreceiver := &alertmanager.Receiver{
-			Name:             "make-it-warning",
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
+			Name: "make-it-warning",
 		}
 		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
 	}
