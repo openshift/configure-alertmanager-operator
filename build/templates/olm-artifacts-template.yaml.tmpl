@@ -32,7 +32,7 @@ objects:
           opsrc-datastore: "true"
           opsrc-provider: redhat
         name: configure-alertmanager-operator-registry
-        namespace: openshift-operator-lifecycle-manager
+        namespace: openshift-monitoring
       spec:
         image: ${REGISTRY_IMG}:${CHANNEL}-${IMAGE_TAG}
         displayName: Configure Alertmanager Operator
@@ -50,4 +50,4 @@ objects:
         channel: ${CHANNEL}
         name: configure-alertmanager-operator
         source: configure-alertmanager-operator-registry
-        sourceNamespace: openshift-operator-lifecycle-manager
+        sourceNamespace: openshift-monitoring
