@@ -46,12 +46,8 @@ clean:
 		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):staging-latest \
 		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):production-latest 2>/dev/null || true
 
-.PHONY: isclean
-isclean:
-	@(test "${ALLOW_DIRTY_CHECKOUT}" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." && exit 1)
-
 .PHONY: build
-build: isclean envtest
+build: envtest
 	docker build . -f ${OPERATOR_DOCKERFILE} -t ${OPERATOR_IMAGE_URI}
 	docker tag ${OPERATOR_IMAGE_URI} ${OPERATOR_IMAGE_URI_LATEST}
 
@@ -99,7 +95,7 @@ test: envtest gotest
 
 .PHONY: env
 .SILENT: env
-env: isclean
+env:
 	echo OPERATOR_NAME=${OPERATOR_NAME}
 	echo OPERATOR_NAMESPACE=${OPERATOR_NAMESPACE}
 	echo OPERATOR_VERSION=${OPERATOR_VERSION}

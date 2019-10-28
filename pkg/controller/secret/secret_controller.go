@@ -239,16 +239,16 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 	pagerdutyabsent := true
 	makeitwarningabsent := true
 	for i, receiver := range amconfig.Receivers {
-		log.Info("DEBUG: Found Receiver named:", receiver.Name)
+		log.Info("DEBUG: Found Receiver:", "name", receiver.Name)
 		if receiver.Name == "pagerduty" {
-			log.Info("DEBUG: Overwriting Pager Duty config for Receiver:", receiver.Name)
+			log.Info("DEBUG: Overwriting Pager Duty config", "receiver", receiver.Name)
 			amconfig.Receivers[i].PagerdutyConfigs = []*alertmanager.PagerdutyConfig{pdconfig}
 			pagerdutyabsent = false
 		} else if receiver.Name == "make-it-warning" {
 			log.Info("DEBUG: make-it-warning receiver already exists")
 			makeitwarningabsent = false
 		} else {
-			log.Info("DEBUG: Skipping Receiver named", receiver.Name)
+			log.Info("DEBUG: Skipping Receiver", "name", receiver.Name)
 		}
 
 	}
@@ -298,13 +298,13 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 	// Insert the Route for the Pager Duty Receiver.
 	routeabsent := true
 	for i, route := range amconfig.Route.Routes {
-		log.Info("DEBUG: Found Route for Receiver:", route.Receiver)
+		log.Info("DEBUG: Found Route for Receiver", "receiver", route.Receiver)
 		if route.Receiver == "pagerduty" {
-			log.Info("DEBUG: Overwriting Pager Duty Route for Receiver:", route.Receiver)
+			log.Info("DEBUG: Overwriting Pager Duty Route for Receiver", "receiver", route.Receiver)
 			amconfig.Route.Routes[i] = pdroute
 			routeabsent = false
 		} else {
-			log.Info("DEBUG: Skipping Route for Receiver named", route.Receiver)
+			log.Info("DEBUG: Skipping Route for Receiver named", "receiver", route.Receiver)
 		}
 	}
 
@@ -338,7 +338,7 @@ func updateAlertManagerConfig(r *ReconcileSecret, request *reconcile.Request, am
 	// Write the alertmanager config into the alertmanager secret.
 	err := r.client.Update(context.TODO(), secret)
 	if err != nil {
-		log.Error(err, "ERROR: Could not write secret alertmanger-main in namespace", request.Namespace)
+		log.Error(err, "ERROR: Could not write secret alertmanger-main", "namespace", request.Namespace)
 		return
 	}
 	log.Info("INFO: Secret alertmanager-main successfully updated")
@@ -360,18 +360,18 @@ func addSnitchSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.
 	watchdogabsent := true
 	log.Info("DEBUG: Checking for watchdog related receivers")
 	for i, receiver := range amconfig.Receivers {
-		log.Info("DEBUG: Found Receiver named:", receiver.Name)
+		log.Info("DEBUG: Found Receiver", "name", receiver.Name)
 		switch receiver.Name {
 		case "watchdog":
-			log.Info("DEBUG: Overwriting watchdog receiver:", receiver.Name)
+			log.Info("DEBUG: Overwriting watchdog receiver", "name", receiver.Name)
 			amconfig.Receivers[i].WebhookConfigs = []*alertmanager.WebhookConfig{snitchconfig}
 			watchdogabsent = false
 		case "null":
 			// Delete the default 'null' Receiver, because watchdog will become the new default.
-			log.Info("DEBUG: Deleting receiver named:", receiver.Name)
+			log.Info("DEBUG: Deleting receiver", "name", receiver.Name)
 			amconfig.Receivers = removeFromReceivers(amconfig.Receivers, i)
 		default:
-			log.Info("DEBUG: Skipping receiver named:", receiver.Name)
+			log.Info("DEBUG: Skipping receiver", "name", receiver.Name)
 		}
 	}
 
@@ -396,10 +396,10 @@ func addSnitchSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.
 	routeabsent := true
 	log.Info("DEBUG: Checking for watchdog related routes")
 	for i, route := range amconfig.Route.Routes {
-		log.Info("DEBUG: Found Route for Receiver:", route.Receiver)
+		log.Info("DEBUG: Found Route", "receiver", route.Receiver)
 		switch route.Receiver {
 		case "watchdog":
-			log.Info("DEBUG: Overwriting Watchdog Route for Receiver:", route.Receiver)
+			log.Info("DEBUG: Overwriting Watchdog Route", "receiver", route.Receiver)
 			amconfig.Route.Routes[i] = wdroute
 			routeabsent = false
 		case "null":
@@ -407,7 +407,7 @@ func addSnitchSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.
 			log.Info("DEBUG: Deleting Route for Receiver:", route.Receiver)
 			amconfig.Route.Routes = removeFromRoutes(amconfig.Route.Routes, i)
 		default:
-			log.Info("DEBUG: Skipping route for receiver named:", route.Receiver)
+			log.Info("DEBUG: Skipping route for receiver", "name", route.Receiver)
 		}
 	}
 
@@ -437,16 +437,16 @@ func removeFromRoutes(r []*alertmanager.Route, i int) []*alertmanager.Route {
 // removeConfigFromAlertManager removes a Receiver config and the associated Route from Alertmanager.
 // The changes are kept in memory until committed using function updateAlertManagerConfig().
 func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request, amconfig *alertmanager.Config, receivername string) {
-	log.Info("DEBUG: Checking for receiver", receivername, "in Alertmanager config")
+	log.Info("DEBUG: Checking for receiver in Alertmanager config", "name", receivername)
 	for i, receiver := range amconfig.Receivers {
 		if receiver.Name == receivername {
-			log.Info("DEBUG: Deleting receiver named:", receiver.Name)
+			log.Info("DEBUG: Deleting receiver", "name", receiver.Name)
 			amconfig.Receivers = removeFromReceivers(amconfig.Receivers, i)
 		}
 	}
 	for i, route := range amconfig.Route.Routes {
 		if route.Receiver == receivername {
-			log.Info("DEBUG: Deleting Route for Receiver:", route.Receiver)
+			log.Info("DEBUG: Deleting Route", "receiver", route.Receiver)
 			amconfig.Route.Routes = removeFromRoutes(amconfig.Route.Routes, i)
 		}
 	}
