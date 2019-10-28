@@ -46,6 +46,8 @@ func defaultJobControllerClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("dataproc.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
+		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 
@@ -54,6 +56,7 @@ func defaultJobControllerCallOptions() *JobControllerCallOptions {
 		{"default", "idempotent"}: {
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
+					codes.DeadlineExceeded,
 					codes.Internal,
 					codes.Unavailable,
 				}, gax.Backoff{
