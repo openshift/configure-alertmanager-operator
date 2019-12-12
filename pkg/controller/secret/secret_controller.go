@@ -23,6 +23,12 @@ import (
 
 var log = logf.Log.WithName("secret_controller")
 
+var (
+	alertsRouteWarning = []string{
+		"KubeAPILatencyHigh",
+	}
+)
+
 // Add creates a new Secret Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
@@ -274,6 +280,18 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
 	}
 
+	var routes []*alertmanager.Route
+
+	for _, alert := range alertsRouteWarning {
+		routes = append(routes,
+			&alertmanager.Route{
+				Receiver: "make-it-warning",
+				Match: map[string]string{
+					"alertname": alert,
+				},
+			})
+	}
+
 	// Create a route for the new Pager Duty receiver
 	pdroute := &alertmanager.Route{
 		Continue: true,
@@ -285,14 +303,7 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
 		},
-		Routes: []*alertmanager.Route{
-			{
-				Receiver: "make-it-warning",
-				Match: map[string]string{
-					"alertname": "KubeAPILatencyHigh",
-				},
-			},
-		},
+		Routes: routes,
 	}
 
 	// Insert the Route for the Pager Duty Receiver.
