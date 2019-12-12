@@ -261,8 +261,6 @@ func Test_addSnitchSecretToAlertManagerConfig(t *testing.T) {
 		URL:            snitchsecret,
 	}
 
-	// Remove default "null" receiver and replace it.
-	want.Receivers = removeFromReceivers(want.Receivers, 0)
 	newreceiver := &alertmanager.Receiver{
 		Name:           "watchdog",
 		WebhookConfigs: []*alertmanager.WebhookConfig{snitchconfig},

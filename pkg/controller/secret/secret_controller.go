@@ -383,18 +383,20 @@ func addSnitchSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.
 	// Overwrite the existing Watchdog config with the updated version specified above.
 	// This keeps other receivers intact while updating only the Watchdog related receivers.
 	watchdogabsent := true
+	nullrouteabsent := true
 	log.Info("DEBUG: Checking for watchdog related receivers")
 	for i, receiver := range amconfig.Receivers {
 		log.Info("DEBUG: Found Receiver", "name", receiver.Name)
 		switch receiver.Name {
 		case "watchdog":
-			log.Info("DEBUG: Overwriting watchdog receiver", "name", receiver.Name)
+			log.Info("DEBUG: Overwriting receiver", "name", receiver.Name)
 			amconfig.Receivers[i].WebhookConfigs = []*alertmanager.WebhookConfig{snitchconfig}
 			watchdogabsent = false
 		case "null":
-			// Delete the default 'null' Receiver, because watchdog will become the new default.
-			log.Info("DEBUG: Deleting receiver", "name", receiver.Name)
-			amconfig.Receivers = removeFromReceivers(amconfig.Receivers, i)
+			log.Info("DEBUG: Overwriting receiver", "name", receiver.Name)
+			nullreceiver := &alertmanager.Receiver{Name: "null"}
+			amconfig.Receivers[i] = nullreceiver
+			nullrouteabsent = false
 		default:
 			log.Info("DEBUG: Skipping receiver", "name", receiver.Name)
 		}
@@ -408,6 +410,13 @@ func addSnitchSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.
 			WebhookConfigs: []*alertmanager.WebhookConfig{snitchconfig},
 		}
 		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
+	}
+
+	// Create the null receiver if it doesn't already exist.
+	if nullrouteabsent {
+		log.Info("DEBUG: Null receiver is absent. Creating new receiver.")
+		nullreceiver := &alertmanager.Receiver{Name: "null"}
+		amconfig.Receivers = append(amconfig.Receivers, nullreceiver)
 	}
 
 	// Create a route for the new Watchdog receiver.
@@ -463,10 +472,15 @@ func removeFromRoutes(r []*alertmanager.Route, i int) []*alertmanager.Route {
 // The changes are kept in memory until committed using function updateAlertManagerConfig().
 func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request, amconfig *alertmanager.Config, receivername string) {
 	log.Info("DEBUG: Checking for receiver in Alertmanager config", "name", receivername)
+
+	nullrouteabsent := true
 	for i, receiver := range amconfig.Receivers {
 		if receiver.Name == receivername {
 			log.Info("DEBUG: Deleting receiver", "name", receiver.Name)
 			amconfig.Receivers = removeFromReceivers(amconfig.Receivers, i)
+		}
+		if receiver.Name == "null" {
+			nullrouteabsent = false
 		}
 	}
 	for i, route := range amconfig.Route.Routes {
@@ -474,6 +488,11 @@ func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request
 			log.Info("DEBUG: Deleting Route", "receiver", route.Receiver)
 			amconfig.Route.Routes = removeFromRoutes(amconfig.Route.Routes, i)
 		}
+	}
+
+	if nullrouteabsent {
+		nullreceiver := &alertmanager.Receiver{Name: "null"}
+		amconfig.Receivers = append(amconfig.Receivers, nullreceiver)
 	}
 
 	// If watchdog is being removed, put the system default route and receiver back into place.
@@ -484,7 +503,5 @@ func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request
 			Match:    map[string]string{"alertname": "Watchdog"},
 		}
 		amconfig.Route.Routes = append(amconfig.Route.Routes, nullroute)
-		nullreceiver := &alertmanager.Receiver{Name: "null"}
-		amconfig.Receivers = append(amconfig.Receivers, nullreceiver)
 	}
 }
