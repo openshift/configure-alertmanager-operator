@@ -199,6 +199,12 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 					"alertname": "KubeAPILatencyHigh",
 				},
 			},
+			{
+				Receiver: "null",
+				Match: map[string]string{
+					"alertname": "KubeQuotaExceeded",
+				},
+			},
 		},
 	}
 	pdreceiver := &alertmanager.Receiver{

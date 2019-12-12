@@ -27,6 +27,10 @@ var (
 	alertsRouteWarning = []string{
 		"KubeAPILatencyHigh",
 	}
+
+	alertsRouteNull = []string{
+		"KubeQuotaExceeded",
+	}
 )
 
 // Add creates a new Secret Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -286,6 +290,16 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		routes = append(routes,
 			&alertmanager.Route{
 				Receiver: "make-it-warning",
+				Match: map[string]string{
+					"alertname": alert,
+				},
+			})
+	}
+
+	for _, alert := range alertsRouteNull {
+		routes = append(routes,
+			&alertmanager.Route{
+				Receiver: "null",
 				Match: map[string]string{
 					"alertname": alert,
 				},
