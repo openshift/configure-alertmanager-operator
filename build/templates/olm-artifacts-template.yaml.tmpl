@@ -35,6 +35,12 @@ objects:
         namespace: openshift-monitoring
       spec:
         image: ${REGISTRY_IMG}:${CHANNEL}-${IMAGE_TAG}
+        nodeSelector:
+          node-role.kubernetes.io/infra: ''
+        tolerations:
+          - effect: NoSchedule
+            key: node-role.kubernetes.io/infra
+            operator: Exists
         displayName: Configure Alertmanager Operator
         icon:
           base64data: ""
