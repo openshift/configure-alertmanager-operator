@@ -284,27 +284,8 @@ func addPDSecretToAlertManagerConfig(r *ReconcileSecret, request *reconcile.Requ
 		amconfig.Receivers = append(amconfig.Receivers, newreceiver)
 	}
 
-	var routes []*alertmanager.Route
-
-	for _, alert := range alertsRouteWarning {
-		routes = append(routes,
-			&alertmanager.Route{
-				Receiver: "make-it-warning",
-				Match: map[string]string{
-					"alertname": alert,
-				},
-			})
-	}
-
-	for _, alert := range alertsRouteNull {
-		routes = append(routes,
-			&alertmanager.Route{
-				Receiver: "null",
-				Match: map[string]string{
-					"alertname": alert,
-				},
-			})
-	}
+	// generate the routes
+	routes := generateRoutes(alertsRouteWarning, alertsRouteNull)
 
 	// Create a route for the new Pager Duty receiver
 	pdroute := &alertmanager.Route{
@@ -504,4 +485,31 @@ func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request
 		}
 		amconfig.Route.Routes = append(amconfig.Route.Routes, nullroute)
 	}
+}
+
+// generateRoutes generates a set of AlertManger routes based off of configured constants.
+func generateRoutes(warningSlice, nullSlice []string) []*alertmanager.Route {
+	var routes []*alertmanager.Route
+
+	for _, alert := range warningSlice {
+		routes = append(routes,
+			&alertmanager.Route{
+				Receiver: "make-it-warning",
+				Match: map[string]string{
+					"alertname": alert,
+				},
+			})
+	}
+
+	for _, alert := range nullSlice {
+		routes = append(routes,
+			&alertmanager.Route{
+				Receiver: "null",
+				Match: map[string]string{
+					"alertname": alert,
+				},
+			})
+	}
+
+	return routes
 }

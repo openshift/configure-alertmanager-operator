@@ -182,6 +182,7 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 		},
 	}
+	routes := generateRoutes(alertsRouteWarning, alertsRouteNull)
 	pdroute := &alertmanager.Route{
 		Continue: true,
 		Receiver: "pagerduty",
@@ -192,20 +193,7 @@ func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
 		MatchRE: map[string]string{
 			"namespace": alertmanager.PDRegex,
 		},
-		Routes: []*alertmanager.Route{
-			{
-				Receiver: "make-it-warning",
-				Match: map[string]string{
-					"alertname": "KubeAPILatencyHigh",
-				},
-			},
-			{
-				Receiver: "null",
-				Match: map[string]string{
-					"alertname": "KubeQuotaExceeded",
-				},
-			},
-		},
+		Routes: routes,
 	}
 	pdreceiver := &alertmanager.Receiver{
 		Name:             "pagerduty",
@@ -395,5 +383,40 @@ func TestReconcileSecret_Reconcile(t *testing.T) {
 				t.Errorf("ReconcileSecret.Reconcile() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// Test_generateRoutes tests the AlertManager route generation function
+func Test_generateRoutes(t *testing.T) {
+	var (
+		testAlertsRouteWarning = []string{
+			"KubeAlertWarning",
+		}
+
+		testAlertsRouteNull = []string{
+			"KubeAlertNull",
+		}
+	)
+	want := []*alertmanager.Route{
+		{
+			Receiver: "make-it-warning",
+			Match: map[string]string{
+				"alertname": "KubeAlertWarning",
+			},
+		},
+		{
+			Receiver: "null",
+			Match: map[string]string{
+				"alertname": "KubeAlertNull",
+			},
+		},
+	}
+
+	// Test that the alertmanager secret now contains all the Pager Duty details,
+	// as specified in var `want`.
+	if got := generateRoutes(testAlertsRouteWarning, testAlertsRouteNull); !reflect.DeepEqual(got, want) {
+		t.Errorf("Failed because generateRoutes() returned:\n%+v\n generateRoutes() should have returned:\n%+v\n", got, want)
+	} else {
+		t.Logf("Passed. generateRoutes() returned:\n%+v\n", got)
 	}
 }
