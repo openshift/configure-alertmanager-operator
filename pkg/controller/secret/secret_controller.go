@@ -30,6 +30,9 @@ var (
 
 	alertsRouteNull = []string{
 		"KubeQuotaExceeded",
+		"UsingDeprecatedAPIAppsV1Beta1",
+		"UsingDeprecatedAPIAppsV1Beta2",
+		"UsingDeprecatedAPIExtensionsV1Beta1",
 	}
 )
 
