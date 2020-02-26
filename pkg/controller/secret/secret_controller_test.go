@@ -389,12 +389,12 @@ func TestReconcileSecret_Reconcile(t *testing.T) {
 // Test_generateRoutes tests the AlertManager route generation function
 func Test_generateRoutes(t *testing.T) {
 	var (
-		testAlertsRouteWarning = []string{
-			"KubeAlertWarning",
+		testAlertsRouteWarning = []map[string]string{
+			{"alertname": "KubeAlertWarning"},
 		}
 
-		testAlertsRouteNull = []string{
-			"KubeAlertNull",
+		testAlertsRouteNull = []map[string]string{
+			{"alertname": "KubeAlertNull"},
 		}
 	)
 	want := []*alertmanager.Route{
