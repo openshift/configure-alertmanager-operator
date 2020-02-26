@@ -24,15 +24,16 @@ import (
 var log = logf.Log.WithName("secret_controller")
 
 var (
-	alertsRouteWarning = []string{
-		"KubeAPILatencyHigh",
+	alertsRouteWarning = []map[string]string{
+		{"alertname": "KubeAPILatencyHigh", "severity": "critical"},
 	}
 
-	alertsRouteNull = []string{
-		"KubeQuotaExceeded",
-		"UsingDeprecatedAPIAppsV1Beta1",
-		"UsingDeprecatedAPIAppsV1Beta2",
-		"UsingDeprecatedAPIExtensionsV1Beta1",
+	alertsRouteNull = []map[string]string{
+		{"alertname": "KubeQuotaExceeded"},
+		{"alertname": "UsingDeprecatedAPIAppsV1Beta1"},
+		{"alertname": "UsingDeprecatedAPIAppsV1Beta2"},
+		{"alertname": "UsingDeprecatedAPIExtensionsV1Beta1"},
+		{"alertname": "CPUThrottlingHigh", "container": "registry-server"},
 	}
 )
 
@@ -491,26 +492,22 @@ func removeConfigFromAlertManager(r *ReconcileSecret, request *reconcile.Request
 }
 
 // generateRoutes generates a set of AlertManger routes based off of configured constants.
-func generateRoutes(warningSlice, nullSlice []string) []*alertmanager.Route {
+func generateRoutes(warningSlice []map[string]string, nullSlice []map[string]string) []*alertmanager.Route {
 	var routes []*alertmanager.Route
 
-	for _, alert := range warningSlice {
+	for _, match := range warningSlice {
 		routes = append(routes,
 			&alertmanager.Route{
 				Receiver: "make-it-warning",
-				Match: map[string]string{
-					"alertname": alert,
-				},
+				Match:    match,
 			})
 	}
 
-	for _, alert := range nullSlice {
+	for _, match := range nullSlice {
 		routes = append(routes,
 			&alertmanager.Route{
 				Receiver: "null",
-				Match: map[string]string{
-					"alertname": alert,
-				},
+				Match:    match,
 			})
 	}
 
