@@ -34,6 +34,7 @@ var (
 		{"alertname": "UsingDeprecatedAPIAppsV1Beta2"},
 		{"alertname": "UsingDeprecatedAPIExtensionsV1Beta1"},
 		{"alertname": "CPUThrottlingHigh", "container": "registry-server"},
+		{"alertname": "CPUThrottlingHigh", "container": "configmap-registry-server"},
 	}
 )
 
