@@ -18,7 +18,7 @@ define create_push_catalog_image
 	mkdir -p bundles-$(1)/$(OPERATOR_NAME) ;\
 	removed_versions="" ;\
 	if [[ "$$(echo $(4) | tr [:upper:] [:lower:])" == "true" ]]; then \
-		deployed_hash=$$(curl -s 'https://gitlab.cee.redhat.com/$(5)/raw/master/$(6)' | docker run --rm -i evns/yq -r '.services[]|select(.name="configure-alertmanager-operator").hash') ;\
+		deployed_hash=$$(curl -s 'https://gitlab.cee.redhat.com/$(5)/raw/master/$(6)' | $(CONTAINER_ENGINE) run --rm -i evns/yq -r '.services[]|select(.name="configure-alertmanager-operator").hash') ;\
 		delete=false ;\
 		for bundle_path in $$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V); do \
 			if [[ "$${delete}" == false ]]; then \
@@ -54,7 +54,7 @@ define create_push_catalog_image
 		git commit -m "add version $(COMMIT_NUMBER)-$(CURRENT_COMMIT)" -m "replaces: $$previous_version" -m "removed versions: $$removed_versions" ;\
 		git push origin $(1) ;\
 	cd .. ;\
-	docker build \
+	$(CONTAINER_ENGINE) build \
 		-f build/Dockerfile.catalog_registry \
 		--build-arg=SRC_BUNDLES=$$(find bundles-$(1) -mindepth 1 -maxdepth 1 -type d | grep -v .git) \
 		-t quay.io/$(8)/$(OPERATOR_NAME)-registry:$(1)-latest \
