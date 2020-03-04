@@ -9,12 +9,12 @@ default: gobuild
 
 # Extend Makefile after here
 
-# Build the docker image
-.PHONY: docker-build
-docker-build:
+# Build the container image
+.PHONY: container-build
+container-build:
 	$(MAKE) build
 
-# Push the docker image
-.PHONY: docker-push
-docker-push:
+# Push the container image
+.PHONY: container-push
+container-push:
 	$(MAKE) push

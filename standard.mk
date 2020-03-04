@@ -29,6 +29,8 @@ MAINPACKAGE=./cmd/manager
 GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
+CONTAINER_ENGINE=$(shell which podman 2>/dev/null || which docker 2>/dev/null)
+
 TESTTARGETS := $(shell go list -e ./... | egrep -v "/(vendor)/")
 # ex, -v
 TESTOPTS :=
@@ -40,7 +42,7 @@ default: gobuild
 .PHONY: clean
 clean:
 	rm -rf ./build/_output bundles-staging bundles-production
-	docker rmi \
+	${CONTAINER_ENGINE} rmi \
 		${OPERATOR_IMAGE_URI} \
 		${OPERATOR_IMAGE_URI_LATEST} \
 		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):staging-latest \
@@ -48,16 +50,16 @@ clean:
 
 .PHONY: build
 build: envtest
-	docker build . -f ${OPERATOR_DOCKERFILE} -t ${OPERATOR_IMAGE_URI}
-	docker tag ${OPERATOR_IMAGE_URI} ${OPERATOR_IMAGE_URI_LATEST}
+	${CONTAINER_ENGINE} build . -f ${OPERATOR_DOCKERFILE} -t ${OPERATOR_IMAGE_URI}
+	${CONTAINER_ENGINE} tag ${OPERATOR_IMAGE_URI} ${OPERATOR_IMAGE_URI_LATEST}
 
 .PHONY: push
 push:
-	docker push ${OPERATOR_IMAGE_URI}
-	docker push ${OPERATOR_IMAGE_URI_LATEST}
+	${CONTAINER_ENGINE} push ${OPERATOR_IMAGE_URI}
+	${CONTAINER_ENGINE} push ${OPERATOR_IMAGE_URI_LATEST}
 
 .PHONY: skopeo-push
-skopeo-push: docker-build
+skopeo-push: container-build
 	skopeo copy \
 		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
 		"docker-daemon:${OPERATOR_IMAGE_URI_LATEST}" \

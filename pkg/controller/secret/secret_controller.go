@@ -25,16 +25,25 @@ var log = logf.Log.WithName("secret_controller")
 
 var (
 	alertsRouteWarning = []map[string]string{
+		// https://issues.redhat.com/browse/OSD-1922
 		{"alertname": "KubeAPILatencyHigh", "severity": "critical"},
 	}
 
 	alertsRouteNull = []map[string]string{
+		// https://issues.redhat.com/browse/OSD-1966
 		{"alertname": "KubeQuotaExceeded"},
+		// https://issues.redhat.com/browse/OSD-2382
 		{"alertname": "UsingDeprecatedAPIAppsV1Beta1"},
+		// https://issues.redhat.com/browse/OSD-2382
 		{"alertname": "UsingDeprecatedAPIAppsV1Beta2"},
+		// https://issues.redhat.com/browse/OSD-2382
 		{"alertname": "UsingDeprecatedAPIExtensionsV1Beta1"},
+		// https://issues.redhat.com/browse/OSD-2980
 		{"alertname": "CPUThrottlingHigh", "container": "registry-server"},
+		// https://issues.redhat.com/browse/OSD-3008
 		{"alertname": "CPUThrottlingHigh", "container": "configmap-registry-server"},
+		// https://issues.redhat.com/browse/OSD-3010
+		{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"},
 	}
 )
 
