@@ -37,10 +37,6 @@ TESTOPTS :=
 
 ALLOW_DIRTY_CHECKOUT?=false
 
-.PHONY: testx
-testx:
-	$(shell echo "$(CONTAINER_ENGINE)")
-
 default: gobuild
 
 .PHONY: clean
