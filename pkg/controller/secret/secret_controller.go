@@ -44,6 +44,8 @@ var (
 		{"alertname": "CPUThrottlingHigh", "container": "configmap-registry-server"},
 		// https://issues.redhat.com/browse/OSD-3010
 		{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"},
+		// https://issues.redhat.com/browse/OSD-2611
+		{"namespace": "openshift-customer-monitoring"},
 	}
 )
 
