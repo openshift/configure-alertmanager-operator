@@ -46,6 +46,8 @@ var (
 		{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"},
 		// https://issues.redhat.com/browse/OSD-2611
 		{"namespace": "openshift-customer-monitoring"},
+		// https://issues.redhat.com/browse/OSD-3220
+		{"alertname": "SLAUptimeSRE"},
 	}
 )
 
