@@ -2,57 +2,269 @@ package secret
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/openshift/configure-alertmanager-operator/config"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
-	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	fake "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// AlertManager base config, used by multiple tests.
-const AlertManagerConfig = `
-global:
-  resolve_timeout: 5m
-route:
-  receiver: "null"
-  group_by:
-  - job
-  routes:
-  - receiver: "null"
-    match:
-      alertname: Watchdog
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 12h
-receivers:
-- name: "null"
-templates: []
-`
-
-// createAlertManagerConfig creates a fake secret containing a basic AlertManager config for testing.
-func createAlertManagerConfig(amconfig []byte, reconciler *ReconcileSecret) {
-	amsecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "alertmanager-main",
-			Namespace: config.OperatorNamespace,
-		},
-		Data: map[string][]byte{
-			"alertmanager.yaml": []byte(amconfig),
-		},
+func assertEquals(t *testing.T, want interface{}, got interface{}, message string) {
+	if reflect.DeepEqual(got, want) {
+		return
 	}
-	reconciler.client.Create(context.TODO(), amsecret)
+
+	if len(message) == 0 {
+		message = fmt.Sprintf("Expected '%v' but got '%v'", want, got)
+	} else {
+		message = fmt.Sprintf("%s: Expected '%v' but got '%v'", message, want, got)
+	}
+	t.Fatal(message)
+}
+
+func assertNotEquals(t *testing.T, want interface{}, got interface{}, message string) {
+	if !reflect.DeepEqual(got, want) {
+		return
+	}
+	if len(message) == 0 {
+		message = fmt.Sprintf("Didn't expect '%v'", want)
+	} else {
+		message = fmt.Sprintf("%s: Expected '%v' but got '%v'", message, want, got)
+	}
+	t.Fatal(message)
+}
+
+func assertGte(t *testing.T, want int, got int, message string) {
+	if want <= got {
+		return
+	}
+	if len(message) == 0 {
+		message = fmt.Sprintf("Expected '%v' but got '%v'", want, got)
+	} else {
+		message = fmt.Sprintf("%s: Expected '%v' but got '%v'", message, want, got)
+	}
+	t.Fatal(message)
+}
+
+func assertTrue(t *testing.T, status bool, message string) {
+	if status {
+		return
+	}
+	t.Fatal(message)
+}
+
+// utility class to test PD route creation
+func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
+	assertEquals(t, defaultReceiver, route.Receiver, "Reciever Name")
+	assertEquals(t, true, route.Continue, "Continue")
+	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
+	assertGte(t, 1, len(route.Routes), "Number of Routes")
+
+	// verify we have the core routes for namespace, ES, and fluentd
+	hasNamespace := false
+	hasElasticsearch := false
+	hasFluentd := false
+	for _, route := range route.Routes {
+		if route.MatchRE["namespace"] == alertmanager.PDRegex {
+			hasNamespace = true
+		} else if route.Match["job"] == "fluentd" {
+			hasFluentd = true
+		} else if route.Match["cluster"] == "elasticsearch" {
+			hasElasticsearch = true
+		}
+	}
+
+	assertTrue(t, hasNamespace, "No route for MatchRE on namespace")
+	assertTrue(t, hasElasticsearch, "No route for Match on cluster=elasticsearch")
+	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
+}
+
+func Test_getPagerdutyRoute(t *testing.T) {
+	// test the structure of the Route is sane
+	route := getPagerdutyRoute()
+
+	verifyPagerdutyRoute(t, route)
+}
+
+func Test_getPagerdutyReceivers_WithoutKey(t *testing.T) {
+	assertEquals(t, 0, len(getPagerdutyReceivers("")), "Number of Receivers")
+}
+
+// utility function to verify Pagerduty Receivers
+func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanager.Receiver) {
+	// there are at least 3 receivers: namespace, elasticsearch, and fluentd
+	assertGte(t, 3, len(receivers), "Number of Receivers")
+
+	// verify structure of each
+	hasNull := false
+	hasMakeItWarning := false
+	hasPagerduty := false
+	for _, receiver := range receivers {
+		switch receiver.Name {
+		case receiverNull:
+			hasNull = true
+			assertEquals(t, 0, len(receiver.PagerdutyConfigs), "Empty PagerdutyConfigs")
+		case receiverMakeItWarning:
+			hasMakeItWarning = true
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
+			assertEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
+		case receiverPagerduty:
+			hasPagerduty = true
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
+			assertTrue(t, receiver.PagerdutyConfigs[0].Severity != "", "Non empty Severity")
+			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
+		}
+	}
+
+	assertTrue(t, hasNull, fmt.Sprintf("No '%s' receiver", receiverNull))
+	assertTrue(t, hasMakeItWarning, fmt.Sprintf("No '%s' receiver", receiverMakeItWarning))
+	assertTrue(t, hasPagerduty, fmt.Sprintf("No '%s' receiver", receiverPagerduty))
+}
+
+func Test_getPagerdutyReceivers_WithKey(t *testing.T) {
+	key := "abcdefg1234567890"
+
+	receivers := getPagerdutyReceivers(key)
+
+	verifyPagerdutyReceivers(t, key, receivers)
+}
+
+// utility function to verify watchdog route
+func verifyWatchdogRoute(t *testing.T, route *alertmanager.Route) {
+	assertEquals(t, receiverWatchdog, route.Receiver, "Reciever Name")
+	assertEquals(t, "5m", route.RepeatInterval, "Repeat Interval")
+	assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
+}
+
+func Test_getWatchdogRoute(t *testing.T) {
+	// test the structure of the Route is sane
+	route := getWatchdogRoute()
+
+	verifyWatchdogRoute(t, route)
+}
+
+func Test_getWatchdogReceivers_WithoutURL(t *testing.T) {
+	assertEquals(t, 0, len(getWatchdogReceivers("")), "Number of Receivers")
+}
+
+// utility to test watchdog receivers
+func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.Receiver) {
+	// there is 1 receiver
+	assertGte(t, 1, len(receivers), "Number of Receivers")
+
+	// verify structure of each
+	hasWatchdog := false
+	for _, receiver := range receivers {
+		if receiver.Name == receiverWatchdog {
+			hasWatchdog = true
+			assertTrue(t, receiver.WebhookConfigs[0].VSendResolved, "VSendResolved")
+			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
+		}
+	}
+
+	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
+}
+
+func Test_getWatchdogReceivers_WithKey(t *testing.T) {
+	url := "http://whatever/something"
+
+	receivers := getWatchdogReceivers(url)
+
+	verifyWatchdogReceiver(t, url, receivers)
+}
+
+func Test_getAlertmanagerConfig_WithoutKey_WithoutURL(t *testing.T) {
+	pdKey := ""
+	wdURL := ""
+
+	config := getAlertManagerConfig(pdKey, wdURL)
+
+	// verify static things
+	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
+	assertEquals(t, pagerdutyURL, config.Global.PagerdutyURL, "Global.PagerdutyURL")
+	assertEquals(t, defaultReceiver, config.Route.Receiver, "Route.Receiver")
+	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
+	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
+	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
+	assertEquals(t, 0, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 0, len(config.Receivers), "Receivers")
+}
+
+func Test_getAlertmanagerConfig_WithKey_WithoutURL(t *testing.T) {
+	pdKey := "poiuqwer78902345"
+	wdURL := ""
+
+	config := getAlertManagerConfig(pdKey, wdURL)
+
+	// verify static things
+	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
+	assertEquals(t, pagerdutyURL, config.Global.PagerdutyURL, "Global.PagerdutyURL")
+	assertEquals(t, defaultReceiver, config.Route.Receiver, "Route.Receiver")
+	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
+	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
+	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
+	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 3, len(config.Receivers), "Receivers")
+
+	verifyPagerdutyRoute(t, config.Route.Routes[0])
+	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
+}
+
+func Test_getAlertmanagerConfig_WithKey_WithURL(t *testing.T) {
+	pdKey := "poiuqwer78902345"
+	wdURL := "http://theinterwebs"
+
+	config := getAlertManagerConfig(pdKey, wdURL)
+
+	// verify static things
+	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
+	assertEquals(t, pagerdutyURL, config.Global.PagerdutyURL, "Global.PagerdutyURL")
+	assertEquals(t, defaultReceiver, config.Route.Receiver, "Route.Receiver")
+	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
+	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
+	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
+	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 4, len(config.Receivers), "Receivers")
+
+	verifyPagerdutyRoute(t, config.Route.Routes[0])
+	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
+
+	verifyWatchdogRoute(t, config.Route.Routes[1])
+	verifyWatchdogReceiver(t, wdURL, config.Receivers)
+}
+
+func Test_getAlertmanagerConfig_WithoutKey_WithURL(t *testing.T) {
+	pdKey := ""
+	wdURL := "http://theinterwebs"
+
+	config := getAlertManagerConfig(pdKey, wdURL)
+
+	// verify static things
+	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
+	assertEquals(t, pagerdutyURL, config.Global.PagerdutyURL, "Global.PagerdutyURL")
+	assertEquals(t, defaultReceiver, config.Route.Receiver, "Route.Receiver")
+	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
+	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
+	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
+	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 1, len(config.Receivers), "Receivers")
+
+	verifyWatchdogRoute(t, config.Route.Routes[0])
+	verifyWatchdogReceiver(t, wdURL, config.Receivers)
 }
 
 // createSecret creates a fake Secret to use in testing.
-func createSecret(secretname string, secretkey string, secretdata string, reconciler *ReconcileSecret) {
+func createSecret(reconciler *ReconcileSecret, secretname string, secretkey string, secretdata string) {
 	newsecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretname,
@@ -93,330 +305,168 @@ func createReconcileRequest(reconciler *ReconcileSecret, secretname string) *rec
 	}
 }
 
-// Test_getAlertManagerConfig ensures that the default AlertManagerConfig is the same after marshalling and unmarshalling.
-// If this test fails, all other tests will fail, because it's crucial to be able to retrieve
-// the alertmanager config when testing functions that read and write the alertmanager config.
-func Test_getAlertManagerConfig(t *testing.T) {
-
-	// This stores the Config object to test against.
-	// It should be equal to the object created by getAlertManagerConfig.
-	want := alertmanager.Config{}
-
-	// Mock cluster data, including alertmanager-main secret, namespace, and reconcile request.
-
-	amconfigbyte := []byte(AlertManagerConfig)
-	reconciler := createReconciler()
-	createNamespace(reconciler, t)
-	createAlertManagerConfig(amconfigbyte, reconciler)
-	req := createReconcileRequest(reconciler, "alertmanager-main")
-
-	// Marshal the []byte into an alertmanager.Config object.
-	err := yaml.Unmarshal(amconfigbyte, &want)
-	if err != nil {
-		t.Errorf("Unable to Unmarshal []byte into alertmanager.Config type")
-		panic("Unable to continue test due to unmarshal error.")
-	}
-
-	if got := getAlertManagerConfig(reconciler, req); !reflect.DeepEqual(got, want) {
-		t.Errorf("Failed because getAlertManagerConfig() returned:\n%s\n getAlertManagerConfig() should have returned:\n%s\n", got, want)
-	} else {
-		t.Logf("Passed, using default config. getAlertManagerConfig() returned:\n%s\n", got)
-	}
-}
-
 // Test_updateAlertManagerConfig tests writing to the Alertmanager config.
-func Test_updateAlertManagerConfig(t *testing.T) {
+func Test_createPagerdutySecret_Create(t *testing.T) {
+	pdKey := "asdaidsgadfi9853"
+	wdURL := "http://theinterwebs/asdf"
 
-	// Load the default AlertManager config into the fake cluster.
-	amconfigbyte := []byte(AlertManagerConfig)
+	configExpected := getAlertManagerConfig(pdKey, wdURL)
+
+	// prepare environment
 	reconciler := createReconciler()
 	createNamespace(reconciler, t)
-	createAlertManagerConfig(amconfigbyte, reconciler)
-	req := createReconcileRequest(reconciler, "alertmanager-main")
-	amconfig := getAlertManagerConfig(reconciler, req)
-	// This needs to be a copy, or else it just points to amconfig
-	defaultconfig := getAlertManagerConfig(reconciler, req)
+	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
 
-	// Update the Alertmanager config.
-	amconfig.Route.GroupWait = "10s"
-	updateAlertManagerConfig(reconciler, req, &amconfig)
-
-	// Test that the change is present.
-	if got := getAlertManagerConfig(reconciler, req); reflect.DeepEqual(got, defaultconfig) {
-		t.Errorf("Failed because getAlertManagerConfig() shows equal results before and after writing the config")
-		t.Errorf("getAlertManagerConfig() before the write:\n%s\ngetAlertManagerConfig() after the write:\n%s\n", defaultconfig, got)
-		t.Errorf("Field 'group_wait' was not updated as expected")
-	} else {
-		t.Logf("Passed, modified 'group_wait' in default config. getAlertManagerConfig() returned:\n%s\n", got)
-	}
-}
-
-// Test_addPDSecretToAlertManagerConfig tests the integration
-// of 3 functions that combine to update the Pager Duty config in Alertmanager:
-// getAlertManagerConfig, updateAlertManagerConfig, and addPDSecretToAlertManagerConfig.
-func Test_addPDSecretToAlertManagerConfig(t *testing.T) {
-	pdsecret := "asdf1234567890"
-
-	// Load the default AlertManager config into the fake cluster.
-	amconfigbyte := []byte(AlertManagerConfig)
-	reconciler := createReconciler()
-	createNamespace(reconciler, t)
-	createSecret("pd-secret", "PAGERDUTY_KEY", pdsecret, reconciler)
-	createAlertManagerConfig(amconfigbyte, reconciler)
+	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, "pd-secret")
-	want := getAlertManagerConfig(reconciler, req)
+	reconciler.Reconcile(*req)
 
-	// Add the Pager Duty details to the fake alertmanager config.
-	pdconfig := &alertmanager.PagerdutyConfig{
-		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
-		RoutingKey:     pdsecret,
-		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
-		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
-		Details: map[string]string{
-			"link":         `{{ if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
-			"link2":        `{{ if .CommonAnnotations.runbook }}{{ .CommonAnnotations.runbook }}{{ else }}{{ end }}`,
-			"group":        `{{ .CommonLabels.alertname }}`,
-			"component":    `{{ .CommonLabels.alertname }}`,
-			"num_firing":   `{{ .Alerts.Firing | len }}`,
-			"num_resolved": `{{ .Alerts.Resolved | len }}`,
-			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
-		},
-	}
-	routes := generateRoutes(alertsRouteWarning, alertsRouteNull)
-	pdroute := &alertmanager.Route{
-		Continue: true,
-		Receiver: "pagerduty",
-		GroupByStr: []string{
-			"alertname",
-			"severity",
-		},
-		MatchRE: map[string]string{
-			"namespace": alertmanager.PDRegex,
-		},
-		Routes: routes,
-	}
-	pdreceiver := &alertmanager.Receiver{
-		Name:             "pagerduty",
-		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
-	}
+	// read config and a copy for comparison
+	configActual := readAlertManagerConfig(reconciler, req)
 
-	pdconfig.Severity = "warning"
-	makeitwarningabsent := &alertmanager.Receiver{
-		Name:             "make-it-warning",
-		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
-	}
-
-	want.Receivers = append(want.Receivers, pdreceiver)
-	want.Receivers = append(want.Receivers, makeitwarningabsent)
-	want.Route.Routes = append(want.Route.Routes, pdroute)
-
-	want.Global.PagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
-
-	// Try to get the same result as `want`,
-	// using addPDSecretToAlertManagerConfig() and updateAlertManagerConfig().
-	defaultconfig := getAlertManagerConfig(reconciler, req)
-	addPDSecretToAlertManagerConfig(reconciler, req, &defaultconfig, pdsecret)
-	updateAlertManagerConfig(reconciler, req, &defaultconfig)
-
-	// Test that the alertmanager secret now contains all the Pager Duty details,
-	// as specified in var `want`.
-	if got := getAlertManagerConfig(reconciler, req); !reflect.DeepEqual(got, want) {
-		t.Errorf("Failed because getAlertManagerConfig() returned:\n%s\n getAlertManagerConfig() should have returned:\n%s\n", got, want)
-	} else {
-		t.Logf("Passed, using Pager Duty config. getAlertManagerConfig() returned:\n%s\n", got)
-	}
+	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
 }
 
-// Test_addSnitchSecretToAlertManagerConfig tests adding the DMS secret
-// to the Alertmanager config. It also tests functions:
-// removeFromRoutes() and removeFromReceivers()
-func Test_addSnitchSecretToAlertManagerConfig(t *testing.T) {
-	// Set up fake cluster resources.
-	snitchsecret := "https://hjkl0987654"
+// Test updating the config and making sure it is updated as expected
+func Test_createPagerdutySecret_Update(t *testing.T) {
+	pdKey := "asdaidsgadfi9853"
+	wdURL := "http://theinterwebs/asdf"
+
+	configExpected := getAlertManagerConfig(pdKey, wdURL)
+
+	// prepare environment
 	reconciler := createReconciler()
 	createNamespace(reconciler, t)
-	createSecret("dms-secret", "SNITCH_URL", snitchsecret, reconciler)
-	req := createReconcileRequest(reconciler, "dms-secret")
+	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 
-	// Load the default AlertManager config into the fake cluster.
-	amconfigbyte := []byte(AlertManagerConfig)
-	createAlertManagerConfig(amconfigbyte, reconciler)
+	// reconcile (one event should config everything)
+	req := createReconcileRequest(reconciler, secretNamePD)
+	reconciler.Reconcile(*req)
 
-	// Build a representation of the object we want.
-	want := getAlertManagerConfig(reconciler, req)
-	snitchconfig := &alertmanager.WebhookConfig{
-		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
-		URL:            snitchsecret,
-	}
+	// verify what we have configured is NOT what we expect at the end (we have updates to do still)
+	configActual := readAlertManagerConfig(reconciler, req)
+	assertNotEquals(t, configExpected, configActual, "Config Deep Comparison")
 
-	newreceiver := &alertmanager.Receiver{
-		Name:           "watchdog",
-		WebhookConfigs: []*alertmanager.WebhookConfig{snitchconfig},
-	}
-	want.Receivers = append(want.Receivers, newreceiver)
+	// update environment
+	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
+	req = createReconcileRequest(reconciler, secretNameDMS)
+	reconciler.Reconcile(*req)
 
-	// Create a route for the new Watchdog receiver.
-	wdroute := &alertmanager.Route{
-		Receiver:       "watchdog",
-		RepeatInterval: "5m",
-		Match:          map[string]string{"alertname": "Watchdog"},
-	}
-	want.Route.Routes = removeFromRoutes(want.Route.Routes, 0)
-	want.Route.Routes = append(want.Route.Routes, wdroute)
-	want.Route.Receiver = "watchdog"
+	// read config and compare
+	configActual = readAlertManagerConfig(reconciler, req)
 
-	// Try to get the same result as `want`,
-	// using addSnitchSecretToAlertManagerConfig() and updateAlertManagerConfig().
-	defaultconfig := getAlertManagerConfig(reconciler, req)
-	addSnitchSecretToAlertManagerConfig(reconciler, req, &defaultconfig, snitchsecret)
-	updateAlertManagerConfig(reconciler, req, &defaultconfig)
-
-	// Test that the alertmanager secret now contains all the Dead Man's Snitch details,
-	// as specified in var `want`.
-	if got := getAlertManagerConfig(reconciler, req); !reflect.DeepEqual(got, want) {
-		t.Errorf("Failed because getAlertManagerConfig() returned:\n%s\n getAlertManagerConfig() should have returned:\n%s\n", got, want)
-	} else {
-		t.Logf("Passed, using Pager Duty config. getAlertManagerConfig() returned:\n%s\n", got)
-	}
+	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
 }
 
-func TestReconcileSecret_Reconcile(t *testing.T) {
+func Test_ReconcileSecrets(t *testing.T) {
 	type fields struct {
 		client client.Client
 		scheme *runtime.Scheme
 	}
 	tests := []struct {
-		name    string
-		secret  string
-		exists  bool // Indicates if the secret being reconciled exists.
-		want    reconcile.Result
-		wantErr bool
+		name        string
+		dmsExists   bool
+		pdExists    bool
+		amExists    bool
+		otherExists bool
 	}{
 		{
-			name:    "Test reconcile with dms-secret present.",
-			secret:  "dms-secret",
-			exists:  true,
-			want:    reconcile.Result{Requeue: false},
-			wantErr: false,
+			name:        "Test reconcile with NO secrets.",
+			dmsExists:   false,
+			pdExists:    false,
+			amExists:    false,
+			otherExists: false,
 		},
 		{
-			name:    "Test reconcile with dms-secret missing.",
-			secret:  "dms-secret",
-			exists:  false,
-			want:    reconcile.Result{Requeue: false},
-			wantErr: false,
+			name:        "Test reconcile with dms-secret only.",
+			dmsExists:   true,
+			pdExists:    false,
+			amExists:    false,
+			otherExists: false,
 		},
 		{
-			name:    "Test reconcile with pd-secret present.",
-			secret:  "pd-secret",
-			exists:  true,
-			want:    reconcile.Result{Requeue: false},
-			wantErr: false,
+			name:        "Test reconcile with pd-secret only.",
+			dmsExists:   false,
+			pdExists:    true,
+			amExists:    false,
+			otherExists: false,
 		},
 		{
-			name:    "Test reconcile with pd-secret missing.",
-			secret:  "pd-secret",
-			exists:  false,
-			want:    reconcile.Result{Requeue: false},
-			wantErr: false,
+			name:        "Test reconcile with alertmanager-main only.",
+			dmsExists:   false,
+			pdExists:    false,
+			amExists:    true,
+			otherExists: false,
 		},
 		{
-			name:    "Test reconcile with alertmanager-main present.",
-			secret:  "alertmanager-main",
-			exists:  true,
-			want:    reconcile.Result{Requeue: false},
-			wantErr: false,
+			name:        "Test reconcile with 'other' secret only.",
+			dmsExists:   false,
+			pdExists:    false,
+			amExists:    false,
+			otherExists: true,
 		},
 		{
-			name:    "Test reconcile with alertmanager-main missing.",
-			secret:  "alertmanager-main",
-			exists:  false,
-			want:    reconcile.Result{Requeue: false},
-			wantErr: false,
+			name:        "Test reconcile with pd & dms secrets.",
+			dmsExists:   true,
+			pdExists:    true,
+			amExists:    false,
+			otherExists: false,
 		},
 		{
-			name:    "Test reconcile with unreconcilable secret.",
-			secret:  "testsecret",
-			exists:  true,
-			want:    reconcile.Result{Requeue: false},
-			wantErr: false,
+			name:        "Test reconcile with pd & am secrets.",
+			dmsExists:   false,
+			pdExists:    true,
+			amExists:    true,
+			otherExists: false,
+		},
+		{
+			name:        "Test reconcile with am & dms secrets.",
+			dmsExists:   true,
+			pdExists:    false,
+			amExists:    true,
+			otherExists: false,
+		},
+		{
+			name:        "Test reconcile with pd, dms, and am secrets.",
+			dmsExists:   true,
+			pdExists:    true,
+			amExists:    true,
+			otherExists: false,
 		},
 	}
 	for _, tt := range tests {
 		reconciler := createReconciler()
 		createNamespace(reconciler, t)
 
-		// Create the secret for this specific test.
-		if tt.exists {
-			switch tt.secret {
-			case "pd-secret":
-				createSecret("pd-secret", "PAGERDUTY_KEY", "asdfjkl123", reconciler)
-			case "dms-secret":
-				createSecret("dms-secret", "SNITCH_URL", "https://hjklasdf09876", reconciler)
-			case "alertmanager-main":
-				amconfigbyte := []byte(AlertManagerConfig)
-				createAlertManagerConfig(amconfigbyte, reconciler)
-			default:
-				createSecret(tt.secret, "key", "asdfjkl", reconciler)
-			}
+		pdKey := ""
+		wdURL := ""
+
+		// Create the secrets for this specific test.
+		if tt.amExists {
+			writeAlertManagerConfig(reconciler, getAlertManagerConfig("", ""))
+		}
+		if tt.dmsExists {
+			wdURL = "https://hjklasdf09876"
+			createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
+		}
+		if tt.otherExists {
+			createSecret(reconciler, "other", "key", "asdfjkl")
+		}
+		if tt.pdExists {
+			pdKey = "asdfjkl123"
+			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		req := createReconcileRequest(reconciler, "dms-secret")
+		configExpected := getAlertManagerConfig(pdKey, wdURL)
 
-		// Load the default AlertManager config into the fake cluster.
-		if tt.secret != "alertmanager-main" {
-			amconfigbyte := []byte(AlertManagerConfig)
-			createAlertManagerConfig(amconfigbyte, reconciler)
-		}
+		req := createReconcileRequest(reconciler, secretNameAlertmanager)
+		reconciler.Reconcile(*req)
 
-		t.Run(tt.name, func(t *testing.T) {
-			r := &ReconcileSecret{
-				client: fake.NewFakeClient(),
-				scheme: nil,
-			}
-			got, err := r.Reconcile(*req)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ReconcileSecret.Reconcile() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ReconcileSecret.Reconcile() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
+		// load the config and check it
+		configActual := readAlertManagerConfig(reconciler, req)
 
-// Test_generateRoutes tests the AlertManager route generation function
-func Test_generateRoutes(t *testing.T) {
-	var (
-		testAlertsRouteWarning = []map[string]string{
-			{"alertname": "KubeAlertWarning"},
-		}
-
-		testAlertsRouteNull = []map[string]string{
-			{"alertname": "KubeAlertNull"},
-		}
-	)
-	want := []*alertmanager.Route{
-		{
-			Receiver: "make-it-warning",
-			Match: map[string]string{
-				"alertname": "KubeAlertWarning",
-			},
-		},
-		{
-			Receiver: "null",
-			Match: map[string]string{
-				"alertname": "KubeAlertNull",
-			},
-		},
-	}
-
-	// Test that the alertmanager secret now contains all the Pager Duty details,
-	// as specified in var `want`.
-	if got := generateRoutes(testAlertsRouteWarning, testAlertsRouteNull); !reflect.DeepEqual(got, want) {
-		t.Errorf("Failed because generateRoutes() returned:\n%+v\n generateRoutes() should have returned:\n%+v\n", got, want)
-	} else {
-		t.Logf("Passed. generateRoutes() returned:\n%+v\n", got)
+		// NOTE compare of the objects will fail when no secrets are created for some reason, so using .String()
+		assertEquals(t, configExpected.String(), configActual.String(), tt.name)
 	}
 }
