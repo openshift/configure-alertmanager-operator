@@ -127,6 +127,7 @@ func getPagerdutyRoute() *alertmanager.Route {
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "FluentdNodeDown"}},
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch"}},
