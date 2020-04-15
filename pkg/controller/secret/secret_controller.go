@@ -173,9 +173,6 @@ func createPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiv
 
 	receivers := []*alertmanager.Receiver{
 		{
-			Name: receiverNull,
-		},
-		{
 			Name:             receiverPagerduty,
 			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey)},
 		},
@@ -234,6 +231,9 @@ func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *a
 		routes = append(routes, createWatchdogRoute())
 		receivers = append(receivers, createWatchdogReceivers(watchdogURL)...)
 	}
+
+	// always have the "null" receiver
+	receivers = append(receivers, &alertmanager.Receiver{Name: receiverNull})
 
 	amconfig := &alertmanager.Config{
 		Global: &alertmanager.GlobalConfig{

@@ -114,31 +114,27 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
 	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
 }
 
-func Test_createPagerdutyRoute(t *testing.T) {
-	// test the structure of the Route is sane
-	route := createPagerdutyRoute()
-
-	verifyPagerdutyRoute(t, route)
-}
-
-func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
-	assertEquals(t, 0, len(createPagerdutyReceivers("")), "Number of Receivers")
+func verifyNullReceiver(t *testing.T, receivers []*alertmanager.Receiver) {
+	hasNull := false
+	for _, receiver := range receivers {
+		if receiver.Name == receiverNull {
+			hasNull = true
+			assertEquals(t, 0, len(receiver.PagerdutyConfigs), "Empty PagerdutyConfigs")
+		}
+	}
+	assertTrue(t, hasNull, fmt.Sprintf("No '%s' receiver", receiverNull))
 }
 
 // utility function to verify Pagerduty Receivers
 func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanager.Receiver) {
 	// there are at least 3 receivers: namespace, elasticsearch, and fluentd
-	assertGte(t, 3, len(receivers), "Number of Receivers")
+	assertGte(t, 2, len(receivers), "Number of Receivers")
 
 	// verify structure of each
-	hasNull := false
 	hasMakeItWarning := false
 	hasPagerduty := false
 	for _, receiver := range receivers {
 		switch receiver.Name {
-		case receiverNull:
-			hasNull = true
-			assertEquals(t, 0, len(receiver.PagerdutyConfigs), "Empty PagerdutyConfigs")
 		case receiverMakeItWarning:
 			hasMakeItWarning = true
 			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
@@ -153,17 +149,8 @@ func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanage
 		}
 	}
 
-	assertTrue(t, hasNull, fmt.Sprintf("No '%s' receiver", receiverNull))
 	assertTrue(t, hasMakeItWarning, fmt.Sprintf("No '%s' receiver", receiverMakeItWarning))
 	assertTrue(t, hasPagerduty, fmt.Sprintf("No '%s' receiver", receiverPagerduty))
-}
-
-func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
-	key := "abcdefg1234567890"
-
-	receivers := createPagerdutyReceivers(key)
-
-	verifyPagerdutyReceivers(t, key, receivers)
 }
 
 // utility function to verify watchdog route
@@ -171,17 +158,6 @@ func verifyWatchdogRoute(t *testing.T, route *alertmanager.Route) {
 	assertEquals(t, receiverWatchdog, route.Receiver, "Reciever Name")
 	assertEquals(t, "5m", route.RepeatInterval, "Repeat Interval")
 	assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
-}
-
-func Test_createWatchdogRoute(t *testing.T) {
-	// test the structure of the Route is sane
-	route := createWatchdogRoute()
-
-	verifyWatchdogRoute(t, route)
-}
-
-func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
-	assertEquals(t, 0, len(createWatchdogReceivers("")), "Number of Receivers")
 }
 
 // utility to test watchdog receivers
@@ -202,6 +178,36 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
 }
 
+func Test_createPagerdutyRoute(t *testing.T) {
+	// test the structure of the Route is sane
+	route := createPagerdutyRoute()
+
+	verifyPagerdutyRoute(t, route)
+}
+
+func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
+	assertEquals(t, 0, len(createPagerdutyReceivers("")), "Number of Receivers")
+}
+
+func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
+	key := "abcdefg1234567890"
+
+	receivers := createPagerdutyReceivers(key)
+
+	verifyPagerdutyReceivers(t, key, receivers)
+}
+
+func Test_createWatchdogRoute(t *testing.T) {
+	// test the structure of the Route is sane
+	route := createWatchdogRoute()
+
+	verifyWatchdogRoute(t, route)
+}
+
+func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
+	assertEquals(t, 0, len(createWatchdogReceivers("")), "Number of Receivers")
+}
+
 func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 	url := "http://whatever/something"
 
@@ -210,7 +216,7 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 	verifyWatchdogReceiver(t, url, receivers)
 }
 
-func Test_createAlertmanagerConfig_WithoutKey_WithoutURL(t *testing.T) {
+func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
 
@@ -224,10 +230,12 @@ func Test_createAlertmanagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
 	assertEquals(t, 0, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 0, len(config.Receivers), "Receivers")
+	assertEquals(t, 1, len(config.Receivers), "Receivers")
+
+	verifyNullReceiver(t, config.Receivers)
 }
 
-func Test_createAlertmanagerConfig_WithKey_WithoutURL(t *testing.T) {
+func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 
@@ -243,11 +251,13 @@ func Test_createAlertmanagerConfig_WithKey_WithoutURL(t *testing.T) {
 	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
 	assertEquals(t, 3, len(config.Receivers), "Receivers")
 
+	verifyNullReceiver(t, config.Receivers)
+
 	verifyPagerdutyRoute(t, config.Route.Routes[0])
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 }
 
-func Test_createAlertmanagerConfig_WithKey_WithURL(t *testing.T) {
+func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 
@@ -263,6 +273,8 @@ func Test_createAlertmanagerConfig_WithKey_WithURL(t *testing.T) {
 	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
 	assertEquals(t, 4, len(config.Receivers), "Receivers")
 
+	verifyNullReceiver(t, config.Receivers)
+
 	verifyPagerdutyRoute(t, config.Route.Routes[0])
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 
@@ -270,7 +282,7 @@ func Test_createAlertmanagerConfig_WithKey_WithURL(t *testing.T) {
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
 }
 
-func Test_createAlertmanagerConfig_WithoutKey_WithURL(t *testing.T) {
+func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 
@@ -284,8 +296,9 @@ func Test_createAlertmanagerConfig_WithoutKey_WithURL(t *testing.T) {
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
 	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 1, len(config.Receivers), "Receivers")
+	assertEquals(t, 2, len(config.Receivers), "Receivers")
 
+	verifyNullReceiver(t, config.Receivers)
 	verifyWatchdogRoute(t, config.Route.Routes[0])
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
 }
