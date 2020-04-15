@@ -93,7 +93,8 @@ var (
 	pagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
 )
 
-func getPagerdutyRoute() *alertmanager.Route {
+// createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
+func createPagerdutyRoute() *alertmanager.Route {
 	// order matters.
 	// these are sub-routes.  if any matches it will not continue processing.
 	// 1. route anything we want to silence to "null"
@@ -144,7 +145,8 @@ func getPagerdutyRoute() *alertmanager.Route {
 	}
 }
 
-func getPagerdutyConfig(pagerdutyRoutingKey string) *alertmanager.PagerdutyConfig {
+// createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
+func createPagerdutyConfig(pagerdutyRoutingKey string) *alertmanager.PagerdutyConfig {
 	return &alertmanager.PagerdutyConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
 		RoutingKey:     pagerdutyRoutingKey,
@@ -163,7 +165,8 @@ func getPagerdutyConfig(pagerdutyRoutingKey string) *alertmanager.PagerdutyConfi
 
 }
 
-func getPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiver {
+// createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
+func createPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -174,12 +177,12 @@ func getPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiver 
 		},
 		{
 			Name:             receiverPagerduty,
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{getPagerdutyConfig(pagerdutyRoutingKey)},
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey)},
 		},
 	}
 
 	// make-it-warning overrides the severity
-	pdconfig := getPagerdutyConfig(pagerdutyRoutingKey)
+	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey)
 	pdconfig.Severity = "warning"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItWarning,
@@ -189,7 +192,8 @@ func getPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiver 
 	return receivers
 }
 
-func getWatchdogRoute() *alertmanager.Route {
+// createWatchdogRoute creates an AlertManager Route for Watchdog (Dead Man's Snitch) in memory.
+func createWatchdogRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverWatchdog,
 		RepeatInterval: "5m",
@@ -197,7 +201,8 @@ func getWatchdogRoute() *alertmanager.Route {
 	}
 }
 
-func getWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
+// createWatchdogReceivers creates an AlertManager Receiver for Watchdog (Dead Man's Sntich) in memory.
+func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 	if watchdogURL == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -215,18 +220,19 @@ func getWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 	}
 }
 
-func getAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *alertmanager.Config {
+// createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
+func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
 	if pagerdutyRoutingKey != "" {
-		routes = append(routes, getPagerdutyRoute())
-		receivers = append(receivers, getPagerdutyReceivers(pagerdutyRoutingKey)...)
+		routes = append(routes, createPagerdutyRoute())
+		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey)...)
 	}
 
 	if watchdogURL != "" {
-		routes = append(routes, getWatchdogRoute())
-		receivers = append(receivers, getWatchdogReceivers(watchdogURL)...)
+		routes = append(routes, createWatchdogRoute())
+		receivers = append(receivers, createWatchdogReceivers(watchdogURL)...)
 	}
 
 	amconfig := &alertmanager.Config{
@@ -303,15 +309,15 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	// If a secret exists, add the necessary configs to Alertmanager.
 	if pagerDutySecretExists {
 		log.Info("INFO: Pager Duty secret exists")
-		pagerdutyRoutingKey = getSecretKey(r, &request, secretNamePD, secretKeyPD)
+		pagerdutyRoutingKey = readSecretKey(r, &request, secretNamePD, secretKeyPD)
 	}
 	if snitchSecretExists {
 		log.Info("INFO: Dead Man's Snitch secret exists")
-		watchdogURL = getSecretKey(r, &request, secretNameDMS, secretKeyDMS)
+		watchdogURL = readSecretKey(r, &request, secretNameDMS, secretKeyDMS)
 	}
 
 	// create the desired alertmanager Config
-	alertmanagerconfig := getAlertManagerConfig(pagerdutyRoutingKey, watchdogURL)
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)
@@ -334,8 +340,8 @@ func secretInList(name string, list *corev1.SecretList) bool {
 	return false
 }
 
-// getSecretKey fetches the data from a Secret, such as a PagerDuty API key.
-func getSecretKey(r *ReconcileSecret, request *reconcile.Request, secretname string, fieldname string) string {
+// readSecretKey fetches the data from a Secret, such as a PagerDuty API key.
+func readSecretKey(r *ReconcileSecret, request *reconcile.Request, secretname string, fieldname string) string {
 
 	secret := &corev1.Secret{}
 
@@ -350,32 +356,6 @@ func getSecretKey(r *ReconcileSecret, request *reconcile.Request, secretname str
 	secretkey := secret.Data[fieldname]
 
 	return string(secretkey)
-}
-
-// getAlertManagerConfig fetches the AlertManager configuration from its default location.
-// This is equivalent to `oc get secrets -n openshift-monitoring alertmanager-main`.
-// It specifically extracts the .data "alertmanager.yaml" field, and loads it into a resource
-// of type Config, enabling it to be marshalled and unmarshalled as needed.
-func readAlertManagerConfig(r *ReconcileSecret, request *reconcile.Request) *alertmanager.Config {
-	amconfig := &alertmanager.Config{}
-
-	secret := &corev1.Secret{}
-
-	// Define a new objectKey for fetching the alertmanager config.
-	objectKey := client.ObjectKey{
-		Namespace: request.Namespace,
-		Name:      secretNameAlertmanager,
-	}
-
-	// Fetch the alertmanager config and load it into an alertmanager.Config struct.
-	r.client.Get(context.TODO(), objectKey, secret)
-	secretdata := secret.Data["alertmanager.yaml"]
-	err := yaml.Unmarshal(secretdata, &amconfig)
-	if err != nil {
-		panic(err)
-	}
-
-	return amconfig
 }
 
 // writeAlertManagerConfig writes the updated alertmanager config to the `alertmanager-main` secret in namespace `openshift-monitoring`.

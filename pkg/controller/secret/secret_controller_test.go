@@ -8,6 +8,7 @@ import (
 
 	"github.com/openshift/configure-alertmanager-operator/config"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
+	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,6 +17,32 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+// readAlertManagerConfig fetches the AlertManager configuration from its default location.
+// This is equivalent to `oc get secrets -n openshift-monitoring alertmanager-main`.
+// It specifically extracts the .data "alertmanager.yaml" field, and loads it into a resource
+// of type Config, enabling it to be marshalled and unmarshalled as needed.
+func readAlertManagerConfig(r *ReconcileSecret, request *reconcile.Request) *alertmanager.Config {
+	amconfig := &alertmanager.Config{}
+
+	secret := &corev1.Secret{}
+
+	// Define a new objectKey for fetching the alertmanager config.
+	objectKey := client.ObjectKey{
+		Namespace: request.Namespace,
+		Name:      secretNameAlertmanager,
+	}
+
+	// Fetch the alertmanager config and load it into an alertmanager.Config struct.
+	r.client.Get(context.TODO(), objectKey, secret)
+	secretdata := secret.Data["alertmanager.yaml"]
+	err := yaml.Unmarshal(secretdata, &amconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	return amconfig
+}
 
 func assertEquals(t *testing.T, want interface{}, got interface{}, message string) {
 	if reflect.DeepEqual(got, want) {
@@ -87,15 +114,15 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
 	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
 }
 
-func Test_getPagerdutyRoute(t *testing.T) {
+func Test_createPagerdutyRoute(t *testing.T) {
 	// test the structure of the Route is sane
-	route := getPagerdutyRoute()
+	route := createPagerdutyRoute()
 
 	verifyPagerdutyRoute(t, route)
 }
 
-func Test_getPagerdutyReceivers_WithoutKey(t *testing.T) {
-	assertEquals(t, 0, len(getPagerdutyReceivers("")), "Number of Receivers")
+func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
+	assertEquals(t, 0, len(createPagerdutyReceivers("")), "Number of Receivers")
 }
 
 // utility function to verify Pagerduty Receivers
@@ -131,10 +158,10 @@ func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanage
 	assertTrue(t, hasPagerduty, fmt.Sprintf("No '%s' receiver", receiverPagerduty))
 }
 
-func Test_getPagerdutyReceivers_WithKey(t *testing.T) {
+func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 	key := "abcdefg1234567890"
 
-	receivers := getPagerdutyReceivers(key)
+	receivers := createPagerdutyReceivers(key)
 
 	verifyPagerdutyReceivers(t, key, receivers)
 }
@@ -146,15 +173,15 @@ func verifyWatchdogRoute(t *testing.T, route *alertmanager.Route) {
 	assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
 }
 
-func Test_getWatchdogRoute(t *testing.T) {
+func Test_createWatchdogRoute(t *testing.T) {
 	// test the structure of the Route is sane
-	route := getWatchdogRoute()
+	route := createWatchdogRoute()
 
 	verifyWatchdogRoute(t, route)
 }
 
-func Test_getWatchdogReceivers_WithoutURL(t *testing.T) {
-	assertEquals(t, 0, len(getWatchdogReceivers("")), "Number of Receivers")
+func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
+	assertEquals(t, 0, len(createWatchdogReceivers("")), "Number of Receivers")
 }
 
 // utility to test watchdog receivers
@@ -175,19 +202,19 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
 }
 
-func Test_getWatchdogReceivers_WithKey(t *testing.T) {
+func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 	url := "http://whatever/something"
 
-	receivers := getWatchdogReceivers(url)
+	receivers := createWatchdogReceivers(url)
 
 	verifyWatchdogReceiver(t, url, receivers)
 }
 
-func Test_getAlertmanagerConfig_WithoutKey_WithoutURL(t *testing.T) {
+func Test_createAlertmanagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
 
-	config := getAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -200,11 +227,11 @@ func Test_getAlertmanagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	assertEquals(t, 0, len(config.Receivers), "Receivers")
 }
 
-func Test_getAlertmanagerConfig_WithKey_WithoutURL(t *testing.T) {
+func Test_createAlertmanagerConfig_WithKey_WithoutURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 
-	config := getAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -220,11 +247,11 @@ func Test_getAlertmanagerConfig_WithKey_WithoutURL(t *testing.T) {
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 }
 
-func Test_getAlertmanagerConfig_WithKey_WithURL(t *testing.T) {
+func Test_createAlertmanagerConfig_WithKey_WithURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 
-	config := getAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -243,11 +270,11 @@ func Test_getAlertmanagerConfig_WithKey_WithURL(t *testing.T) {
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
 }
 
-func Test_getAlertmanagerConfig_WithoutKey_WithURL(t *testing.T) {
+func Test_createAlertmanagerConfig_WithoutKey_WithURL(t *testing.T) {
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 
-	config := getAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -310,7 +337,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := getAlertManagerConfig(pdKey, wdURL)
+	configExpected := createAlertManagerConfig(pdKey, wdURL)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -333,7 +360,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := getAlertManagerConfig(pdKey, wdURL)
+	configExpected := createAlertManagerConfig(pdKey, wdURL)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -444,7 +471,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, getAlertManagerConfig("", ""))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", ""))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -458,7 +485,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := getAlertManagerConfig(pdKey, wdURL)
+		configExpected := createAlertManagerConfig(pdKey, wdURL)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
 		reconciler.Reconcile(*req)
