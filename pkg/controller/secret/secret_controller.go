@@ -23,7 +23,7 @@ import (
 
 var log = logf.Log.WithName("secret_controller")
 
-var (
+const (
 	secretKeyPD = "PAGERDUTY_KEY"
 
 	secretKeyDMS = "SNITCH_URL"
@@ -33,7 +33,35 @@ var (
 	secretNameDMS = "dms-secret"
 
 	secretNameAlertmanager = "alertmanager-main"
+
+	// anything routed to "null" receiver does not get routed to PD
+	receiverNull = "null"
+
+	// anything routed to "make-it-warning" receiver has severity=warning
+	receiverMakeItWarning = "make-it-warning"
+
+	// anything routed to "pagerduty" will alert/notify SREP
+	receiverPagerduty = "pagerduty"
+
+	// anything going to Dead Man's Snitch (watchdog)
+	receiverWatchdog = "watchdog"
+
+	// the default receiver used by the route used for pagerduty
+	defaultReceiver = receiverNull
+
+	// global config for PagerdutyURL
+	pagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
 )
+
+var _ reconcile.Reconciler = &ReconcileSecret{}
+
+// ReconcileSecret reconciles a Secret object
+type ReconcileSecret struct {
+	// This client, initialized using mgr.Client() above, is a split client
+	// that reads objects from the cache and writes to the apiserver
+	client client.Client
+	scheme *runtime.Scheme
+}
 
 // Add creates a new Secret Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -62,36 +90,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 	return nil
 }
-
-var _ reconcile.Reconciler = &ReconcileSecret{}
-
-// ReconcileSecret reconciles a Secret object
-type ReconcileSecret struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
-}
-
-var (
-	// anything routed to "null" receiver does not get routed to PD
-	receiverNull = "null"
-
-	// anything routed to "make-it-warning" receiver has severity=warning
-	receiverMakeItWarning = "make-it-warning"
-
-	// anything routed to "pagerduty" will alert/notify SREP
-	receiverPagerduty = "pagerduty"
-
-	// anything going to Dead Man's Snitch (watchdog)
-	receiverWatchdog = "watchdog"
-
-	// the default receiver used by the route used for pagerduty
-	defaultReceiver = receiverNull
-
-	// global config for PagerdutyURL
-	pagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
-)
 
 // createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
 func createPagerdutyRoute() *alertmanager.Route {
