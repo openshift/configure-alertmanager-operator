@@ -85,7 +85,16 @@ gobuild: gocheck gotest
 
 .PHONY: gotest
 gotest:
-	go test ${TESTOPTS} ${TESTTARGETS}
+	go test -cover ${TESTTARGETS} | tee /tmp/${OPERATOR_NAME}-test.out
+	@for COVERAGE in $$(cat /tmp/${OPERATOR_NAME}-test.out | grep coverage | sed 's/.*coverage:[ ]*\([^. ]*\).*/\1/g'); \
+	do \
+		if [ $${COVERAGE} -le 20 ]; \
+		then \
+			echo "FAILURE: Test coverage below target 20%"; \
+			exit -1; \
+		fi \
+	done; \
+	echo "SUCCESS: Test coverage at or above target 20%"
 
 .PHONY: envtest
 envtest:

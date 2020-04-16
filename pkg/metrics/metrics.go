@@ -81,7 +81,7 @@ func RegisterMetrics() error {
 
 // UpdateSecretsMetrics updates all metrics related to the existance and contents of Secrets
 // used by configure-alertmanager-operator.
-func UpdateSecretsMetrics(list *corev1.SecretList, amconfig alertmanager.Config) {
+func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config) {
 
 	// Default to false.
 	pdSecretExists := false

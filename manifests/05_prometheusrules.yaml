@@ -1,33 +1,33 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: configure-alertmanager-operator
+  name: sre-configure-alertmanager-operator
   namespace: openshift-monitoring
 spec:
   groups:
-  - name: configure-alertmanager-operator
+  - name: sre-configure-alertmanager-operator
     rules:
-    - alert: Mismatch between DMS secret and DMS Alertmanager config
+    - alert: ConfigureAlertmanagerOperatorMismatchDmsSRE
       annotations:
         message: "Mismatch between DMS secret and DMS AlertManager config"
         link_url: "https://access.redhat.com/articles/4165971"
-      expr: dms_secret_exists + am_secret_contains_dms = 1
+      expr: dms_secret_exists + am_secret_contains_dms == 1
       for: 5m
       labels:
         severity: critical
-    - alert: Mismatch between PD secret and PD Alertmanager config
+    - alert: ConfigureAlertmanagerOperatorMismatchPdSRE
       annotations:
         message: "Mismatch between PD secret and PD AlertManager config"
         link_url: "https://access.redhat.com/articles/4165971"
-      expr: pd_secret_exists + am_secret_contains_pd = 1
+      expr: pd_secret_exists + am_secret_contains_pd == 1
       for: 5m
       labels:
         severity: critical
-    - alert: Alertmanager config secret does not exist
+    - alert: ConfigureAlertmanagerOperatorMissingAlermanagerConfigSRE
       annotations:
         message: "Alertmanager config secret does not exist"
         link_url: "https://access.redhat.com/articles/4165971"
-      expr: am_secret_exists = 0
+      expr: am_secret_exists == 0
       for: 5m
       labels:
         severity: critical
