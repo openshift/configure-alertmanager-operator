@@ -27,7 +27,7 @@ OPERATOR_DOCKERFILE?=build/Dockerfile
 BINFILE=build/_output/bin/${OPERATOR_NAME}
 MAINPACKAGE=./cmd/manager
 GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
+GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}" -mod=vendor
 
 CONTAINER_ENGINE=$(shell which podman 2>/dev/null || which docker 2>/dev/null)
 
