@@ -10,7 +10,7 @@ require (
 	github.com/json-iterator/go v1.1.8 // indirect
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.9.0 // indirect
-	github.com/operator-framework/operator-sdk v0.14.1
+	github.com/operator-framework/operator-sdk v0.15.1
 	github.com/prometheus/client_golang v1.2.1
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4 // indirect
 	github.com/prometheus/common v0.7.0 // indirect
@@ -26,7 +26,7 @@ require (
 )
 
 // Replaces as specified at
-// https://github.com/operator-framework/operator-sdk/blob/master/doc/migration/version-upgrade-guide.md#v014x
+// https://github.com/operator-framework/operator-sdk/blob/master/doc/migration/version-upgrade-guide.md#v015x
 
 // Pinned to kubernetes-1.16.2
 replace (
