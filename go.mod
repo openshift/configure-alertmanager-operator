@@ -6,29 +6,18 @@ require (
 	cloud.google.com/go v0.47.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/coreos/prometheus-operator v0.34.0
-	github.com/emicklei/go-restful v2.11.1+incompatible // indirect
-	github.com/go-openapi/jsonreference v0.19.3 // indirect
 	github.com/go-openapi/spec v0.19.5-0.20191022081736-744796356cda // indirect
-	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
-	github.com/hashicorp/golang-lru v0.5.3 // indirect
-	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/json-iterator/go v1.1.8 // indirect
-	github.com/mailru/easyjson v0.7.0 // indirect
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.9.0 // indirect
-	github.com/operator-framework/operator-sdk v0.13.0
-	github.com/prometheus/client_golang v1.1.0
+	github.com/operator-framework/operator-sdk v0.14.1
+	github.com/prometheus/client_golang v1.2.1
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4 // indirect
 	github.com/prometheus/common v0.7.0 // indirect
 	github.com/prometheus/procfs v0.0.5 // indirect
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/multierr v1.2.0 // indirect
 	go.uber.org/zap v1.11.0 // indirect
-	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550 // indirect
-	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271 // indirect
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	google.golang.org/appengine v1.6.5 // indirect
 	gopkg.in/yaml.v2 v2.2.4
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
@@ -37,7 +26,7 @@ require (
 )
 
 // Replaces as specified at
-// https://github.com/operator-framework/operator-sdk/blob/master/doc/migration/version-upgrade-guide.md#v013x
+// https://github.com/operator-framework/operator-sdk/blob/master/doc/migration/version-upgrade-guide.md#v014x
 
 // Pinned to kubernetes-1.16.2
 replace (
@@ -63,6 +52,8 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.0.0-20191016113814-3b1a734dba6e
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
 )
+
+replace github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309 // Required by Helm
 
 // Forcing this back to the version it was previously at in vendor,
 // since by default a newer version with a breaking change gets
