@@ -4,7 +4,6 @@ go 1.13
 
 require (
 	cloud.google.com/go v0.47.0 // indirect
-	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/coreos/prometheus-operator v0.34.0
 	github.com/go-openapi/spec v0.19.5-0.20191022081736-744796356cda // indirect
 	github.com/json-iterator/go v1.1.8 // indirect
@@ -12,8 +11,6 @@ require (
 	github.com/onsi/gomega v1.9.0 // indirect
 	github.com/operator-framework/operator-sdk v0.16.0
 	github.com/prometheus/client_golang v1.2.1
-	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4 // indirect
-	github.com/prometheus/procfs v0.0.5 // indirect
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/multierr v1.2.0 // indirect
 	go.uber.org/zap v1.11.0 // indirect
@@ -53,8 +50,3 @@ replace (
 )
 
 replace github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309 // Required by Helm
-
-// Forcing this back to the version it was previously at in vendor,
-// since by default a newer version with a breaking change gets
-// preferred by go modules
-replace github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.4
