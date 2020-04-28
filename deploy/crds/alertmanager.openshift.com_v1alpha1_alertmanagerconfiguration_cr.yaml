@@ -1,0 +1,7 @@
+apiVersion: alertmanager.openshift.com/v1alpha1
+kind: AlertManagerConfiguration
+metadata:
+  name: example-alertmanagerconfiguration
+spec:
+  # Add fields here
+  size: 3

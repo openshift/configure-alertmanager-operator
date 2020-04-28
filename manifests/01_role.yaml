@@ -6,6 +6,17 @@ metadata:
   namespace: openshift-monitoring
 rules:
 - apiGroups:
+  - alertmanager.openshift.com
+  resources:
+  - alertmanagerconfigurations
+  - alertmanagerconfigurations/status
+  - alertmanagerconfigurations/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+- apiGroups:
   - ""
   resources:
   - pods
@@ -79,4 +90,3 @@ rules:
   - watch
   - patch
   - update
-
