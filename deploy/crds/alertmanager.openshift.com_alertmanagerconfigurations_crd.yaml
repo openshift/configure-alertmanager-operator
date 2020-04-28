@@ -32,6 +32,190 @@ spec:
         spec:
           description: AlertManagerConfigurationSpec defines the desired state of
             AlertManagerConfiguration
+          properties:
+            receivers:
+              description: List of receivers.
+              items:
+                description: Receiver is a named configuration of one or more notification
+                  integrations. Currently supported integrations limited to Email,
+                  PagerDuty and Webhooks.
+                properties:
+                  name:
+                    description: Name of the receiver. Must be unique across all items
+                      from the list.
+                    type: string
+                  pagerdutys:
+                    description: List of OpsGenie receivers
+                    items:
+                      description: PagerDutyReceiver holds the configuration for a
+                        PagerDuty receiver
+                      properties:
+                        client:
+                          description: Client identification
+                          type: string
+                        clientUrl:
+                          description: Backlink to the sendor of notification.
+                          type: string
+                        description:
+                          description: Description of the incident.
+                          type: string
+                        details:
+                          description: Arbitrary key/value pairs that provide further
+                            detail about the incident.
+                          items:
+                            description: KeyValue is a generic type to hold a key
+                              and value string pair
+                            properties:
+                              key:
+                                description: The key for this keyvalue pair
+                                type: string
+                              value:
+                                description: The value for this keyvalue pair
+                                type: string
+                            required:
+                            - key
+                            - value
+                            type: object
+                          type: array
+                        routingKey:
+                          description: PagerDuty integration key (when using Events
+                            API v2). Either this key or service_key needs to be defined.
+                          properties:
+                            key:
+                              description: The key of the secret to select from.  Must
+                                be a valid secret key.
+                              type: string
+                            name:
+                              description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Add other useful fields. apiVersion, kind, uid?'
+                              type: string
+                            optional:
+                              description: Specify whether the Secret or its key must
+                                be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                        sendResolved:
+                          description: Whether to send resolved notifications or not.
+                          type: boolean
+                        severity:
+                          description: Severity of the incident.
+                          type: string
+                        url:
+                          description: The URL to send requests to.
+                          type: string
+                      type: object
+                    type: array
+                  webhooks:
+                    description: List of Webhook receivers
+                    items:
+                      description: WebhookReceiver holds the configuration for a Webhook
+                        receiver
+                      properties:
+                        sendResolved:
+                          description: Whether to send resolved notifications or not.
+                          type: boolean
+                        url:
+                          description: The URL to send HTTP POST requests to. 'urlSecret'
+                            takes precedence over 'url'. One of 'urlSecret' and 'url'
+                            should be defined.
+                          type: string
+                        urlSecret:
+                          description: The URL to send HTTP POST requests to. 'urlSecret'
+                            takes precedence over 'url'. One of 'urlSecret' and 'url'
+                            should be defined.
+                          properties:
+                            key:
+                              description: The key of the secret to select from.  Must
+                                be a valid secret key.
+                              type: string
+                            name:
+                              description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Add other useful fields. apiVersion, kind, uid?'
+                              type: string
+                            optional:
+                              description: Specify whether the Secret or its key must
+                                be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                      type: object
+                    type: array
+                required:
+                - name
+                type: object
+              type: array
+            route:
+              description: The Alertmanager route definition for alerts matching the
+                resource’s namespace. It will be added to the generated Alertmanager
+                configuration as a first-level route.
+              properties:
+                continue:
+                  description: Boolean indicating whether an alert should continue
+                    matching subsequent sibling nodes. It will always be overridden
+                    to true for the first-level route by the Prometheus operator.
+                  type: boolean
+                groupBy:
+                  description: List of labels to group by.
+                  items:
+                    type: string
+                  type: array
+                groupInterval:
+                  description: How long to wait before sending an updated notification.
+                    Must match the regular expression [0-9]+(ms|s|m|h) (milliseconds
+                    seconds minutes hours).
+                  pattern: '[0-9]+[ms,s,m,h]{1}'
+                  type: string
+                groupWait:
+                  description: How long to wait before sending the initial notification.
+                    Must match the regular expression [0-9]+(ms|s|m|h) (milliseconds
+                    seconds minutes hours).
+                  pattern: '[0-9]+[ms,s,m,h]{1}'
+                  type: string
+                matchers:
+                  description: List of matchers that the alert’s labels should match.
+                    The first-level route will always include a matcher on the resource’s
+                    namespace.
+                  items:
+                    description: Matcher is a encoding of an alert matcher to be used
+                      as a source or target in an inhibition rule or route matchers
+                      list.
+                    properties:
+                      name:
+                        description: Name of the alert's label to match.
+                        type: string
+                      regex:
+                        description: Boolean indicating whether it is a regex-matcher
+                          or not.
+                        type: boolean
+                      value:
+                        description: Value of the alert's label to match.
+                        type: string
+                    required:
+                    - name
+                    - value
+                    type: object
+                  type: array
+                receiver:
+                  description: Name of the receiver for this route. If present, it
+                    should be listed in the “receivers” field. The field can be omitted
+                    only for nested routes otherwise it is mandatory.
+                  type: string
+                repeatInterval:
+                  description: How long to wait before repeating the last notification.
+                    Must match the regular expression [0-9]+(ms|s|m|h) (milliseconds
+                    seconds minutes hours).
+                  pattern: '[0-9]+[ms,s,m,h]{1}'
+                  type: string
+                routes:
+                  description: 'Definition of nested/child routes. Alertmanager routes
+                    are recursive structures: one route can contain an arbitrary level
+                    of nested routes.'
+                  items: {}
+                  type: array
+              type: object
           type: object
         status:
           description: AlertManagerConfigurationStatus defines the observed state

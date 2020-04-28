@@ -3,5 +3,7 @@ kind: AlertManagerConfiguration
 metadata:
   name: example-alertmanagerconfiguration
 spec:
-  # Add fields here
-  size: 3
+  receivers:
+  - name: dummy-email
+    emails:
+    - to: recipient@example.com
