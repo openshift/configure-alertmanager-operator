@@ -230,9 +230,12 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *alertmanager.Config {
-	routes := []*alertmanager.Route{}
-	receivers := []*alertmanager.Receiver{}
+func createAlertManagerConfig(
+	routes []*alertmanager.Route,
+	receivers []*alertmanager.Receiver,
+	pagerdutyRoutingKey string,
+	watchdogURL string,
+) *alertmanager.Config {
 
 	if pagerdutyRoutingKey != "" {
 		routes = append(routes, createPagerdutyRoute())
@@ -330,8 +333,11 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		watchdogURL = readSecretKey(r, &request, secretNameDMS, secretKeyDMS)
 	}
 
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
+
 	// create the desired alertmanager Config
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL)
+	alertmanagerconfig := createAlertManagerConfig(routes, receivers, pagerdutyRoutingKey, watchdogURL)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)

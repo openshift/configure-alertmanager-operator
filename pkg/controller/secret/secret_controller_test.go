@@ -6,7 +6,9 @@ import (
 	"reflect"
 	"testing"
 
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/openshift/configure-alertmanager-operator/config"
+	"github.com/openshift/configure-alertmanager-operator/pkg/apis"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -217,10 +219,12 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 }
 
 func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
 	pdKey := ""
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -236,10 +240,12 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 }
 
 func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -258,10 +264,12 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 }
 
 func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -283,10 +291,12 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 }
 
 func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -319,9 +329,14 @@ func createSecret(reconciler *ReconcileSecret, secretname string, secretkey stri
 
 // createReconciler creates a fake ReconcileSecret for testing.
 func createReconciler() *ReconcileSecret {
+	scheme := runtime.NewScheme()
+	corev1.SchemeBuilder.AddToScheme(scheme)
+	apis.AddToScheme(scheme)
+	monitoringv1.AddToScheme(scheme)
+
 	return &ReconcileSecret{
-		client: fake.NewFakeClient(),
-		scheme: nil,
+		client: fake.NewFakeClientWithScheme(scheme),
+		scheme: scheme,
 	}
 }
 
@@ -347,10 +362,12 @@ func createReconcileRequest(reconciler *ReconcileSecret, secretname string) *rec
 
 // Test_updateAlertManagerConfig tests writing to the Alertmanager config.
 func Test_createPagerdutySecret_Create(t *testing.T) {
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL)
+	configExpected := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -370,10 +387,12 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 
 // Test updating the config and making sure it is updated as expected
 func Test_createPagerdutySecret_Update(t *testing.T) {
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL)
+	configExpected := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -479,12 +498,14 @@ func Test_ReconcileSecrets(t *testing.T) {
 		reconciler := createReconciler()
 		createNamespace(reconciler, t)
 
+		routes := []*alertmanager.Route{}
+		receivers := []*alertmanager.Receiver{}
 		pdKey := ""
 		wdURL := ""
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", ""))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig([]*alertmanager.Route{}, []*alertmanager.Receiver{}, "", ""))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -498,7 +519,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := createAlertManagerConfig(pdKey, wdURL)
+		configExpected := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
 		reconciler.Reconcile(*req)
