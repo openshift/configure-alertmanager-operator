@@ -90,9 +90,7 @@ type Route struct {
 	// +kubebuilder:validation:Pattern=`[0-9]+[ms,s,m,h]{1}`
 	RepeatInterval string `json:"repeatInterval,omitempty"`
 
-	// List of matchers that the alert’s labels should match. The
-	// first-level route will always include a matcher on the
-	// resource’s namespace.
+	// List of matchers that the alert’s labels should match.
 	Matchers []Matcher `json:"matchers,omitempty"`
 
 	// Boolean indicating whether an alert should continue
@@ -119,25 +117,9 @@ func (r Route) toAMRoute(amcObjectMeta metav1.ObjectMeta, firstLevelRoute bool) 
 	cont := r.Continue
 
 	// "continue" is enforced to true for top level route in an
-	// AlertManagerConfiguration CR, and namespace match/matchre are
-	// replaced with a namespace matcher for the namespace the CR is in
+	// AlertManagerConfiguration CR
 	if firstLevelRoute {
 		cont = true
-
-		// TODO: operator currently only watches own namespace, so need
-		// to figure out if CRs should only be in there or in their own
-		// namespaces
-		r.Matchers = append(r.Matchers, Matcher{Name: "namespace", Value: amcObjectMeta.Namespace})
-		for _, matcher := range r.Matchers {
-			if matcher.Name == "namespace" {
-				matcher.Value = amcObjectMeta.Namespace
-				matcher.Regex = false
-				// Don't break here, as there could be more than
-				// one "namespace" matcher, and it's easier to
-				// just force-set them all than to delete
-				// elements from a slice
-			}
-		}
 	}
 
 	match := map[string]string{}
