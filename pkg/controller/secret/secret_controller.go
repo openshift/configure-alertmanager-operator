@@ -9,8 +9,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -91,6 +94,42 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return err
 	}
+
+	// Watch for changes to secondary resource AlertManagerConfiguration,
+	// and enqueue a request for the Alertmanager secret
+	err = c.Watch(
+		&source.Kind{Type: &amcv1alpha1.AlertManagerConfiguration{}},
+		handler.Funcs{
+			CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+					Name:      secretNameAlertmanager,
+					Namespace: e.Meta.GetNamespace(),
+				}})
+			},
+			UpdateFunc: func(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+					Name:      secretNameAlertmanager,
+					Namespace: e.MetaNew.GetNamespace(),
+				}})
+			},
+			DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+					Name:      secretNameAlertmanager,
+					Namespace: e.Meta.GetNamespace(),
+				}})
+			},
+			GenericFunc: func(e event.GenericEvent, q workqueue.RateLimitingInterface) {
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+					Name:      secretNameAlertmanager,
+					Namespace: e.Meta.GetNamespace(),
+				}})
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
