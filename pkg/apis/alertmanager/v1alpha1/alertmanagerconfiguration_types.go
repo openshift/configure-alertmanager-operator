@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
+	alertmanagerconfig "github.com/openshift/configure-alertmanager-operator/pkg/types"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -106,14 +107,75 @@ type Route struct {
 	Routes []Route `json:"routes,omitempty"`
 }
 
-// Receiver Receiver is a named configuration of one or more
-// notification integrations. Currently supported integrations limited
-// to Email, PagerDuty and Webhooks.
+// ToAMRoute converts a Route specified in an AlertManagerConfiguration
+// CR, to the Route type expected for serialization into the Alertmanager
+// YAML config file.
+func (r Route) ToAMRoute(amcObjectMeta metav1.ObjectMeta) *alertmanagerconfig.Route {
+	return r.toAMRoute(amcObjectMeta, true)
+}
+
+func (r Route) toAMRoute(amcObjectMeta metav1.ObjectMeta, firstLevelRoute bool) *alertmanagerconfig.Route {
+
+	cont := r.Continue
+
+	// "continue" is enforced to true for top level route in an
+	// AlertManagerConfiguration CR, and namespace match/matchre are
+	// replaced with a namespace matcher for the namespace the CR is in
+	if firstLevelRoute {
+		cont = true
+
+		// TODO: operator currently only watches own namespace, so need
+		// to figure out if CRs should only be in there or in their own
+		// namespaces
+		r.Matchers = append(r.Matchers, Matcher{Name: "namespace", Value: amcObjectMeta.Namespace})
+		for _, matcher := range r.Matchers {
+			if matcher.Name == "namespace" {
+				matcher.Value = amcObjectMeta.Namespace
+				matcher.Regex = false
+				// Don't break here, as there could be more than
+				// one "namespace" matcher, and it's easier to
+				// just force-set them all than to delete
+				// elements from a slice
+			}
+		}
+	}
+
+	match := map[string]string{}
+	matchRE := map[string]string{}
+	for _, matcher := range r.Matchers {
+		if matcher.Regex {
+			matchRE[matcher.Name] = matcher.Value
+		} else {
+			match[matcher.Name] = matcher.Value
+		}
+	}
+
+	routes := []*alertmanagerconfig.Route{}
+	for _, route := range r.Routes {
+		amRoute := route.toAMRoute(amcObjectMeta, false)
+		routes = append(routes, amRoute)
+	}
+
+	return &alertmanagerconfig.Route{
+		Receiver:       prefixNamespaceName(amcObjectMeta.Namespace, amcObjectMeta.Name, r.Receiver),
+		GroupByStr:     r.GroupBy,
+		GroupWait:      r.GroupWait,
+		GroupInterval:  r.GroupInterval,
+		RepeatInterval: r.RepeatInterval,
+		Continue:       cont,
+		Match:          match,
+		MatchRE:        matchRE,
+	}
+}
+
+// Receiver is a named configuration of one or more notification
+// integrations. Currently supported integrations limited to Email, PagerDuty
+// and Webhooks.
 type Receiver struct {
 	// Name of the receiver. Must be unique across all items from the list.
 	Name string `json:"name"`
 
-	// TODO: enable this (corresponding alertmanagerconfig.Receiver can't currently handle it)
+	// TODO: enable this
 	// List of email receivers
 	// Emails []EmailReceiver `json:"emails,omitempty"`
 
@@ -122,6 +184,33 @@ type Receiver struct {
 
 	// List of Webhook receivers
 	Webhooks []WebhookReceiver `json:"webhooks,omitempty"`
+}
+
+// ToAMReceiver converts a Receiver specified in an AlertManagerConfiguration
+// CR, to the Receiver type expected for serialization into the Alertmanager
+// YAML config file.
+func (r Receiver) ToAMReceiver(
+	amcObjectMeta metav1.ObjectMeta,
+	getValueFromSecretKeySelector func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error),
+) *alertmanagerconfig.Receiver {
+
+	pagerdutyConfigs := []*alertmanagerconfig.PagerdutyConfig{}
+	for _, p := range r.PagerDutys {
+		pagerdutyConfig := p.toAMPagerdutyConfig(amcObjectMeta, getValueFromSecretKeySelector)
+		pagerdutyConfigs = append(pagerdutyConfigs, &pagerdutyConfig)
+	}
+
+	webhookConfigs := []*alertmanagerconfig.WebhookConfig{}
+	for _, w := range r.Webhooks {
+		webhookConfig := w.toAMWebhookConfig(amcObjectMeta, getValueFromSecretKeySelector)
+		webhookConfigs = append(webhookConfigs, &webhookConfig)
+	}
+
+	return &alertmanagerconfig.Receiver{
+		Name:             prefixNamespaceName(amcObjectMeta.Namespace, amcObjectMeta.Name, r.Name),
+		PagerdutyConfigs: pagerdutyConfigs,
+		WebhookConfigs:   webhookConfigs,
+	}
 }
 
 // InhibitRule is an AlertManager configuration option to decide if an
@@ -243,6 +332,44 @@ type PagerDutyReceiver struct {
 	// HTTPConfig *HTTPConfig `json:"httpConfig,omitempty"`
 }
 
+// toAMPagerdutyConfig converts a PagerDutyReceiver specified in a Receiver in
+// an AlertManagerConfiguration CR, to the type expected for serialization into
+// the Alertmanager YAML config file.
+func (p PagerDutyReceiver) toAMPagerdutyConfig(
+	amcObjectMeta metav1.ObjectMeta,
+	getValueFromSecretKeySelector func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error),
+) alertmanagerconfig.PagerdutyConfig {
+
+	routingKey := ""
+	if p.RoutingKey != nil {
+		secretRoutingKey, err := getValueFromSecretKeySelector(amcObjectMeta.Namespace, p.RoutingKey)
+		if err == nil {
+			routingKey = secretRoutingKey
+		}
+	}
+
+	details := map[string]string{}
+	for _, detail := range p.Details {
+		details[detail.Key] = detail.Value
+	}
+
+	return alertmanagerconfig.PagerdutyConfig{
+		NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: p.SendResolved},
+		RoutingKey:     routingKey,
+		URL:            p.URL,
+		Client:         p.Client,
+		ClientURL:      p.ClientURL,
+		Description:    p.Description,
+		Details:        details,
+		Severity:       p.Severity,
+
+		// TODO: are these properties used?
+		Class:     "",
+		Component: "",
+		Group:     "",
+	}
+}
+
 // WebhookReceiver holds the configuration for a Webhook receiver
 type WebhookReceiver struct {
 	// Whether to send resolved notifications or not.
@@ -258,9 +385,30 @@ type WebhookReceiver struct {
 	// be defined.
 	URLSecret *corev1.SecretKeySelector `json:"urlSecret,omitempty"`
 
-	// TODO: enable this (corresponding alertmanager.WebhookConfig will need to have the ability to encode it)
+	// TODO: enable this
 	// HTTP client configuration.
 	// HTTPConfig *HTTPConfig `json:"httpConfig,omitempty"`
+}
+
+// toAMWebhookConfig converts a WebhookReceiver specified in a Receiver in an
+// AlertManagerConfiguration CR, to the type expected for serialization into the
+// Alertmanager YAML config file.
+func (w WebhookReceiver) toAMWebhookConfig(
+	amcObjectMeta metav1.ObjectMeta,
+	getValueFromSecretKeySelector func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error),
+) alertmanagerconfig.WebhookConfig {
+	url := w.URL
+	if w.URLSecret != nil {
+		secretUrl, err := getValueFromSecretKeySelector(amcObjectMeta.Namespace, w.URLSecret)
+		if err == nil && secretUrl != "" {
+			url = secretUrl
+		}
+	}
+
+	return alertmanagerconfig.WebhookConfig{
+		NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: w.SendResolved},
+		URL:            url,
+	}
 }
 
 // KeyValue is a generic type to hold a key and value string pair
@@ -288,6 +436,10 @@ type HTTPConfig struct {
 
 	// Proxy to use for accessing the endpoint.
 	ProxyURL string `json:"proxyUrl,omitempty"`
+}
+
+func prefixNamespaceName(namespace, name, suffix string) string {
+	return namespace + "-" + name + "-" + suffix
 }
 
 func init() {

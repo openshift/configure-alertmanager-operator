@@ -2,6 +2,8 @@ package secret
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -18,6 +20,7 @@ import (
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 
+	amcv1alpha1 "github.com/openshift/configure-alertmanager-operator/pkg/apis/alertmanager/v1alpha1"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -333,8 +336,10 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		watchdogURL = readSecretKey(r, &request, secretNameDMS, secretKeyDMS)
 	}
 
-	routes := []*alertmanager.Route{}
-	receivers := []*alertmanager.Receiver{}
+	routes, receivers, err := r.handleAlertManagerConfigurationCRs()
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 
 	// create the desired alertmanager Config
 	alertmanagerconfig := createAlertManagerConfig(routes, receivers, pagerdutyRoutingKey, watchdogURL)
@@ -345,6 +350,44 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
 	reqLogger.Info("Finished reconcile for secret.")
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileSecret) handleAlertManagerConfigurationCRs() ([]*alertmanager.Route, []*alertmanager.Receiver, error) {
+	routes := []*alertmanager.Route{}
+	receivers := []*alertmanager.Receiver{}
+
+	amConfigList := &amcv1alpha1.AlertManagerConfigurationList{}
+	err := r.client.List(context.TODO(), amConfigList)
+	if err != nil {
+		log.Error(err, "Error listing AlertManagerConfiguration CRs")
+		return routes, receivers, err
+	}
+
+	for _, amc := range amConfigList.Items {
+		if !reflect.DeepEqual(amc.Spec.Route, amcv1alpha1.Route{}) {
+			routes = append(routes, amc.Spec.Route.ToAMRoute(amc.ObjectMeta))
+		}
+
+		for _, rec := range amc.Spec.Receivers {
+			receivers = append(receivers, rec.ToAMReceiver(amc.ObjectMeta, readSecretKeySelector(r.client)))
+		}
+	}
+	return routes, receivers, nil
+}
+
+func readSecretKeySelector(k8sClient client.Client) func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error) {
+	return func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error) {
+		secret := &corev1.Secret{}
+		err := k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: secretKeySelector.Name}, secret)
+		if err != nil {
+			return "", fmt.Errorf("Error getting secret: %w", err)
+		}
+
+		if val, ok := secret.Data[secretKeySelector.Key]; ok {
+			return string(val), nil
+		}
+		return "", fmt.Errorf("Key %v not found in secret %v", secretKeySelector.Key, secretKeySelector.Name)
+	}
 }
 
 // secretInList takes the name of Secret, and a list of Secrets, and returns a Bool

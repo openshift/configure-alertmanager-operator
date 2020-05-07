@@ -4,6 +4,9 @@ metadata:
   name: example-alertmanagerconfiguration
 spec:
   receivers:
-  - name: dummy-email
-    emails:
-    - to: recipient@example.com
+  - name: dummy-webhook
+    webhooks:
+    - url: example.com
+      sendResolved: false
+  route:
+    receiver: dummy-webhook
