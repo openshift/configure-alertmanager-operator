@@ -117,6 +117,10 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-customer-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-3220
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "SLAUptimeSRE"}},
+		// https://issues.redhat.com/browse/OSD-3629
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CustomResourceDetected"}},
+		// https://issues.redhat.com/browse/OSD-3629
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ImagePruningDisabled"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
