@@ -131,15 +131,30 @@ func (r Route) toAMRoute(amcObjectMeta metav1.ObjectMeta, firstLevelRoute bool) 
 			match[matcher.Name] = matcher.Value
 		}
 	}
-
-	routes := []*alertmanagerconfig.Route{}
-	for _, route := range r.Routes {
-		amRoute := route.toAMRoute(amcObjectMeta, false)
-		routes = append(routes, amRoute)
+	if len(match) == 0 {
+		match = nil
+	}
+	if len(matchRE) == 0 {
+		matchRE = nil
 	}
 
+	routes := []*alertmanagerconfig.Route{}
+	if len(r.Routes) > 0 {
+		for _, route := range r.Routes {
+			amRoute := route.toAMRoute(amcObjectMeta, false)
+			routes = append(routes, amRoute)
+		}
+	}
+	if len(routes) == 0 {
+		routes = nil
+	}
+
+	receiver := ""
+	if r.Receiver != "" {
+		receiver = prefixNamespaceName(amcObjectMeta.Namespace, amcObjectMeta.Name, r.Receiver)
+	}
 	return &alertmanagerconfig.Route{
-		Receiver:       prefixNamespaceName(amcObjectMeta.Namespace, amcObjectMeta.Name, r.Receiver),
+		Receiver:       receiver,
 		GroupByStr:     r.GroupBy,
 		GroupWait:      r.GroupWait,
 		GroupInterval:  r.GroupInterval,
@@ -147,6 +162,7 @@ func (r Route) toAMRoute(amcObjectMeta metav1.ObjectMeta, firstLevelRoute bool) 
 		Continue:       cont,
 		Match:          match,
 		MatchRE:        matchRE,
+		Routes:         routes,
 	}
 }
 
@@ -181,11 +197,17 @@ func (r Receiver) ToAMReceiver(
 		pagerdutyConfig := p.toAMPagerdutyConfig(amcObjectMeta, getValueFromSecretKeySelector)
 		pagerdutyConfigs = append(pagerdutyConfigs, &pagerdutyConfig)
 	}
+	if len(pagerdutyConfigs) == 0 {
+		pagerdutyConfigs = nil
+	}
 
 	webhookConfigs := []*alertmanagerconfig.WebhookConfig{}
 	for _, w := range r.Webhooks {
 		webhookConfig := w.toAMWebhookConfig(amcObjectMeta, getValueFromSecretKeySelector)
 		webhookConfigs = append(webhookConfigs, &webhookConfig)
+	}
+	if len(webhookConfigs) == 0 {
+		webhookConfigs = nil
 	}
 
 	return &alertmanagerconfig.Receiver{
@@ -333,6 +355,9 @@ func (p PagerDutyReceiver) toAMPagerdutyConfig(
 	details := map[string]string{}
 	for _, detail := range p.Details {
 		details[detail.Key] = detail.Value
+	}
+	if len(details) == 0 {
+		details = nil
 	}
 
 	return alertmanagerconfig.PagerdutyConfig{
