@@ -173,11 +173,10 @@ type Receiver struct {
 	// Name of the receiver. Must be unique across all items from the list.
 	Name string `json:"name"`
 
-	// TODO: enable this
 	// List of email receivers
-	// Emails []EmailReceiver `json:"emails,omitempty"`
+	Emails []EmailReceiver `json:"emails,omitempty"`
 
-	// List of OpsGenie receivers
+	// List of PagerDuty receivers
 	PagerDutys []PagerDutyReceiver `json:"pagerdutys,omitempty"`
 
 	// List of Webhook receivers
@@ -191,6 +190,15 @@ func (r Receiver) ToAMReceiver(
 	amcObjectMeta metav1.ObjectMeta,
 	getValueFromSecretKeySelector func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error),
 ) *alertmanagerconfig.Receiver {
+
+	emailConfigs := []*alertmanagerconfig.EmailConfig{}
+	for _, e := range r.Emails {
+		emailConfig := e.toAMEmailConfig(amcObjectMeta, getValueFromSecretKeySelector)
+		emailConfigs = append(emailConfigs, &emailConfig)
+	}
+	if len(emailConfigs) == 0 {
+		emailConfigs = nil
+	}
 
 	pagerdutyConfigs := []*alertmanagerconfig.PagerdutyConfig{}
 	for _, p := range r.PagerDutys {
@@ -212,6 +220,7 @@ func (r Receiver) ToAMReceiver(
 
 	return &alertmanagerconfig.Receiver{
 		Name:             prefixNamespaceName(amcObjectMeta.Namespace, amcObjectMeta.Name, r.Name),
+		EmailConfigs:     emailConfigs,
 		PagerdutyConfigs: pagerdutyConfigs,
 		WebhookConfigs:   webhookConfigs,
 	}
@@ -269,7 +278,7 @@ type EmailReceiver struct {
 	AuthUsername string `json:"authUsername,omitempty"`
 
 	// The identity for CRAM-MD5 authentication.
-	AuthIdentify string `json:"authIdentify,omitempty"`
+	AuthIdentity string `json:"authIdentity,omitempty"`
 
 	// The secret reference in the AlertmanagerConfiguration
 	// namespace that contains the SMTP password for LOGIN and
@@ -281,11 +290,12 @@ type EmailReceiver struct {
 	// authentication.
 	AuthSecret *corev1.SecretKeySelector `json:"authSecret,omitempty"`
 
+	// TODO: enable this
 	// TLS configuration.
-	TLSConfig *monitoringv1.TLSConfig `json:"tlsConfig,omitempty"`
+	//TLSConfig *monitoringv1.TLSConfig `json:"tlsConfig,omitempty"`
 
 	// Requires the use of STARTTLS.
-	RequireTLS bool `json:"requireTLS,omitempty"`
+	RequireTLS *bool `json:"requireTLS,omitempty"`
 
 	// The HTML body of the email.
 	HTML string `json:"html,omitempty"`
@@ -295,6 +305,52 @@ type EmailReceiver struct {
 
 	// Additional email headers as list of key/value pairs.
 	Headers []KeyValue `json:"headers,omitempty"`
+}
+
+func (e EmailReceiver) toAMEmailConfig(
+	amcObjectMeta metav1.ObjectMeta,
+	getValueFromSecretKeySelector func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error),
+) alertmanagerconfig.EmailConfig {
+
+	authPassword := ""
+	if e.AuthPassword != nil {
+		secretAuthPassword, err := getValueFromSecretKeySelector(amcObjectMeta.Namespace, e.AuthPassword)
+		if err == nil {
+			authPassword = secretAuthPassword
+		}
+	}
+
+	authSecret := ""
+	if e.AuthSecret != nil {
+		secretAuthSecret, err := getValueFromSecretKeySelector(amcObjectMeta.Namespace, e.AuthSecret)
+		if err == nil {
+			authSecret = secretAuthSecret
+		}
+	}
+
+	headers := map[string]string{}
+	for _, header := range e.Headers {
+		headers[header.Key] = header.Value
+	}
+	if len(headers) == 0 {
+		headers = nil
+	}
+
+	return alertmanagerconfig.EmailConfig{
+		NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: e.SendResolved},
+		To:             e.To,
+		From:           e.From,
+		Hello:          e.Hello,
+		Smarthost:      e.Smarthost,
+		AuthUsername:   e.AuthUsername,
+		AuthPassword:   authPassword,
+		AuthSecret:     authSecret,
+		AuthIdentity:   e.AuthIdentity,
+		Headers:        headers,
+		HTML:           e.HTML,
+		Text:           e.Text,
+		RequireTLS:     e.RequireTLS,
+	}
 }
 
 // PagerDutyReceiver holds the configuration for a PagerDuty receiver

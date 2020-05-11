@@ -40,12 +40,112 @@ spec:
                   integrations. Currently supported integrations limited to Email,
                   PagerDuty and Webhooks.
                 properties:
+                  emails:
+                    description: List of email receivers
+                    items:
+                      description: EmailReceiver holds the configuration for an email
+                        receiver
+                      properties:
+                        authIdentity:
+                          description: The identity for CRAM-MD5 authentication.
+                          type: string
+                        authPassword:
+                          description: The secret reference in the AlertmanagerConfiguration
+                            namespace that contains the SMTP password for LOGIN and
+                            PLAIN authentications.
+                          properties:
+                            key:
+                              description: The key of the secret to select from.  Must
+                                be a valid secret key.
+                              type: string
+                            name:
+                              description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Add other useful fields. apiVersion, kind, uid?'
+                              type: string
+                            optional:
+                              description: Specify whether the Secret or its key must
+                                be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                        authSecret:
+                          description: The secret reference in the AlertmanagerConfiguration
+                            namespace that contains the SMTP secret for CRAM-MD5 authentication.
+                          properties:
+                            key:
+                              description: The key of the secret to select from.  Must
+                                be a valid secret key.
+                              type: string
+                            name:
+                              description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Add other useful fields. apiVersion, kind, uid?'
+                              type: string
+                            optional:
+                              description: Specify whether the Secret or its key must
+                                be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                        authUsername:
+                          description: The username for CRAM-MD5, LOGIN and PLAIN
+                            authentications.
+                          type: string
+                        from:
+                          description: The sender address.
+                          type: string
+                        headers:
+                          description: Additional email headers as list of key/value
+                            pairs.
+                          items:
+                            description: KeyValue is a generic type to hold a key
+                              and value string pair
+                            properties:
+                              key:
+                                description: The key for this keyvalue pair
+                                type: string
+                              value:
+                                description: The value for this keyvalue pair
+                                type: string
+                            required:
+                            - key
+                            - value
+                            type: object
+                          type: array
+                        hello:
+                          description: The hostname to use when identifying to the
+                            SMTP server.
+                          type: string
+                        html:
+                          description: The HTML body of the email.
+                          type: string
+                        requireTLS:
+                          description: Requires the use of STARTTLS.
+                          type: boolean
+                        sendResolved:
+                          description: Whether to send resolved notifications or not.
+                          type: boolean
+                        smarthost:
+                          description: The address of the SMTP server (in the form
+                            of “host:port”).
+                          type: string
+                        text:
+                          description: The text body of the email.
+                          type: string
+                        to:
+                          description: Email address(es) to send notifications to.
+                          type: string
+                      required:
+                      - to
+                      type: object
+                    type: array
                   name:
                     description: Name of the receiver. Must be unique across all items
                       from the list.
                     type: string
                   pagerdutys:
-                    description: List of OpsGenie receivers
+                    description: List of PagerDuty receivers
                     items:
                       description: PagerDutyReceiver holds the configuration for a
                         PagerDuty receiver

@@ -11,6 +11,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// These are just used to be able to create *bool in the tests where
+// needed, since it's not possible to say e.g. `&true` directly. This
+// block also needs to be `var` rather than `const` because consts
+// would be inlined which would bring it back to `&true`, and fail.
+var (
+	_true  bool = true
+	_false bool = false
+)
+
 func TestRoute(t *testing.T) {
 	scenarios := []struct {
 		Name   string
@@ -130,138 +139,161 @@ func TestReceiver(t *testing.T) {
 		{
 			Name: "should handle empty receivers",
 			Given: Receiver{
-				Name: "test",
-				PagerDutys: []PagerDutyReceiver{
-					{},
-					{},
-				},
-				Webhooks: []WebhookReceiver{
-					{},
-					{},
-				},
+				Name:       "test",
+				Emails:     []EmailReceiver{{}, {}},
+				PagerDutys: []PagerDutyReceiver{{}, {}},
+				Webhooks:   []WebhookReceiver{{}, {}},
 			},
 			Meta: metav1.ObjectMeta{Namespace: "testns", Name: "testn"},
 			Expect: &alertmanagerconfig.Receiver{
-				Name: "testns-testn-test",
-				PagerdutyConfigs: []*alertmanagerconfig.PagerdutyConfig{
-					{},
-					{},
-				},
-				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{
-					{},
-					{},
-				},
+				Name:             "testns-testn-test",
+				EmailConfigs:     []*alertmanagerconfig.EmailConfig{{}, {}},
+				PagerdutyConfigs: []*alertmanagerconfig.PagerdutyConfig{{}, {}},
+				WebhookConfigs:   []*alertmanagerconfig.WebhookConfig{{}, {}},
 			},
 		},
 		{
 			Name: "should get value from SecretKeySelector",
 			Given: Receiver{
 				Name: "test",
-				PagerDutys: []PagerDutyReceiver{
-					{
-						RoutingKey: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "rksecret"},
-							Key:                  "rkey",
-						},
+				Emails: []EmailReceiver{{
+					AuthPassword: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "psecret"},
+						Key:                  "pkey",
 					},
-				},
-				Webhooks: []WebhookReceiver{
-					{
-						URLSecret: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "urlsecret"},
-							Key:                  "urlkey",
-						},
+					AuthSecret: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "ssecret"},
+						Key:                  "skey",
 					},
-				},
+				}},
+				PagerDutys: []PagerDutyReceiver{{
+					RoutingKey: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "rksecret"},
+						Key:                  "rkey",
+					},
+				}},
+				Webhooks: []WebhookReceiver{{
+					URLSecret: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "urlsecret"},
+						Key:                  "urlkey",
+					},
+				}},
 			},
 			Meta: metav1.ObjectMeta{Namespace: "testns", Name: "testn"},
 			Expect: &alertmanagerconfig.Receiver{
 				Name: "testns-testn-test",
-				PagerdutyConfigs: []*alertmanagerconfig.PagerdutyConfig{
-					{
-						RoutingKey: "defaultvalue",
-					},
-				},
-				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{
-					{
-						URL: "defaultvalue",
-					},
-				},
+				EmailConfigs: []*alertmanagerconfig.EmailConfig{{
+					AuthPassword: "defaultvalue",
+					AuthSecret:   "defaultvalue",
+				}},
+				PagerdutyConfigs: []*alertmanagerconfig.PagerdutyConfig{{
+					RoutingKey: "defaultvalue",
+				}},
+				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{{
+					URL: "defaultvalue",
+				}},
 			},
 		},
 		{
 			Name: "should prefer URLSecret field over URL field in WebhookReceiver",
 			Given: Receiver{
 				Name: "test",
-				Webhooks: []WebhookReceiver{
-					{
-						URL: "not-this",
-						URLSecret: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "urlsecret"},
-							Key:                  "urlkey",
-						},
+				Webhooks: []WebhookReceiver{{
+					URL: "not-this",
+					URLSecret: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "urlsecret"},
+						Key:                  "urlkey",
 					},
-				},
+				}},
 			},
 			Meta: metav1.ObjectMeta{Namespace: "testns", Name: "testn"},
 			Expect: &alertmanagerconfig.Receiver{
 				Name: "testns-testn-test",
-				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{
-					{
-						URL: "defaultvalue",
-					},
-				},
+				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{{
+					URL: "defaultvalue",
+				}},
 			},
 		},
 		{
 			Name: "should translate all fields correctly",
 			Given: Receiver{
 				Name: "test",
-				PagerDutys: []PagerDutyReceiver{
-					{
-						SendResolved: true,
-						Client:       "test-client",
-						ClientURL:    "https://example.com/v1/path",
-						Description:  "test-description",
-						Details: []KeyValue{
-							{Key: "testkey", Value: "testvalue"},
-						},
-						RoutingKey: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "rksecret"},
-							Key:                  "rkey",
-						},
-						Severity: "critical",
-						URL:      "https://example.com",
+				PagerDutys: []PagerDutyReceiver{{
+					SendResolved: true,
+					Client:       "test-client",
+					ClientURL:    "https://example.com/v1/path",
+					Description:  "test-description",
+					Details: []KeyValue{
+						{Key: "testkey", Value: "testvalue"},
 					},
-				},
-				Webhooks: []WebhookReceiver{
-					{
-						SendResolved: true,
-						URL:          "https://example.com",
+					RoutingKey: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "rksecret"},
+						Key:                  "rkey",
 					},
-				},
+					Severity: "critical",
+					URL:      "https://example.com",
+				}},
+				Webhooks: []WebhookReceiver{{
+					SendResolved: true,
+					URL:          "https://example.com",
+				}},
+				Emails: []EmailReceiver{{
+					SendResolved: true,
+					To:           "sre@example.com",
+					From:         "alertmanager@example.com",
+					Hello:        "example.com",
+					Smarthost:    "smtp.example.com:587",
+					AuthUsername: "alertmanager",
+					AuthPassword: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "psecret"},
+						Key:                  "pkey",
+					},
+					AuthSecret: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "ssecret"},
+						Key:                  "skey",
+					},
+					AuthIdentity: "something",
+					HTML:         "<html><body>hello, world!</body></html>",
+					Text:         "An alert is firing!",
+					Headers: []KeyValue{{
+						Key:   "headerkey",
+						Value: "headervalue",
+					}},
+					RequireTLS: &_false,
+				}},
 			},
 			Meta: metav1.ObjectMeta{Namespace: "testns", Name: "testn"},
 			Expect: &alertmanagerconfig.Receiver{
 				Name: "testns-testn-test",
-				PagerdutyConfigs: []*alertmanagerconfig.PagerdutyConfig{
-					{
-						NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: true},
-						Client:         "test-client",
-						ClientURL:      "https://example.com/v1/path",
-						Description:    "test-description",
-						Details:        map[string]string{"testkey": "testvalue"},
-						RoutingKey:     "defaultvalue",
-						Severity:       "critical",
-						URL:            "https://example.com",
-					},
-				},
-				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{
-					{
-						NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: true},
-						URL:            "https://example.com",
-					},
-				},
+				PagerdutyConfigs: []*alertmanagerconfig.PagerdutyConfig{{
+					NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: true},
+					Client:         "test-client",
+					ClientURL:      "https://example.com/v1/path",
+					Description:    "test-description",
+					Details:        map[string]string{"testkey": "testvalue"},
+					RoutingKey:     "defaultvalue",
+					Severity:       "critical",
+					URL:            "https://example.com",
+				}},
+				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{{
+					NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: true},
+					URL:            "https://example.com",
+				}},
+				EmailConfigs: []*alertmanagerconfig.EmailConfig{{
+					NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: true},
+					To:             "sre@example.com",
+					From:           "alertmanager@example.com",
+					Hello:          "example.com",
+					Smarthost:      "smtp.example.com:587",
+					AuthUsername:   "alertmanager",
+					AuthPassword:   "defaultvalue",
+					AuthSecret:     "defaultvalue",
+					AuthIdentity:   "something",
+					Headers:        map[string]string{"headerkey": "headervalue"},
+					HTML:           "<html><body>hello, world!</body></html>",
+					Text:           "An alert is firing!",
+					RequireTLS:     &_false,
+				}},
 			},
 		},
 	}
