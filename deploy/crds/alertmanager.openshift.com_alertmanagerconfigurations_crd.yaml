@@ -216,6 +216,7 @@ spec:
                           type: string
                         clientUrl:
                           description: Backlink to the sendor of notification.
+                          pattern: ^(http|https)://.+$
                           type: string
                         description:
                           description: Description of the incident.
@@ -265,6 +266,7 @@ spec:
                           type: string
                         url:
                           description: The URL to send requests to.
+                          pattern: ^(http|https)://.+$
                           type: string
                       type: object
                     type: array
@@ -281,6 +283,7 @@ spec:
                           description: The URL to send HTTP POST requests to. 'urlSecret'
                             takes precedence over 'url'. One of 'urlSecret' and 'url'
                             should be defined.
+                          pattern: ^(http|https)://.+$
                           type: string
                         urlSecret:
                           description: The URL to send HTTP POST requests to. 'urlSecret'

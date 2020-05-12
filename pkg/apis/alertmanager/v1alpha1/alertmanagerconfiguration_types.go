@@ -413,12 +413,14 @@ type PagerDutyReceiver struct {
 	// ServiceKey *corev1.SecretKeySelector `json:"serviceKey,omitempty"`
 
 	// The URL to send requests to.
+	// +kubebuilder:validation:Pattern=`^(http|https)://.+$`
 	URL string `json:"url,omitempty"`
 
 	// Client identification
 	Client string `json:"client,omitempty"`
 
 	// Backlink to the sendor of notification.
+	// +kubebuilder:validation:Pattern=`^(http|https)://.+$`
 	ClientURL string `json:"clientUrl,omitempty"`
 
 	// Description of the incident.
@@ -485,6 +487,7 @@ type WebhookReceiver struct {
 	// The URL to send HTTP POST requests to. 'urlSecret' takes
 	// precedence over 'url'. One of 'urlSecret' and 'url' should
 	// be defined.
+	// +kubebuilder:validation:Pattern=`^(http|https)://.+$`
 	URL string `json:"url,omitempty"`
 
 	// The URL to send HTTP POST requests to. 'urlSecret' takes

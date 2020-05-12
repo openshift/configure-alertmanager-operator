@@ -6,7 +6,7 @@ spec:
   receivers:
   - name: dummy-webhook
     webhooks:
-    - url: example.com
+    - url: http://example.com
       sendResolved: false
 
   route:
