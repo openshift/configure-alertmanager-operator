@@ -406,12 +406,6 @@ type PagerDutyReceiver struct {
 	// v2). Either this key or service_key needs to be defined.
 	RoutingKey *corev1.SecretKeySelector `json:"routingKey,omitempty"`
 
-	// TODO: enable this
-	// PagerDuty integration key (when using integration type
-	// “Prometheus”). Either this key or routing_key needs to be
-	// defined.
-	// ServiceKey *corev1.SecretKeySelector `json:"serviceKey,omitempty"`
-
 	// The URL to send requests to.
 	// +kubebuilder:validation:Pattern=`^(http|https)://.+$`
 	URL string `json:"url,omitempty"`
