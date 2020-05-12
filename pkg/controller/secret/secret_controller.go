@@ -10,9 +10,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
@@ -283,8 +283,10 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	// This is used for determining which secrets are present so that the necessary
 	// Alertmanager config changes can happen later.
 	secretList := &corev1.SecretList{}
-	opts := client.ListOptions{Namespace: request.Namespace}
-	r.client.List(context.TODO(), &opts, secretList)
+	opts := []client.ListOption{
+		client.InNamespace(request.Namespace),
+	}
+	r.client.List(context.TODO(), secretList, opts...)
 
 	// Check for the presence of specific secrets.
 	pagerDutySecretExists := secretInList(secretNamePD, secretList)

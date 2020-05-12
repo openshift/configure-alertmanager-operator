@@ -20,6 +20,7 @@ import (
 	"github.com/openshift/configure-alertmanager-operator/config"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -64,7 +65,7 @@ func StartMetrics() {
 
 	// Register metrics and start serving them on /metrics endpoint
 	RegisterMetrics()
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(MetricsEndpoint, nil)
 }
 
