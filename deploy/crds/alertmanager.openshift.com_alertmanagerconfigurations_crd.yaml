@@ -33,6 +33,67 @@ spec:
           description: AlertManagerConfigurationSpec defines the desired state of
             AlertManagerConfiguration
           properties:
+            inhibitRules:
+              description: List of inhibition rules. The rules will only apply to
+                alerts matching the resource’s namespace.
+              items:
+                description: InhibitRule is an AlertManager configuration option to
+                  decide if an alert should be muted.
+                properties:
+                  equal:
+                    description: Labels that must have an equal value in the source
+                      and target alert for the inhibition to take effect.
+                    items:
+                      type: string
+                    type: array
+                  sourceMatch:
+                    description: Matchers for which one or more alerts have to exist
+                      for the inhibition to take effect.
+                    items:
+                      description: Matcher is a encoding of an alert matcher to be
+                        used as a source or target in an inhibition rule or route
+                        matchers list.
+                      properties:
+                        name:
+                          description: Name of the alert's label to match.
+                          type: string
+                        regex:
+                          description: Boolean indicating whether it is a regex-matcher
+                            or not.
+                          type: boolean
+                        value:
+                          description: Value of the alert's label to match.
+                          type: string
+                      required:
+                      - name
+                      - value
+                      type: object
+                    type: array
+                  targetMatch:
+                    description: Matchers that have to be fulfilled in the alerts
+                      to be muted.
+                    items:
+                      description: Matcher is a encoding of an alert matcher to be
+                        used as a source or target in an inhibition rule or route
+                        matchers list.
+                      properties:
+                        name:
+                          description: Name of the alert's label to match.
+                          type: string
+                        regex:
+                          description: Boolean indicating whether it is a regex-matcher
+                            or not.
+                          type: boolean
+                        value:
+                          description: Value of the alert's label to match.
+                          type: string
+                      required:
+                      - name
+                      - value
+                      type: object
+                    type: array
+                type: object
+              type: array
             receivers:
               description: List of receivers.
               items:

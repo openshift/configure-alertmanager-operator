@@ -47,10 +47,9 @@ type AlertManagerConfigurationSpec struct {
 	// List of receivers.
 	Receivers []Receiver `json:"receivers,omitempty"`
 
-	// TODO: enable this
 	// List of inhibition rules. The rules will only apply to
 	// alerts matching the resource’s namespace.
-	// InhibitRules []InhibitRule `json:"inhibitRules,omitempty"`
+	InhibitRules []InhibitRule `json:"inhibitRules,omitempty"`
 }
 
 // AlertManagerConfigurationStatus defines the observed state of AlertManagerConfiguration
@@ -230,18 +229,63 @@ func (r Receiver) ToAMReceiver(
 // alert should be muted.
 type InhibitRule struct {
 	// Matchers that have to be fulfilled in the alerts to be
-	// muted. The operator enforces that the alert matches the
-	// resource’s namespace.
+	// muted.
 	TargetMatch []Matcher `json:"targetMatch,omitempty"`
 
 	// Matchers for which one or more alerts have to exist for the
-	// inhibition to take effect. The operator enforces that the
-	// alert matches the resource’s namespace.
+	// inhibition to take effect.
 	SourceMatch []Matcher `json:"sourceMatch,omitempty"`
 
 	// Labels that must have an equal value in the source and
 	// target alert for the inhibition to take effect.
 	Equal []string `json:"equal,omitempty"`
+}
+
+func (i InhibitRule) ToAMInhibitRule() *alertmanagerconfig.InhibitRule {
+
+	sourceMatch := map[string]string{}
+	sourceMatchRE := map[string]string{}
+	for _, sm := range i.SourceMatch {
+		if sm.Regex {
+			sourceMatchRE[sm.Name] = sm.Value
+		} else {
+			sourceMatch[sm.Name] = sm.Value
+		}
+	}
+	if len(sourceMatch) == 0 {
+		sourceMatch = nil
+	}
+	if len(sourceMatchRE) == 0 {
+		sourceMatchRE = nil
+	}
+
+	targetMatch := map[string]string{}
+	targetMatchRE := map[string]string{}
+	for _, tm := range i.TargetMatch {
+		if tm.Regex {
+			targetMatchRE[tm.Name] = tm.Value
+		} else {
+			targetMatch[tm.Name] = tm.Value
+		}
+	}
+	if len(targetMatch) == 0 {
+		targetMatch = nil
+	}
+	if len(targetMatchRE) == 0 {
+		targetMatchRE = nil
+	}
+
+	equal := i.Equal
+	if len(equal) == 0 {
+		equal = nil
+	}
+	return &alertmanagerconfig.InhibitRule{
+		SourceMatch:   sourceMatch,
+		SourceMatchRE: sourceMatchRE,
+		TargetMatch:   targetMatch,
+		TargetMatchRE: targetMatchRE,
+		Equal:         equal,
+	}
 }
 
 // Matcher is a encoding of an alert matcher to be used as a source or

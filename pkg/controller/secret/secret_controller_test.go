@@ -221,10 +221,11 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
+	var inhibitRules []*alertmanager.InhibitRule
 	pdKey := ""
 	wdURL := ""
 
-	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -242,10 +243,11 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
+	var inhibitRules []*alertmanager.InhibitRule
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 
-	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -266,10 +268,11 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
+	var inhibitRules []*alertmanager.InhibitRule
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -293,10 +296,11 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
+	var inhibitRules []*alertmanager.InhibitRule
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -364,10 +368,11 @@ func createReconcileRequest(reconciler *ReconcileSecret, secretname string) *rec
 func Test_createPagerdutySecret_Create(t *testing.T) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
+	var inhibitRules []*alertmanager.InhibitRule
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
+	configExpected := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -389,10 +394,11 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 func Test_createPagerdutySecret_Update(t *testing.T) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
+	var inhibitRules []*alertmanager.InhibitRule
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
+	configExpected := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -500,12 +506,13 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		routes := []*alertmanager.Route{}
 		receivers := []*alertmanager.Receiver{}
+		var inhibitRules []*alertmanager.InhibitRule
 		pdKey := ""
 		wdURL := ""
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig([]*alertmanager.Route{}, []*alertmanager.Receiver{}, "", ""))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig(routes, receivers, inhibitRules, "", ""))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -519,7 +526,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := createAlertManagerConfig(routes, receivers, pdKey, wdURL)
+		configExpected := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
 		reconciler.Reconcile(*req)

@@ -82,6 +82,13 @@ func (in *AlertManagerConfigurationSpec) DeepCopyInto(out *AlertManagerConfigura
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.InhibitRules != nil {
+		in, out := &in.InhibitRules, &out.InhibitRules
+		*out = make([]InhibitRule, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 

@@ -20,10 +20,11 @@ const PDRegex string = "^default$|^kube.*|^openshift.*|" + PDRegexLP
 // Discussion, for reference, is in this PR: https://github.com/prometheus/alertmanager/pull/1804
 
 type Config struct {
-	Global    *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
-	Route     *Route        `yaml:"route,omitempty" json:"route,omitempty"`
-	Receivers []*Receiver   `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates []string      `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string       `yaml:"templates" json:"templates"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -151,4 +152,25 @@ type EmailConfig struct {
 	Text         string            `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 	// TLSConfig    commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+}
+
+// InhibitRule defines an inhibition rule that mutes alerts that match the
+// target labels if an alert matching the source labels exists.
+// Both alerts have to have a set of labels being equal.
+type InhibitRule struct {
+	// SourceMatch defines a set of labels that have to equal the given
+	// value for source alerts.
+	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
+	// SourceMatchRE defines pairs like SourceMatch but does regular expression
+	// matching.
+	SourceMatchRE map[string]string `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
+	// TargetMatch defines a set of labels that have to equal the given
+	// value for target alerts.
+	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
+	// TargetMatchRE defines pairs like TargetMatch but does regular expression
+	// matching.
+	TargetMatchRE map[string]string `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
+	// A set of labels that must be equal between the source and target alert
+	// for them to be a match.
+	Equal []string `yaml:"equal,omitempty" json:"equal,omitempty"`
 }

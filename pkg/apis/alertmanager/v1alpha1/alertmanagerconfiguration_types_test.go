@@ -316,3 +316,86 @@ func TestReceiver(t *testing.T) {
 		})
 	}
 }
+
+func TestInhibitRule(t *testing.T) {
+	scenarios := []struct {
+		Name   string
+		Given  InhibitRule
+		Expect *alertmanagerconfig.InhibitRule
+	}{
+		{
+			Name:   "should work with empty InhibitRule",
+			Given:  InhibitRule{},
+			Expect: &alertmanagerconfig.InhibitRule{},
+		},
+		{
+			Name: "should work with empty fields",
+			Given: InhibitRule{
+				Equal:       []string{},
+				SourceMatch: []Matcher{},
+				TargetMatch: []Matcher{},
+			},
+			Expect: &alertmanagerconfig.InhibitRule{},
+		},
+		{
+			Name: "should split matchers based on regex field",
+			Given: InhibitRule{
+				SourceMatch: []Matcher{
+					{Name: "noregex", Value: "noregex"},
+					{Name: "regex", Value: "regex", Regex: true},
+					{Name: "noregex2", Value: "noregex2", Regex: false},
+				},
+				TargetMatch: []Matcher{
+					{Name: "noregex", Value: "noregex"},
+					{Name: "regex", Value: "regex", Regex: true},
+					{Name: "noregex2", Value: "noregex2", Regex: false},
+				},
+			},
+			Expect: &alertmanagerconfig.InhibitRule{
+				SourceMatch: map[string]string{
+					"noregex":  "noregex",
+					"noregex2": "noregex2",
+				},
+				SourceMatchRE: map[string]string{"regex": "regex"},
+				TargetMatch: map[string]string{
+					"noregex":  "noregex",
+					"noregex2": "noregex2",
+				},
+				TargetMatchRE: map[string]string{"regex": "regex"},
+			},
+		},
+		{
+			Name: "should not set {Source/Target}MatchRE if only non-regex matchers",
+			Given: InhibitRule{
+				SourceMatch: []Matcher{{Name: "noregex", Value: "noregex"}},
+				TargetMatch: []Matcher{{Name: "noregex", Value: "noregex"}},
+			},
+			Expect: &alertmanagerconfig.InhibitRule{
+				SourceMatch: map[string]string{"noregex": "noregex"},
+				TargetMatch: map[string]string{"noregex": "noregex"},
+			},
+		},
+		{
+			Name: "should not set {Source/Target}Match if only regex matchers",
+			Given: InhibitRule{
+				SourceMatch: []Matcher{{Name: "regex", Value: "regex", Regex: true}},
+				TargetMatch: []Matcher{{Name: "regex", Value: "regex", Regex: true}},
+			},
+			Expect: &alertmanagerconfig.InhibitRule{
+				SourceMatchRE: map[string]string{"regex": "regex"},
+				TargetMatchRE: map[string]string{"regex": "regex"},
+			},
+		},
+	}
+
+	for _, s := range scenarios {
+		t.Run(s.Name, func(t *testing.T) {
+
+			actual := s.Given.ToAMInhibitRule()
+
+			if !cmp.Equal(actual, s.Expect) {
+				t.Fatalf("Actual and expected InhibitRules differ: %v", cmp.Diff(actual, s.Expect))
+			}
+		})
+	}
+}

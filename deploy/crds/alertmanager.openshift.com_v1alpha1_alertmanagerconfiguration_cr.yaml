@@ -8,5 +8,15 @@ spec:
     webhooks:
     - url: example.com
       sendResolved: false
+
   route:
     receiver: dummy-webhook
+
+  inhibitRules:
+  - targetMatch:
+    - name: severity
+      value: warning
+    sourceMatch:
+    - name: severity
+      value: critical
+    equal: [alertname, dev, instance]

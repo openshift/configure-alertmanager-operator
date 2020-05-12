@@ -275,6 +275,7 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 func createAlertManagerConfig(
 	routes []*alertmanager.Route,
 	receivers []*alertmanager.Receiver,
+	inhibitRules []*alertmanager.InhibitRule,
 	pagerdutyRoutingKey string,
 	watchdogURL string,
 ) *alertmanager.Config {
@@ -307,8 +308,9 @@ func createAlertManagerConfig(
 			RepeatInterval: "12h",
 			Routes:         routes,
 		},
-		Receivers: receivers,
-		Templates: []string{},
+		Receivers:    receivers,
+		Templates:    []string{},
+		InhibitRules: inhibitRules,
 	}
 
 	return amconfig
@@ -375,13 +377,13 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		watchdogURL = readSecretKey(r, &request, secretNameDMS, secretKeyDMS)
 	}
 
-	routes, receivers, err := r.handleAlertManagerConfigurationCRs()
+	routes, receivers, inhibitRules, err := r.handleAlertManagerConfigurationCRs()
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// create the desired alertmanager Config
-	alertmanagerconfig := createAlertManagerConfig(routes, receivers, pagerdutyRoutingKey, watchdogURL)
+	alertmanagerconfig := createAlertManagerConfig(routes, receivers, inhibitRules, pagerdutyRoutingKey, watchdogURL)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)
@@ -391,15 +393,21 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileSecret) handleAlertManagerConfigurationCRs() ([]*alertmanager.Route, []*alertmanager.Receiver, error) {
+func (r *ReconcileSecret) handleAlertManagerConfigurationCRs() (
+	[]*alertmanager.Route,
+	[]*alertmanager.Receiver,
+	[]*alertmanager.InhibitRule,
+	error,
+) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
+	inhibitRules := []*alertmanager.InhibitRule{}
 
 	amConfigList := &amcv1alpha1.AlertManagerConfigurationList{}
 	err := r.client.List(context.TODO(), amConfigList)
 	if err != nil {
 		log.Error(err, "Error listing AlertManagerConfiguration CRs")
-		return routes, receivers, err
+		return routes, receivers, inhibitRules, err
 	}
 
 	for _, amc := range amConfigList.Items {
@@ -410,8 +418,12 @@ func (r *ReconcileSecret) handleAlertManagerConfigurationCRs() ([]*alertmanager.
 		for _, rec := range amc.Spec.Receivers {
 			receivers = append(receivers, rec.ToAMReceiver(amc.ObjectMeta, readSecretKeySelector(r.client)))
 		}
+
+		for _, ir := range amc.Spec.InhibitRules {
+			inhibitRules = append(inhibitRules, ir.ToAMInhibitRule())
+		}
 	}
-	return routes, receivers, nil
+	return routes, receivers, inhibitRules, nil
 }
 
 func readSecretKeySelector(k8sClient client.Client) func(namespace string, secretKeySelector *corev1.SecretKeySelector) (string, error) {
