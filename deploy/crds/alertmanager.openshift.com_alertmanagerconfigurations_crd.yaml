@@ -211,12 +211,19 @@ spec:
                       description: PagerDutyReceiver holds the configuration for a
                         PagerDuty receiver
                       properties:
+                        class:
+                          description: The class/type of the event.
+                          type: string
                         client:
                           description: Client identification
                           type: string
                         clientUrl:
                           description: Backlink to the sendor of notification.
                           pattern: ^(http|https)://.+$
+                          type: string
+                        component:
+                          description: The part or component of the affected system
+                            that is broken.
                           type: string
                         description:
                           description: Description of the incident.
@@ -239,6 +246,9 @@ spec:
                             - value
                             type: object
                           type: array
+                        group:
+                          description: A cluster or grouping of sources.
+                          type: string
                         routingKey:
                           description: PagerDuty integration key (when using Events
                             API v2). Either this key or service_key needs to be defined.

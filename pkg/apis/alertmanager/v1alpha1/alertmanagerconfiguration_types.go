@@ -427,6 +427,15 @@ type PagerDutyReceiver struct {
 	// the incident.
 	Details []KeyValue `json:"details,omitempty"`
 
+	// The class/type of the event.
+	Class string `json:"class,omitempty"`
+
+	// The part or component of the affected system that is broken.
+	Component string `json:"component,omitempty"`
+
+	// A cluster or grouping of sources.
+	Group string `json:"group,omitempty"`
+
 	// TODO: enable this
 	// HTTP client configuration.
 	// HTTPConfig *HTTPConfig `json:"httpConfig,omitempty"`
@@ -465,11 +474,9 @@ func (p PagerDutyReceiver) toAMPagerdutyConfig(
 		Description:    p.Description,
 		Details:        details,
 		Severity:       p.Severity,
-
-		// TODO: are these properties used?
-		Class:     "",
-		Component: "",
-		Group:     "",
+		Class:          p.Class,
+		Component:      p.Component,
+		Group:          p.Group,
 	}
 }
 

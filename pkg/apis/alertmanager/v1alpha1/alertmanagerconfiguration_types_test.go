@@ -230,8 +230,11 @@ func TestReceiver(t *testing.T) {
 						LocalObjectReference: corev1.LocalObjectReference{Name: "rksecret"},
 						Key:                  "rkey",
 					},
-					Severity: "critical",
-					URL:      "https://example.com",
+					Severity:  "critical",
+					URL:       "https://example.com",
+					Class:     "high",
+					Component: "core",
+					Group:     "osd",
 				}},
 				Webhooks: []WebhookReceiver{{
 					SendResolved: true,
@@ -274,6 +277,9 @@ func TestReceiver(t *testing.T) {
 					RoutingKey:     "defaultvalue",
 					Severity:       "critical",
 					URL:            "https://example.com",
+					Class:          "high",
+					Component:      "core",
+					Group:          "osd",
 				}},
 				WebhookConfigs: []*alertmanagerconfig.WebhookConfig{{
 					NotifierConfig: alertmanagerconfig.NotifierConfig{VSendResolved: true},
