@@ -16,8 +16,8 @@ import (
 // block also needs to be `var` rather than `const` because consts
 // would be inlined which would bring it back to `&true`, and fail.
 var (
-	_true  bool = true
-	_false bool = false
+	_true  = true
+	_false = false
 )
 
 func TestRoute(t *testing.T) {

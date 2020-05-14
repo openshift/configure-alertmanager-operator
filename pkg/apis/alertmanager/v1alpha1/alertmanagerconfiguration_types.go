@@ -241,6 +241,9 @@ type InhibitRule struct {
 	Equal []string `json:"equal,omitempty"`
 }
 
+// ToAMInhibitRule converts an InhibitRule specified in an
+// AlertManagerConfiguration CR, to the InhibitRule type expected for
+// serialization into the Alertmanager YAML config file.
 func (i InhibitRule) ToAMInhibitRule() *alertmanagerconfig.InhibitRule {
 
 	sourceMatch := map[string]string{}
@@ -510,9 +513,9 @@ func (w WebhookReceiver) toAMWebhookConfig(
 ) alertmanagerconfig.WebhookConfig {
 	url := w.URL
 	if w.URLSecret != nil {
-		secretUrl, err := getValueFromSecretKeySelector(amcObjectMeta.Namespace, w.URLSecret)
-		if err == nil && secretUrl != "" {
-			url = secretUrl
+		secretURL, err := getValueFromSecretKeySelector(amcObjectMeta.Namespace, w.URLSecret)
+		if err == nil && secretURL != "" {
+			url = secretURL
 		}
 	}
 
