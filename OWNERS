@@ -1,15 +1,10 @@
-approvers:
-- drewandersonnz
-- c-e-brumm
-- jharrington22
-- rogbas
-- jewzaam
-- mwoodson
-- wanghaoran1988
-- dofinn
 reviewers:
 - jewzaam
-- mwoodson
 - lisa
-- jharrington22
-- dofinn
+- cblecker
+approvers:
+- jewzaam
+- lisa
+- cblecker
+maintainers:
+- jewzaam
