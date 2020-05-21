@@ -1,4 +1,9 @@
-# Configure Alertmanager Operator
+# configure-alertmanager-operator
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/openshift/configure-alertmanager-operator)](https://goreportcard.com/report/github.com/openshift/configure-alertmanager-operator)
+[![GoDoc](https://godoc.org/github.com/openshift/configure-alertmanager-operator?status.svg)](https://godoc.org/github.com/openshift/configure-alertmanager-operator)
+[![codecov](https://codecov.io/gh/openshift/configure-alertmanager-operator/branch/master/graph/badge.svg)](https://codecov.io/gh/openshift/configure-alertmanager-operator)
+[![License](https://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 
 ## Summary
 The Configure Alertmanager Operator was created for the OpenShift Dedicated platform to dynamically manage Alertmanager configurations based on the presence or absence of secrets containing a Pager Duty RoutingKey and [Dead Man's Snitch](https://deadmanssnitch.com) URL. When the secret is created/updated/deleted, the associated Receiver and Route will be created/updated/deleted within the Alertmanager config.
