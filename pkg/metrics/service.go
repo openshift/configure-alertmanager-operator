@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// GenerateService returns the static service which exposes specifed port.
+// GenerateService returns the static service which exposes specified port.
 func GenerateService(port int32, portName string) (*v1.Service, error) {
 	operatorName, err := k8sutil.GetOperatorName()
 	if err != nil {

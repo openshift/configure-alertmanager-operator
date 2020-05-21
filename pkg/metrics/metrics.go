@@ -80,7 +80,7 @@ func RegisterMetrics() error {
 	return nil
 }
 
-// UpdateSecretsMetrics updates all metrics related to the existance and contents of Secrets
+// UpdateSecretsMetrics updates all metrics related to the existence and contents of Secrets
 // used by configure-alertmanager-operator.
 func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config) {
 
