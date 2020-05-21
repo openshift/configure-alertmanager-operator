@@ -90,7 +90,7 @@ func assertTrue(t *testing.T, status bool, message string) {
 
 // utility class to test PD route creation
 func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
-	assertEquals(t, defaultReceiver, route.Receiver, "Reciever Name")
+	assertEquals(t, defaultReceiver, route.Receiver, "Receiver Name")
 	assertEquals(t, true, route.Continue, "Continue")
 	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
 	assertGte(t, 1, len(route.Routes), "Number of Routes")
@@ -155,7 +155,7 @@ func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanage
 
 // utility function to verify watchdog route
 func verifyWatchdogRoute(t *testing.T, route *alertmanager.Route) {
-	assertEquals(t, receiverWatchdog, route.Receiver, "Reciever Name")
+	assertEquals(t, receiverWatchdog, route.Receiver, "Receiver Name")
 	assertEquals(t, "5m", route.RepeatInterval, "Repeat Interval")
 	assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
 }
