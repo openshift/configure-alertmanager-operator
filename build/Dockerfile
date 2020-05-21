@@ -1,13 +1,26 @@
 FROM registry.svc.ci.openshift.org/openshift/release:golang-1.13 AS builder
-COPY . /go/src/github.com/openshift/configure-alertmanager-operator
-WORKDIR /go/src/github.com/openshift/configure-alertmanager-operator
-ENV GOFLAGS=""
+
+RUN mkdir -p /workdir
+WORKDIR /workdir
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
 RUN make gobuild
 
-FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
-ENV OPERATOR_BIN=configure-alertmanager-operator
+####
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
-WORKDIR /root/
-COPY --from=builder /go/src/github.com/openshift/configure-alertmanager-operator/build/_output/bin/${OPERATOR_BIN} /usr/local/bin/${OPERATOR_BIN}
+ENV USER_UID=1001 \
+    USER_NAME=configure-alertmanager-operator
+
+COPY --from=builder /workdir/build/_output/bin/* /usr/local/bin/
+
+COPY build/bin /usr/local/bin
+RUN  /usr/local/bin/user_setup
+
+ENTRYPOINT ["/usr/local/bin/entrypoint"]
+
+USER ${USER_UID}
+
 LABEL io.openshift.managed.name="configure-alertmanager-operator" \
       io.openshift.managed.description="Operator to configure Alertmanager with PagerDuty and Dead Man's Snitch."

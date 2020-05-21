@@ -18,20 +18,20 @@ endif
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
 CURRENT_COMMIT=$(shell git rev-parse --short=7 HEAD)
-OPERATOR_VERSION=${VERSION_MAJOR}.${VERSION_MINOR}.${COMMIT_NUMBER}-${CURRENT_COMMIT}
+OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)
 
-OPERATOR_IMAGE_URI=${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}/${IMAGE_NAME}:v${OPERATOR_VERSION}
-OPERATOR_IMAGE_URI_LATEST=${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}/${IMAGE_NAME}:latest
-OPERATOR_DOCKERFILE?=build/Dockerfile
+OPERATOR_IMAGE_URI=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):v$(OPERATOR_VERSION)
+OPERATOR_IMAGE_URI_LATEST=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):latest
+OPERATOR_DOCKERFILE ?=build/Dockerfile
 
-BINFILE=build/_output/bin/${OPERATOR_NAME}
+BINFILE=build/_output/bin/$(OPERATOR_NAME)
 MAINPACKAGE=./cmd/manager
+unexport GOFLAGS
 GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
+GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
-CONTAINER_ENGINE=$(shell which podman 2>/dev/null || which docker 2>/dev/null)
+CONTAINER_ENGINE=$(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 
-TESTTARGETS := $(shell go list -e ./... | egrep -v "/(vendor)/")
 # ex, -v
 TESTOPTS :=
 
@@ -41,17 +41,16 @@ default: gobuild
 
 .PHONY: clean
 clean:
-	rm -rf ./build/_output bundles-staging bundles-production
-	${CONTAINER_ENGINE} rmi \
-		${OPERATOR_IMAGE_URI} \
-		${OPERATOR_IMAGE_URI_LATEST} \
-		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):staging-latest \
-		quay.io/${CATALOG_REGISTRY_ORGANIZATION}/$(OPERATOR_NAME):production-latest 2>/dev/null || true
+	rm -rf ./build/_output
+
+.PHONY: isclean
+isclean:
+	@(test "$(ALLOW_DIRTY_CHECKOUT)" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." >&2 && exit 1)
 
 .PHONY: build
-build: envtest
-	${CONTAINER_ENGINE} build . -f ${OPERATOR_DOCKERFILE} -t ${OPERATOR_IMAGE_URI}
-	${CONTAINER_ENGINE} tag ${OPERATOR_IMAGE_URI} ${OPERATOR_IMAGE_URI_LATEST}
+build: isclean envtest
+	$(CONTAINER_ENGINE) build . -f $(OPERATOR_DOCKERFILE) -t $(OPERATOR_IMAGE_URI)
+	$(CONTAINER_ENGINE) tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
 
 .PHONY: push
 push:
@@ -76,40 +75,35 @@ build-catalog-image:
 
 .PHONY: gocheck
 gocheck: ## Lint code
-	gofmt -s -l $(shell go list -f '{{ .Dir }}' ./... ) | grep ".*\.go"; if [ "$$?" = "0" ]; then gofmt -s -d $(shell go list -f '{{ .Dir }}' ./... ); exit 1; fi
+	gofmt -s -l . | grep ".*\.go"; if [ "$$?" = "0" ]; then gofmt -s -d .; exit 1; fi
 	go vet ./cmd/... ./pkg/...
 
 .PHONY: gobuild
-gobuild: gocheck gotest
-	${GOENV} go build ${GOFLAGS} -o ${BINFILE} ${MAINPACKAGE}
+gobuild: gocheck gotest ## Build binary
+	$(GOENV) go build $(GOBUILDFLAGS) -o $(BINFILE) $(MAINPACKAGE)
 
 .PHONY: gotest
 gotest:
-	go test -cover ${TESTTARGETS} | tee /tmp/${OPERATOR_NAME}-test.out
-	@for COVERAGE in $$(cat /tmp/${OPERATOR_NAME}-test.out | grep coverage | sed 's/.*coverage:[ ]*\([^. ]*\).*/\1/g'); \
-	do \
-		if [ $${COVERAGE} -le 20 ]; \
-		then \
-			echo "FAILURE: Test coverage below target 20%"; \
-			exit -1; \
-		fi \
-	done; \
-	echo "SUCCESS: Test coverage at or above target 20%"
+	go test $(TESTOPTS) ./...
+
+.PHONY: coverage
+coverage:
+	hack/codecov.sh
 
 .PHONY: envtest
-envtest:
+envtest: isclean
 	@# test that the env target can be evaluated, required by osd-operators-registry
-	@eval $$(${MAKE} env --no-print-directory) || (echo 'Unable to evaulate output of `make env`.  This breaks osd-operators-registry.' && exit 1)
+	@eval $$($(MAKE) env --no-print-directory) || (echo 'Unable to evaulate output of `make env`.  This breaks osd-operators-registry.' >&2 && exit 1)
 
 .PHONY: test
 test: envtest gotest
 
 .PHONY: env
 .SILENT: env
-env:
-	echo OPERATOR_NAME=${OPERATOR_NAME}
-	echo OPERATOR_NAMESPACE=${OPERATOR_NAMESPACE}
-	echo OPERATOR_VERSION=${OPERATOR_VERSION}
-	echo OPERATOR_IMAGE_URI=${OPERATOR_IMAGE_URI}
+env: isclean
+	echo OPERATOR_NAME=$(OPERATOR_NAME)
+	echo OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE)
+	echo OPERATOR_VERSION=$(OPERATOR_VERSION)
+	echo OPERATOR_IMAGE_URI=$(OPERATOR_IMAGE_URI)
 	echo CREATE_OPERATOR_GROUP=false
 	echo MULTI_NAMESPACE=true
