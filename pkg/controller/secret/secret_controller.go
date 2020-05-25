@@ -115,6 +115,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"}},
 		// https://issues.redhat.com/browse/OSD-2611
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-customer-monitoring"}},
+                // https://issues.redhat.com/browse/OSD-3569
+                {Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-operators"}},
 		// https://issues.redhat.com/browse/OSD-3220
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "SLAUptimeSRE"}},
 		// https://issues.redhat.com/browse/OSD-3629
