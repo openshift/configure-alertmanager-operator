@@ -125,6 +125,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ImagePruningDisabled"}},
 		// https://issues.redhat.com/browse/OSD-3794
 		{Receiver: receiverNull, Match: map[string]string{"severity": "info"}},
+		// https://issues.redhat.com/browse/OSD-3973
+		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetAtLimit"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
