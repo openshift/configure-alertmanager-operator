@@ -133,162 +133,52 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	return nil
 }
 
-// createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
-func createPagerdutyRoute() *alertmanager.Route {
-	// order matters.
-	// these are sub-routes.  if any matches it will not continue processing.
-	// 1. route anything we want to silence to "null"
-	// 2. route anything that should be a warning to "make-it-warning"
-	// 3. route anything we want to go to PD
-	pagerdutySubroutes := []*alertmanager.Route{
-		// https://issues.redhat.com/browse/OSD-1966
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaExceeded"}},
-		// https://issues.redhat.com/browse/OSD-2382
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "UsingDeprecatedAPIAppsV1Beta1"}},
-		// https://issues.redhat.com/browse/OSD-2382
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "UsingDeprecatedAPIAppsV1Beta2"}},
-		// https://issues.redhat.com/browse/OSD-2382
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "UsingDeprecatedAPIExtensionsV1Beta1"}},
-		// https://issues.redhat.com/browse/OSD-2980
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh", "container": "registry-server"}},
-		// https://issues.redhat.com/browse/OSD-3008
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh", "container": "configmap-registry-server"}},
-		// https://issues.redhat.com/browse/OSD-3010
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"}},
-		// https://issues.redhat.com/browse/OSD-2611
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-customer-monitoring"}},
-		// https://issues.redhat.com/browse/OSD-3569
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-operators"}},
-		// https://issues.redhat.com/browse/OSD-3220
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "SLAUptimeSRE"}},
-		// https://issues.redhat.com/browse/OSD-3629
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CustomResourceDetected"}},
-		// https://issues.redhat.com/browse/OSD-3629
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "ImagePruningDisabled"}},
-		// https://issues.redhat.com/browse/OSD-3794
-		{Receiver: receiverNull, Match: map[string]string{"severity": "info"}},
-		// https://issues.redhat.com/browse/OSD-3973
-		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetLimit"}},
-		// https://issues.redhat.com/browse/OSD-3973
-		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetAtLimit"}},
-
-		// https://issues.redhat.com/browse/OSD-1922
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
-
-		// https://issues.redhat.com/browse/OSD-3086
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"exported_namespace": alertmanager.PDRegex}},
-		// general: route anything in core namespaces to PD
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"namespace": alertmanager.PDRegex}, Match: map[string]string{"exported_namespace": ""}},
-		// fluentd: route any fluentd alert to PD
-		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd"}},
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "FluentdNodeDown"}},
-		// elasticsearch: route any ES alert to PD
-		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch"}},
-	}
-
-	return &alertmanager.Route{
-		Receiver: defaultReceiver,
-		GroupByStr: []string{
-			"alertname",
-			"severity",
-		},
-		Continue: true,
-		Routes:   pagerdutySubroutes,
-	}
-}
-
-// createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
-func createPagerdutyConfig(pagerdutyRoutingKey string) *alertmanager.PagerdutyConfig {
-	return &alertmanager.PagerdutyConfig{
-		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
-		RoutingKey:     pagerdutyRoutingKey,
-		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
-		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
-		Details: map[string]string{
-			"link":         `{{ if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
-			"link2":        `{{ if .CommonAnnotations.runbook }}{{ .CommonAnnotations.runbook }}{{ else }}{{ end }}`,
-			"group":        `{{ .CommonLabels.alertname }}`,
-			"component":    `{{ .CommonLabels.alertname }}`,
-			"num_firing":   `{{ .Alerts.Firing | len }}`,
-			"num_resolved": `{{ .Alerts.Resolved | len }}`,
-			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
-		},
-	}
-
-}
-
-// createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
-func createPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiver {
-	if pagerdutyRoutingKey == "" {
-		return []*alertmanager.Receiver{}
-	}
-
-	receivers := []*alertmanager.Receiver{
-		{
-			Name:             receiverPagerduty,
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey)},
-		},
-	}
-
-	// make-it-warning overrides the severity
-	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey)
-	pdconfig.Severity = "warning"
-	receivers = append(receivers, &alertmanager.Receiver{
-		Name:             receiverMakeItWarning,
-		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{pdconfig},
-	})
-
-	return receivers
-}
-
-// createWatchdogRoute creates an AlertManager Route for Watchdog (Dead Man's Snitch) in memory.
-func createWatchdogRoute() *alertmanager.Route {
-	return &alertmanager.Route{
-		Receiver:       receiverWatchdog,
-		RepeatInterval: "5m",
-		Match:          map[string]string{"alertname": "Watchdog"},
-	}
-}
-
-// createWatchdogReceivers creates an AlertManager Receiver for Watchdog (Dead Man's Sntich) in memory.
-func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
-	if watchdogURL == "" {
-		return []*alertmanager.Receiver{}
-	}
-
-	snitchconfig := &alertmanager.WebhookConfig{
-		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
-		URL:            watchdogURL,
-	}
-
-	return []*alertmanager.Receiver{
-		{
-			Name:           receiverWatchdog,
-			WebhookConfigs: []*alertmanager.WebhookConfig{snitchconfig},
-		},
-	}
-}
-
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
 func createAlertManagerConfig(
 	routes []*alertmanager.Route,
 	receivers []*alertmanager.Receiver,
 	inhibitRules []*alertmanager.InhibitRule,
-	pagerdutyRoutingKey string,
-	watchdogURL string,
 ) *alertmanager.Config {
 
-	if pagerdutyRoutingKey != "" {
-		routes = append(routes, createPagerdutyRoute())
-		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey)...)
+	if routes != nil {
+		filteredRoutes := []*alertmanager.Route{}
+		for _, r := range routes {
+			if r != nil {
+				filteredRoutes = append(filteredRoutes, r)
+			}
+		}
+		routes = filteredRoutes
+
+		if len(routes) == 0 {
+			routes = nil
+		}
 	}
 
-	if watchdogURL != "" {
-		routes = append(routes, createWatchdogRoute())
-		receivers = append(receivers, createWatchdogReceivers(watchdogURL)...)
+	if inhibitRules != nil {
+		filteredInhibitRules := []*alertmanager.InhibitRule{}
+		for _, i := range inhibitRules {
+			if i != nil {
+				filteredInhibitRules = append(filteredInhibitRules, i)
+			}
+		}
+		inhibitRules = filteredInhibitRules
+
+		if len(inhibitRules) == 0 {
+			inhibitRules = nil
+		}
 	}
+
+	if receivers == nil {
+		receivers = []*alertmanager.Receiver{}
+	}
+
+	filteredReceivers := []*alertmanager.Receiver{}
+	for _, r := range receivers {
+		if r != nil {
+			filteredReceivers = append(filteredReceivers, r)
+		}
+	}
+	receivers = filteredReceivers
 
 	// always have the "null" receiver
 	receivers = append(receivers, &alertmanager.Receiver{Name: receiverNull})
@@ -343,10 +233,6 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	}
 	r.client.List(context.TODO(), secretList, opts...)
 
-	// Check for the presence of specific secrets.
-	pagerDutySecretExists := secretInList(secretNamePD, secretList)
-	snitchSecretExists := secretInList(secretNameDMS, secretList)
-
 	// Get the secret from the request.  If it's a secret we monitor, flag for reconcile.
 	instance := &corev1.Secret{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
@@ -364,26 +250,13 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		}
 	}
 
-	// do the work! collect secret info for PD and DMS
-	pagerdutyRoutingKey := ""
-	watchdogURL := ""
-	// If a secret exists, add the necessary configs to Alertmanager.
-	if pagerDutySecretExists {
-		log.Info("INFO: Pager Duty secret exists")
-		pagerdutyRoutingKey = readSecretKey(r, &request, secretNamePD, secretKeyPD)
-	}
-	if snitchSecretExists {
-		log.Info("INFO: Dead Man's Snitch secret exists")
-		watchdogURL = readSecretKey(r, &request, secretNameDMS, secretKeyDMS)
-	}
-
 	routes, receivers, inhibitRules, err := r.handleAlertManagerConfigurationCRs()
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// create the desired alertmanager Config
-	alertmanagerconfig := createAlertManagerConfig(routes, receivers, inhibitRules, pagerdutyRoutingKey, watchdogURL)
+	alertmanagerconfig := createAlertManagerConfig(routes, receivers, inhibitRules)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)

@@ -6,10 +6,12 @@ import (
 	"reflect"
 	"testing"
 
-	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/apis"
+	amcv1alpha1 "github.com/openshift/configure-alertmanager-operator/pkg/apis/alertmanager/v1alpha1"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
+
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,7 +68,7 @@ func assertNotEquals(t *testing.T, want interface{}, got interface{}, message st
 	if len(message) == 0 {
 		message = fmt.Sprintf("Didn't expect '%v'", want)
 	} else {
-		message = fmt.Sprintf("%s: Expected '%v' but got '%v'", message, want, got)
+		message = fmt.Sprintf("%s: Didn't expect '%v'", message, want)
 	}
 	t.Fatal(message)
 }
@@ -180,52 +182,12 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
 }
 
-func Test_createPagerdutyRoute(t *testing.T) {
-	// test the structure of the Route is sane
-	route := createPagerdutyRoute()
-
-	verifyPagerdutyRoute(t, route)
-}
-
-func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
-	assertEquals(t, 0, len(createPagerdutyReceivers("")), "Number of Receivers")
-}
-
-func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
-	key := "abcdefg1234567890"
-
-	receivers := createPagerdutyReceivers(key)
-
-	verifyPagerdutyReceivers(t, key, receivers)
-}
-
-func Test_createWatchdogRoute(t *testing.T) {
-	// test the structure of the Route is sane
-	route := createWatchdogRoute()
-
-	verifyWatchdogRoute(t, route)
-}
-
-func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
-	assertEquals(t, 0, len(createWatchdogReceivers("")), "Number of Receivers")
-}
-
-func Test_createWatchdogReceivers_WithKey(t *testing.T) {
-	url := "http://whatever/something"
-
-	receivers := createWatchdogReceivers(url)
-
-	verifyWatchdogReceiver(t, url, receivers)
-}
-
-func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
+func Test_createAlertManagerConfig_With_Empty_Input(t *testing.T) {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
-	var inhibitRules []*alertmanager.InhibitRule
-	pdKey := ""
-	wdURL := ""
+	inhibitRules := []*alertmanager.InhibitRule{}
 
-	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, inhibitRules)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -240,14 +202,14 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	verifyNullReceiver(t, config.Receivers)
 }
 
-func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
-	routes := []*alertmanager.Route{}
-	receivers := []*alertmanager.Receiver{}
-	var inhibitRules []*alertmanager.InhibitRule
-	pdKey := "poiuqwer78902345"
-	wdURL := ""
+func Test_createAlertManagerConfig_With_nil_slices(t *testing.T) {
+	var (
+		routes       []*alertmanager.Route       = nil
+		receivers    []*alertmanager.Receiver    = nil
+		inhibitRules []*alertmanager.InhibitRule = nil
+	)
 
-	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, inhibitRules)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -256,23 +218,18 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
-	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 3, len(config.Receivers), "Receivers")
+	assertEquals(t, 0, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 1, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
-
-	verifyPagerdutyRoute(t, config.Route.Routes[0])
-	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 }
 
-func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
-	routes := []*alertmanager.Route{}
-	receivers := []*alertmanager.Receiver{}
-	var inhibitRules []*alertmanager.InhibitRule
-	pdKey := "poiuqwer78902345"
-	wdURL := "http://theinterwebs"
+func Test_createAlertManagerConfig_With_nil_elements(t *testing.T) {
+	routes := []*alertmanager.Route{nil}
+	receivers := []*alertmanager.Receiver{nil}
+	inhibitRules := []*alertmanager.InhibitRule{nil}
 
-	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
+	config := createAlertManagerConfig(routes, receivers, inhibitRules)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -281,40 +238,8 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
-	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 4, len(config.Receivers), "Receivers")
-
-	verifyNullReceiver(t, config.Receivers)
-
-	verifyPagerdutyRoute(t, config.Route.Routes[0])
-	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
-
-	verifyWatchdogRoute(t, config.Route.Routes[1])
-	verifyWatchdogReceiver(t, wdURL, config.Receivers)
-}
-
-func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
-	routes := []*alertmanager.Route{}
-	receivers := []*alertmanager.Receiver{}
-	var inhibitRules []*alertmanager.InhibitRule
-	pdKey := ""
-	wdURL := "http://theinterwebs"
-
-	config := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
-
-	// verify static things
-	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
-	assertEquals(t, pagerdutyURL, config.Global.PagerdutyURL, "Global.PagerdutyURL")
-	assertEquals(t, defaultReceiver, config.Route.Receiver, "Route.Receiver")
-	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
-	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
-	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
-	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 2, len(config.Receivers), "Receivers")
-
-	verifyNullReceiver(t, config.Receivers)
-	verifyWatchdogRoute(t, config.Route.Routes[0])
-	verifyWatchdogReceiver(t, wdURL, config.Receivers)
+	assertEquals(t, 0, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 1, len(config.Receivers), "Receivers")
 }
 
 // createSecret creates a fake Secret to use in testing.
@@ -329,6 +254,23 @@ func createSecret(reconciler *ReconcileSecret, secretname string, secretkey stri
 		},
 	}
 	reconciler.client.Create(context.TODO(), newsecret)
+}
+
+func createAlertManagerConfiguration(
+	reconciler *ReconcileSecret,
+	route amcv1alpha1.Route,
+	receivers []amcv1alpha1.Receiver,
+	inhibitRules []amcv1alpha1.InhibitRule,
+) {
+	amc := &amcv1alpha1.AlertManagerConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "dummy", Namespace: config.OperatorNamespace},
+		Spec: amcv1alpha1.AlertManagerConfigurationSpec{
+			Route:        route,
+			Receivers:    receivers,
+			InhibitRules: inhibitRules,
+		},
+	}
+	reconciler.client.Create(context.TODO(), amc)
 }
 
 // createReconciler creates a fake ReconcileSecret for testing.
@@ -372,7 +314,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
+	configExpected := createAlertManagerConfig(routes, receivers, inhibitRules)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -392,18 +334,18 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 
 // Test updating the config and making sure it is updated as expected
 func Test_createPagerdutySecret_Update(t *testing.T) {
-	routes := []*alertmanager.Route{}
+	routes := []*alertmanager.Route{{
+		Receiver: "openshift-monitoring-dummy-dummy-receiver",
+		Continue: true,
+	}}
 	receivers := []*alertmanager.Receiver{}
 	var inhibitRules []*alertmanager.InhibitRule
-	pdKey := "asdaidsgadfi9853"
-	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
+	configExpected := createAlertManagerConfig(routes, receivers, inhibitRules)
 
 	// prepare environment
 	reconciler := createReconciler()
 	createNamespace(reconciler, t)
-	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, secretNamePD)
@@ -414,7 +356,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	assertNotEquals(t, configExpected, configActual, "Config Deep Comparison")
 
 	// update environment
-	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
+	createAlertManagerConfiguration(reconciler, amcv1alpha1.Route{Receiver: "dummy-receiver"}, nil, nil)
 	req = createReconcileRequest(reconciler, secretNameDMS)
 	reconciler.Reconcile(*req)
 
@@ -512,7 +454,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig(routes, receivers, inhibitRules, "", ""))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig(routes, receivers, inhibitRules))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -526,7 +468,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := createAlertManagerConfig(routes, receivers, inhibitRules, pdKey, wdURL)
+		configExpected := createAlertManagerConfig(routes, receivers, inhibitRules)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
 		reconciler.Reconcile(*req)
