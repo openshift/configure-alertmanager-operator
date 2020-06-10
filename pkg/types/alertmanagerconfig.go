@@ -7,7 +7,7 @@ import (
 )
 
 // PDRegexLP is the regular expression used in Pager Duty for any Layered Product namespaces.
-const PDRegexLP string = "^default$|^kube.*|^openshift.*|^redhat-.*"
+const PDRegexLP string = "^redhat-.*"
 
 // PDRegex is the regular expression used in the Pager Duty receiver.
 // This is specific to our environment.
