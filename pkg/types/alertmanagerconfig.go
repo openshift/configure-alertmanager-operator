@@ -20,13 +20,22 @@ const PDRegex string = "^default$|^kube.*|^openshift.*|" + PDRegexLP
 // Discussion, for reference, is in this PR: https://github.com/prometheus/alertmanager/pull/1804
 
 type Config struct {
-	Global    *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
-	Route     *Route        `yaml:"route,omitempty" json:"route,omitempty"`
-	Receivers []*Receiver   `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates []string      `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string       `yaml:"templates" json:"templates"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
+}
+
+type InhibitRule struct {
+	TargetMatch   map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
+	TargetMatchRE map[string]string `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
+	SourceMatch   map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
+	SourceMatchRE map[string]string `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
+	Equal         []string          `yaml:"equal,omitempty" json:"equal,omitempty"`
 }
 
 func (c Config) String() string {

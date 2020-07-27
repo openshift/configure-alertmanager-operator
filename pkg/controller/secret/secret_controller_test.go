@@ -2,6 +2,7 @@ package secret
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -178,6 +179,27 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
 }
 
+func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) {
+	// there are 2 rules
+	assertEquals(t, 2, len(inhibitRules), "Number of InhibitRules")
+
+	// verify structure
+	for _, inhibitRule := range inhibitRules {
+		// both have same "equal" values
+		assertEquals(t, "namespace", inhibitRule.Equal[0], "inhibitRule.Equal[0]")
+		assertEquals(t, "alertname", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
+		if inhibitRule.SourceMatch["severity"] == "critical" {
+			assertEquals(t, "warning|info", inhibitRule.TargetMatchRE["severity"], "TargetMatchRE for 'critical'")
+		} else if inhibitRule.SourceMatch["severity"] == "warning" {
+			assertEquals(t, "info", inhibitRule.TargetMatchRE["severity"], "TargetMatchRE for 'warning'")
+		} else {
+			// force failure
+			json, _ := json.Marshal(inhibitRule)
+			assertTrue(t, false, "Unexpected InhibitRule: "+string(json))
+		}
+	}
+}
+
 func Test_createPagerdutyRoute(t *testing.T) {
 	// test the structure of the Route is sane
 	route := createPagerdutyRoute()
@@ -233,6 +255,8 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	assertEquals(t, 1, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
+
+	verifyInhibitRules(t, config.InhibitRules)
 }
 
 func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
@@ -255,6 +279,8 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 
 	verifyPagerdutyRoute(t, config.Route.Routes[0])
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
+
+	verifyInhibitRules(t, config.InhibitRules)
 }
 
 func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
@@ -280,6 +306,8 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 
 	verifyWatchdogRoute(t, config.Route.Routes[1])
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
+
+	verifyInhibitRules(t, config.InhibitRules)
 }
 
 func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
@@ -301,6 +329,8 @@ func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	verifyNullReceiver(t, config.Receivers)
 	verifyWatchdogRoute(t, config.Route.Routes[0])
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
+
+	verifyInhibitRules(t, config.InhibitRules)
 }
 
 // createSecret creates a fake Secret to use in testing.
@@ -352,6 +382,8 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 
 	configExpected := createAlertManagerConfig(pdKey, wdURL)
 
+	verifyInhibitRules(t, configExpected.InhibitRules)
+
 	// prepare environment
 	reconciler := createReconciler()
 	createNamespace(reconciler, t)
@@ -374,6 +406,8 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	wdURL := "http://theinterwebs/asdf"
 
 	configExpected := createAlertManagerConfig(pdKey, wdURL)
+
+	verifyInhibitRules(t, configExpected.InhibitRules)
 
 	// prepare environment
 	reconciler := createReconciler()
@@ -499,6 +533,8 @@ func Test_ReconcileSecrets(t *testing.T) {
 		}
 
 		configExpected := createAlertManagerConfig(pdKey, wdURL)
+
+		verifyInhibitRules(t, configExpected.InhibitRules)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
 		reconciler.Reconcile(*req)
