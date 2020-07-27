@@ -268,6 +268,34 @@ func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *a
 		},
 		Receivers: receivers,
 		Templates: []string{},
+		// Work request: https://issues.redhat.com/browse/OSD-4623
+		// Reference: https://github.com/openshift/cluster-monitoring-operator/blob/6a02b14773169330d7a31ede73dce5adb1c66bb4/assets/alertmanager/secret.yaml
+		InhibitRules: []*alertmanager.InhibitRule{
+			{
+				Equal: []string{
+					"namespace",
+					"alertname",
+				},
+				SourceMatch: map[string]string{
+					"severity": "critical",
+				},
+				TargetMatchRE: map[string]string{
+					"severity": "warning|info",
+				},
+			},
+			{
+				Equal: []string{
+					"namespace",
+					"alertname",
+				},
+				SourceMatch: map[string]string{
+					"severity": "warning",
+				},
+				TargetMatchRE: map[string]string{
+					"severity": "info",
+				},
+			},
+		},
 	}
 
 	return amconfig
