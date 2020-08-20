@@ -194,7 +194,7 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 			assertEquals(t, "alertname", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
 			assertEquals(t, "info", inhibitRule.TargetMatchRE["severity"], "TargetMatchRE for 'warning'")
 		} else if inhibitRule.SourceMatch["alertname"] == "ClusterOperatorDown" {
-			assertEquals(t, "job", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
+			assertEquals(t, "name", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
 			assertEquals(t, "ClusterOperatorDegraded", inhibitRule.TargetMatchRE["alertname"], "TargetMatchRE for 'ClusterOperatorDegraded'")
 		} else {
 			// force failure

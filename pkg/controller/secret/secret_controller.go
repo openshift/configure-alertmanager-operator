@@ -300,7 +300,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *a
 			{
 				Equal: []string{
 					"namespace",
-					"job",
+					"name",
 				},
 				SourceMatch: map[string]string{
 					"alertname": "ClusterOperatorDown",
