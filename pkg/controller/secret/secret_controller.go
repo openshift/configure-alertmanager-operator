@@ -297,6 +297,18 @@ func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *a
 					"severity": "info",
 				},
 			},
+			{
+				Equal: []string{
+					"namespace",
+					"job",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "ClusterOperatorDown",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "ClusterOperatorDegraded",
+				},
+			},
 		},
 	}
 

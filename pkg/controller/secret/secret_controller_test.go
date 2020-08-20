@@ -180,18 +180,22 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 }
 
 func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) {
-	// there are 2 rules
-	assertEquals(t, 2, len(inhibitRules), "Number of InhibitRules")
+	// there are 3 rules
+	assertEquals(t, 3, len(inhibitRules), "Number of InhibitRules")
 
 	// verify structure
 	for _, inhibitRule := range inhibitRules {
 		// both have same "equal" values
 		assertEquals(t, "namespace", inhibitRule.Equal[0], "inhibitRule.Equal[0]")
-		assertEquals(t, "alertname", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
 		if inhibitRule.SourceMatch["severity"] == "critical" {
+			assertEquals(t, "alertname", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
 			assertEquals(t, "warning|info", inhibitRule.TargetMatchRE["severity"], "TargetMatchRE for 'critical'")
 		} else if inhibitRule.SourceMatch["severity"] == "warning" {
+			assertEquals(t, "alertname", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
 			assertEquals(t, "info", inhibitRule.TargetMatchRE["severity"], "TargetMatchRE for 'warning'")
+		} else if inhibitRule.SourceMatch["alertname"] == "ClusterOperatorDown" {
+			assertEquals(t, "job", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
+			assertEquals(t, "ClusterOperatorDegraded", inhibitRule.TargetMatchRE["alertname"], "TargetMatchRE for 'ClusterOperatorDegraded'")
 		} else {
 			// force failure
 			json, _ := json.Marshal(inhibitRule)
