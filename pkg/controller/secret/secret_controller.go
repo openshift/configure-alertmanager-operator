@@ -101,6 +101,9 @@ func createPagerdutyRoute() *alertmanager.Route {
 	pagerdutySubroutes := []*alertmanager.Route{
 		// https://issues.redhat.com/browse/OSD-1966
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaExceeded"}},
+		// This will be renamed in release 4.5
+		// https://issues.redhat.com/browse/OSD-4017
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaFullyUsed"}},
 		// https://issues.redhat.com/browse/OSD-2382
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "UsingDeprecatedAPIAppsV1Beta1"}},
 		// https://issues.redhat.com/browse/OSD-2382
