@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 
@@ -342,6 +343,10 @@ func (r *ReconcileSecret) getWebConsoleUrl() (string, error) {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	if request.Namespace != config.OperatorNamespace {
+		return reconcile.Result{}, nil
+	}
+
 	reqLogger := log.WithValues("Request.Name", request.Name)
 	reqLogger.Info("Reconciling Secret")
 
