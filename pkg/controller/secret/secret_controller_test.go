@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/configure-alertmanager-operator/config"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 	yaml "gopkg.in/yaml.v2"
@@ -14,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubectl/pkg/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -297,13 +299,21 @@ func Test_createPagerdutyRoute(t *testing.T) {
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
+<<<<<<< HEAD
 	assertEquals(t, 0, len(createPagerdutyReceivers("", "")), "Number of Receivers")
+=======
+	assertEquals(t, 0, len(createPagerdutyReceivers("", "fake-cluster-id")), "Number of Receivers")
+>>>>>>> Add ClusterID to alert message
 }
 
 func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 	key := "abcdefg1234567890"
 
+<<<<<<< HEAD
 	receivers := createPagerdutyReceivers(key, exampleConsoleUrl)
+=======
+	receivers := createPagerdutyReceivers(key, "fake-cluster-id")
+>>>>>>> Add ClusterID to alert message
 
 	verifyPagerdutyReceivers(t, key, receivers)
 }
@@ -331,7 +341,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, "fake-cluster-id")
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -352,7 +362,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, "fake-cluster-id")
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -376,7 +386,7 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, "fake-cluster-id")
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -403,7 +413,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, "fake-cluster-id")
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -457,10 +467,15 @@ func createSecret(reconciler *ReconcileSecret, secretname string, secretkey stri
 }
 
 // createReconciler creates a fake ReconcileSecret for testing.
-func createReconciler() *ReconcileSecret {
+func createReconciler(t *testing.T) *ReconcileSecret {
+	scheme := scheme.Scheme
+
+	if err := configv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Unable to add route scheme: (%v)", err)
+	}
 	return &ReconcileSecret{
-		client: fake.NewFakeClient(),
-		scheme: nil,
+		client: fake.NewFakeClientWithScheme(scheme),
+		scheme: scheme,
 	}
 }
 
@@ -489,16 +504,17 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, "fake-cluster-id")
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
 	// prepare environment
-	reconciler := createReconciler()
+	reconciler := createReconciler(t)
 	createNamespace(reconciler, t)
 	createConsolePublicConfigMap(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
+	createClusterVersion(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, "pd-secret")
@@ -515,15 +531,16 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, "fake-cluster-id")
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
 	// prepare environment
-	reconciler := createReconciler()
+	reconciler := createReconciler(t)
 	createNamespace(reconciler, t)
 	createConsolePublicConfigMap(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createClusterVersion(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, secretNamePD)
@@ -542,6 +559,18 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	configActual = readAlertManagerConfig(reconciler, req)
 
 	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
+}
+
+func createClusterVersion(reconciler *ReconcileSecret) {
+	clusterVersion := &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "version",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: "fake-cluster-id",
+		},
+	}
+	reconciler.client.Create(context.TODO(), clusterVersion)
 }
 
 func Test_ReconcileSecrets(t *testing.T) {
@@ -621,7 +650,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		reconciler := createReconciler()
+		reconciler := createReconciler(t)
 		createNamespace(reconciler, t)
 		createConsolePublicConfigMap(reconciler, t)
 
@@ -630,7 +659,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", ""))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", "fake-cluster-id"))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -644,10 +673,11 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
+		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, "fake-cluster-id")
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
+		createClusterVersion(reconciler)
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
 		reconciler.Reconcile(*req)
 
