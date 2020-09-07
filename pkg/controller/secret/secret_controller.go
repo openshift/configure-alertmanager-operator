@@ -2,11 +2,13 @@ package secret
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -51,6 +53,9 @@ const (
 
 	// global config for PagerdutyURL
 	pagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
+
+	openShiftConfigManagedNamespaceName = "openshift-config-managed"
+	consolePublicConfigMap              = "console-public"
 )
 
 var _ reconcile.Reconciler = &ReconcileSecret{}
@@ -167,7 +172,7 @@ func createPagerdutyRoute() *alertmanager.Route {
 }
 
 // createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
-func createPagerdutyConfig(pagerdutyRoutingKey string) *alertmanager.PagerdutyConfig {
+func createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl string) *alertmanager.PagerdutyConfig {
 	return &alertmanager.PagerdutyConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
 		RoutingKey:     pagerdutyRoutingKey,
@@ -176,6 +181,7 @@ func createPagerdutyConfig(pagerdutyRoutingKey string) *alertmanager.PagerdutyCo
 		Details: map[string]string{
 			"link":         `{{ if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
 			"link2":        `{{ if .CommonAnnotations.runbook }}{{ .CommonAnnotations.runbook }}{{ else }}{{ end }}`,
+			"console":      consoleUrl,
 			"group":        `{{ .CommonLabels.alertname }}`,
 			"component":    `{{ .CommonLabels.alertname }}`,
 			"num_firing":   `{{ .Alerts.Firing | len }}`,
@@ -187,7 +193,7 @@ func createPagerdutyConfig(pagerdutyRoutingKey string) *alertmanager.PagerdutyCo
 }
 
 // createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
-func createPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiver {
+func createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -195,12 +201,12 @@ func createPagerdutyReceivers(pagerdutyRoutingKey string) []*alertmanager.Receiv
 	receivers := []*alertmanager.Receiver{
 		{
 			Name:             receiverPagerduty,
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey)},
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl)},
 		},
 	}
 
 	// make-it-warning overrides the severity
-	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey)
+	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl)
 	pdconfig.Severity = "warning"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItWarning,
@@ -239,13 +245,13 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *alertmanager.Config {
+func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
 	if pagerdutyRoutingKey != "" {
 		routes = append(routes, createPagerdutyRoute())
-		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey)...)
+		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl)...)
 	}
 
 	if watchdogURL != "" {
@@ -318,6 +324,20 @@ func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *a
 	return amconfig
 }
 
+func (r *ReconcileSecret) getWebConsoleUrl() (string, error) {
+	consolePublicConfig := &corev1.ConfigMap{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: openShiftConfigManagedNamespaceName, Name: consolePublicConfigMap}, consolePublicConfig)
+	if err != nil {
+		return "", fmt.Errorf("unable to determine console location: %v", err)
+	}
+
+	consoleUrl, exists := consolePublicConfig.Data["consoleURL"]
+	if !exists {
+		return "", fmt.Errorf("unable to determine console location from the cluster")
+	}
+	return consoleUrl, nil
+}
+
 // Reconcile reads that state of the cluster for a Secret object and makes changes based on the state read.
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
@@ -379,8 +399,14 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		watchdogURL = readSecretKey(r, &request, secretNameDMS, secretKeyDMS)
 	}
 
+	// grab the console URL for PD alerts
+	consoleUrl, err := r.getWebConsoleUrl()
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	// create the desired alertmanager Config
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL)
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)

@@ -19,6 +19,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+const (
+	exampleConsoleUrl = "https://console-openshift-console.apps.cluster.abcd.t1.example.com"
+)
+
 // readAlertManagerConfig fetches the AlertManager configuration from its default location.
 // This is equivalent to `oc get secrets -n openshift-monitoring alertmanager-main`.
 // It specifically extracts the .data "alertmanager.yaml" field, and loads it into a resource
@@ -212,13 +216,13 @@ func Test_createPagerdutyRoute(t *testing.T) {
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
-	assertEquals(t, 0, len(createPagerdutyReceivers("")), "Number of Receivers")
+	assertEquals(t, 0, len(createPagerdutyReceivers("", "")), "Number of Receivers")
 }
 
 func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 	key := "abcdefg1234567890"
 
-	receivers := createPagerdutyReceivers(key)
+	receivers := createPagerdutyReceivers(key, exampleConsoleUrl)
 
 	verifyPagerdutyReceivers(t, key, receivers)
 }
@@ -246,7 +250,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -267,7 +271,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -291,7 +295,7 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -318,7 +322,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -335,6 +339,26 @@ func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
 
 	verifyInhibitRules(t, config.InhibitRules)
+}
+
+// createConsolePublicConfigMap creates a fake namespace/configmap with console details
+func createConsolePublicConfigMap(reconciler *ReconcileSecret, t *testing.T) {
+	err := reconciler.client.Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: openShiftConfigManagedNamespaceName}})
+	if err != nil {
+		// exit the test if we can't create the namespace. Every test depends on this.
+		t.Errorf("Couldn't create the required namespace for the test. Encountered error: %s", err)
+		panic("Exiting due to fatal error")
+	}
+	newconfigmap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      consolePublicConfigMap,
+			Namespace: openShiftConfigManagedNamespaceName,
+		},
+		Data: map[string]string{
+			"consoleURL": exampleConsoleUrl,
+		},
+	}
+	reconciler.client.Create(context.TODO(), newconfigmap)
 }
 
 // createSecret creates a fake Secret to use in testing.
@@ -384,13 +408,14 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
 	// prepare environment
 	reconciler := createReconciler()
 	createNamespace(reconciler, t)
+	createConsolePublicConfigMap(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
 
@@ -409,13 +434,14 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
 	// prepare environment
 	reconciler := createReconciler()
 	createNamespace(reconciler, t)
+	createConsolePublicConfigMap(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 
 	// reconcile (one event should config everything)
@@ -516,13 +542,14 @@ func Test_ReconcileSecrets(t *testing.T) {
 	for _, tt := range tests {
 		reconciler := createReconciler()
 		createNamespace(reconciler, t)
+		createConsolePublicConfigMap(reconciler, t)
 
 		pdKey := ""
 		wdURL := ""
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", ""))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", ""))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -536,7 +563,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := createAlertManagerConfig(pdKey, wdURL)
+		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
