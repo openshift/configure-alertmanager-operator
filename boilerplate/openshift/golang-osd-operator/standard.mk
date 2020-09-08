@@ -17,21 +17,31 @@ endif
 
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
-CURRENT_COMMIT=$(shell git rev-parse --short=7 HEAD)
+CURRENT_COMMIT=$(shell git rev-parse --short=8 HEAD)
 OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)
 
-OPERATOR_IMAGE_URI=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):v$(OPERATOR_VERSION)
+IMG?=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):v$(OPERATOR_VERSION)
+OPERATOR_IMAGE_URI=${IMG}
 OPERATOR_IMAGE_URI_LATEST=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):latest
 OPERATOR_DOCKERFILE ?=build/Dockerfile
 
 BINFILE=build/_output/bin/$(OPERATOR_NAME)
 MAINPACKAGE=./cmd/manager
+
+# Containers may default GOFLAGS=-mod=vendor which would break us since
+# we're using modules.
 unexport GOFLAGS
-GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+GOOS?=linux
+GOARCH?=amd64
+GOENV=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 GOFLAGS=
+
 GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
-CONTAINER_ENGINE=$(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
+# GOLANGCI_LINT_CACHE needs to be set to a directory which is writeable
+# Relevant issue - https://github.com/golangci/golangci-lint/issues/734
+GOLANGCI_LINT_CACHE ?= /tmp/golangci-cache
 
+TESTTARGETS := $(shell ${GOENV} go list -e ./... | egrep -v "/(vendor)/")
 # ex, -v
 TESTOPTS :=
 
@@ -49,46 +59,50 @@ isclean:
 
 .PHONY: build
 build: isclean envtest
-	$(CONTAINER_ENGINE) build . -f $(OPERATOR_DOCKERFILE) -t $(OPERATOR_IMAGE_URI)
-	$(CONTAINER_ENGINE) tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
+	docker build . -f $(OPERATOR_DOCKERFILE) -t $(OPERATOR_IMAGE_URI)
+	docker tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
 
 .PHONY: push
 push:
-	${CONTAINER_ENGINE} push ${OPERATOR_IMAGE_URI}
-	${CONTAINER_ENGINE} push ${OPERATOR_IMAGE_URI_LATEST}
+	docker push $(OPERATOR_IMAGE_URI)
+	docker push $(OPERATOR_IMAGE_URI_LATEST)
 
-.PHONY: skopeo-push
-skopeo-push: container-build
-	skopeo copy \
-		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
-		"docker-daemon:${OPERATOR_IMAGE_URI_LATEST}" \
-		"docker://${OPERATOR_IMAGE_URI_LATEST}"
-	skopeo copy \
-		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
-		"docker-daemon:${OPERATOR_IMAGE_URI}" \
-		"docker://${OPERATOR_IMAGE_URI}"
-
-.PHONY: build-catalog-image
-build-catalog-image:
-	$(call create_push_catalog_image,staging,service/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,false,service/saas-osd-operators,$(OPERATOR_NAME)-services/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
-	$(call create_push_catalog_image,production,service/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,true,service/saas-osd-operators,$(OPERATOR_NAME)-services/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
+# These names are used by the app-sre pipeline targets
+.PHONY: docker-build
+docker-build: build
+.PHONY: docker-push
+docker-push: push
 
 .PHONY: gocheck
 gocheck: ## Lint code
-	gofmt -s -l . | grep ".*\.go"; if [ "$$?" = "0" ]; then gofmt -s -d .; exit 1; fi
-	go vet ./cmd/... ./pkg/...
+	boilerplate/_lib/ensure.sh golangci-lint
+	GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c boilerplate/openshift/golang-osd-operator/golangci.yml ./...
+
+.PHONY: gogenerate
+gogenerate:
+	${GOENV} go generate $(TESTTARGETS)
+	# Don't forget to commit generated files
+
+.PHONY: opgenerate
+opgenerate:
+	operator-sdk generate crds
+	operator-sdk generate k8s
+	# Don't forget to commit generated files
+
+.PHONY: generate
+generate: opgenerate gogenerate
 
 .PHONY: gobuild
 gobuild: gocheck gotest ## Build binary
-	$(GOENV) go build $(GOBUILDFLAGS) -o $(BINFILE) $(MAINPACKAGE)
+	${GOENV} go build ${GOBUILDFLAGS} -o ${BINFILE} ${MAINPACKAGE}
 
 .PHONY: gotest
 gotest:
-	go test $(TESTOPTS) ./...
+	${GOENV} go test $(TESTOPTS) $(TESTTARGETS)
 
 .PHONY: coverage
 coverage:
-	hack/codecov.sh
+	boilerplate/openshift/golang-osd-operator/codecov.sh
 
 .PHONY: envtest
 envtest: isclean
@@ -96,7 +110,7 @@ envtest: isclean
 	@eval $$($(MAKE) env --no-print-directory) || (echo 'Unable to evaulate output of `make env`.  This breaks osd-operators-registry.' >&2 && exit 1)
 
 .PHONY: test
-test: envtest gotest
+test: envtest gotest yaml-validate
 
 .PHONY: env
 .SILENT: env
@@ -105,5 +119,7 @@ env: isclean
 	echo OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE)
 	echo OPERATOR_VERSION=$(OPERATOR_VERSION)
 	echo OPERATOR_IMAGE_URI=$(OPERATOR_IMAGE_URI)
-	echo CREATE_OPERATOR_GROUP=false
-	echo MULTI_NAMESPACE=true
+
+.PHONY: yaml-validate
+yaml-validate:
+	python3 boilerplate/openshift/golang-osd-operator/validate-yaml.py $(shell git ls-files | egrep -v '^(vendor|boilerplate)/' | egrep '.*\.ya?ml')
