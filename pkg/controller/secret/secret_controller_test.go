@@ -180,27 +180,95 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 }
 
 func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) {
-	// there are 3 rules
-	assertEquals(t, 3, len(inhibitRules), "Number of InhibitRules")
+	tests := []struct {
+		SourceMatch   map[string]string
+		TargetMatchRE map[string]string
+		Equal         []string
+		Expected      bool
+	}{
+		{
+			SourceMatch: map[string]string{
+				"alertname": "NotPresent",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "DoesNotExist",
+			},
+			Equal: []string{
+				"namespace",
+				"missing",
+			},
+			Expected: false,
+		},
+		{
+			SourceMatch: map[string]string{
+				"severity": "critical",
+			},
+			TargetMatchRE: map[string]string{
+				"severity": "warning|info",
+			},
+			Equal: []string{
+				"namespace",
+				"alertname",
+			},
+			Expected: true,
+		},
+		{
+			SourceMatch: map[string]string{
+				"severity": "warning",
+			},
+			TargetMatchRE: map[string]string{
+				"severity": "info",
+			},
+			Equal: []string{
+				"namespace",
+				"alertname",
+			},
+			Expected: true,
+		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "ClusterOperatorDown",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "ClusterOperatorDegraded",
+			},
+			Equal: []string{
+				"namespace",
+				"name",
+			},
+			Expected: true,
+		},
+	}
 
-	// verify structure
-	for _, inhibitRule := range inhibitRules {
-		// both have same "equal" values
-		assertEquals(t, "namespace", inhibitRule.Equal[0], "inhibitRule.Equal[0]")
-		if inhibitRule.SourceMatch["severity"] == "critical" {
-			assertEquals(t, "alertname", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
-			assertEquals(t, "warning|info", inhibitRule.TargetMatchRE["severity"], "TargetMatchRE for 'critical'")
-		} else if inhibitRule.SourceMatch["severity"] == "warning" {
-			assertEquals(t, "alertname", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
-			assertEquals(t, "info", inhibitRule.TargetMatchRE["severity"], "TargetMatchRE for 'warning'")
-		} else if inhibitRule.SourceMatch["alertname"] == "ClusterOperatorDown" {
-			assertEquals(t, "name", inhibitRule.Equal[1], "inhibitRule.Equal[1]")
-			assertEquals(t, "ClusterOperatorDegraded", inhibitRule.TargetMatchRE["alertname"], "TargetMatchRE for 'ClusterOperatorDegraded'")
-		} else {
-			// force failure
-			json, _ := json.Marshal(inhibitRule)
-			assertTrue(t, false, "Unexpected InhibitRule: "+string(json))
+	// keep track of which inhibition rules were affirmatively tested
+	var presentInhibitionRules []int
+
+	// confirm that the expected inhibition rules are present
+	for _, test := range tests {
+		present := false
+
+		for i, inhibitRule := range inhibitRules {
+			if reflect.DeepEqual(inhibitRule.SourceMatch, test.SourceMatch) && reflect.DeepEqual(inhibitRule.TargetMatchRE, test.TargetMatchRE) && reflect.DeepEqual(inhibitRule.Equal, test.Equal) {
+				present = true
+				presentInhibitionRules = append(presentInhibitionRules, i)
+			}
 		}
+
+		assertEquals(t, present, test.Expected, fmt.Sprintf("expected: %+v", test))
+	}
+
+	// confirm that the present inhibition rules are expected
+	for i := 0; i < len(inhibitRules); i++ {
+		inhibitionRuleExpected := false
+
+		for _, p := range presentInhibitionRules {
+			if i == p {
+				inhibitionRuleExpected = true
+			}
+		}
+
+		rule, _ := json.Marshal(inhibitRules[i])
+		assertTrue(t, inhibitionRuleExpected, fmt.Sprintf("Unexpected InhibitRule: %s", rule))
 	}
 }
 
