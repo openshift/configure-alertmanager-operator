@@ -2,7 +2,7 @@
 
 # WARNING: THIS FILE IS MANAGED IN THE 'boilerplate' REPO AND COPIED TO OTHER REPOSITORIES.
 # ONLY EDIT THIS FILE FROM WITHIN THE 'boilerplate' REPOSITORY.
-# 
+#
 # TO OPT OUT OF UPDATES, SEE THE README.
 
 # This script updates itself, and then re-execs itself if it has
@@ -54,7 +54,7 @@ export CONVENTION_ROOT=$DIR
 # repo doesn't have an `origin` remote.
 if [ -z "$REPO_NAME" ]; then
   # This is a tad ambitious, but it should usually work.
-  export REPO_NAME=$(git remote get-url origin | sed 's,.*/,,; s/\.git$//')
+  export REPO_NAME=$(git config --get remote.origin.url | sed 's,.*/,,; s/\.git$//')
   # If that still didn't work, warn (but proceed)
   if [ -z "$REPO_NAME" ]; then
     echo 'Failed to discover repository name! $REPO_NAME not set!'
@@ -68,7 +68,7 @@ README="https://github.com/openshift/boilerplate/blob/master/README.md"
 
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "$CONFIG_FILE not found."
-  echo "This file is required in order to select which features to include." 
+  echo "This file is required in order to select which features to include."
   echo "See $README for more details."
   exit 1
 fi

@@ -15,6 +15,9 @@ ifndef VERSION_MINOR
 $(error VERSION_MINOR is not set; check project.mk file)
 endif
 
+# Accommodate docker or podman
+CONTAINER_ENGINE=$(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
+
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
 CURRENT_COMMIT=$(shell git rev-parse --short=8 HEAD)
@@ -47,6 +50,9 @@ TESTOPTS :=
 
 ALLOW_DIRTY_CHECKOUT?=false
 
+# TODO: Figure out how to discover this dynamically
+CONVENTION_DIR := boilerplate/openshift/golang-osd-operator
+
 default: gobuild
 
 .PHONY: clean
@@ -58,14 +64,14 @@ isclean:
 	@(test "$(ALLOW_DIRTY_CHECKOUT)" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." >&2 && exit 1)
 
 .PHONY: build
-build: isclean envtest
-	docker build . -f $(OPERATOR_DOCKERFILE) -t $(OPERATOR_IMAGE_URI)
-	docker tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
+build: isclean
+	${CONTAINER_ENGINE} build . -f $(OPERATOR_DOCKERFILE) -t $(OPERATOR_IMAGE_URI)
+	${CONTAINER_ENGINE} tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
 
 .PHONY: push
 push:
-	docker push $(OPERATOR_IMAGE_URI)
-	docker push $(OPERATOR_IMAGE_URI_LATEST)
+	${CONTAINER_ENGINE} push $(OPERATOR_IMAGE_URI)
+	${CONTAINER_ENGINE} push $(OPERATOR_IMAGE_URI_LATEST)
 
 # These names are used by the app-sre pipeline targets
 .PHONY: docker-build
@@ -76,7 +82,7 @@ docker-push: push
 .PHONY: gocheck
 gocheck: ## Lint code
 	boilerplate/_lib/ensure.sh golangci-lint
-	GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c boilerplate/openshift/golang-osd-operator/golangci.yml ./...
+	GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c ${CONVENTION_DIR}/golangci.yml ./...
 
 .PHONY: gogenerate
 gogenerate:
@@ -102,24 +108,16 @@ gotest:
 
 .PHONY: coverage
 coverage:
-	boilerplate/openshift/golang-osd-operator/codecov.sh
-
-.PHONY: envtest
-envtest: isclean
-	@# test that the env target can be evaluated, required by osd-operators-registry
-	@eval $$($(MAKE) env --no-print-directory) || (echo 'Unable to evaulate output of `make env`.  This breaks osd-operators-registry.' >&2 && exit 1)
+	${CONVENTION_DIR}/codecov.sh
 
 .PHONY: test
-test: envtest gotest yaml-validate
+test: gotest yaml-validate
 
-.PHONY: env
-.SILENT: env
-env: isclean
-	echo OPERATOR_NAME=$(OPERATOR_NAME)
-	echo OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE)
-	echo OPERATOR_VERSION=$(OPERATOR_VERSION)
-	echo OPERATOR_IMAGE_URI=$(OPERATOR_IMAGE_URI)
+.PHONY: python-venv
+python-venv:
+	boilerplate/_lib/ensure.sh venv ${CONVENTION_DIR}/py-requirements.txt
+	$(eval PYTHON := .venv/bin/python3)
 
 .PHONY: yaml-validate
-yaml-validate:
-	python3 boilerplate/openshift/golang-osd-operator/validate-yaml.py $(shell git ls-files | egrep -v '^(vendor|boilerplate)/' | egrep '.*\.ya?ml')
+yaml-validate: python-venv
+	${PYTHON} ${CONVENTION_DIR}/validate-yaml.py $(shell git ls-files | egrep -v '^(vendor|boilerplate)/' | egrep '.*\.ya?ml')

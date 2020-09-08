@@ -22,6 +22,14 @@ golangci-lint)
         curl -sfL "${DOWNLOAD_URL}" | tar -C "${GOPATH}/bin" -zx --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-${GOOS}-amd64/golangci-lint"
     fi
     ;;
+venv)
+    # Set up a python virtual environment
+    python3 -m venv .venv
+    # Install required libs, if a requirements file was given
+    if [[ -n "$2" ]]; then
+        .venv/bin/python3 -m pip install -r "$2"
+    fi
+    ;;
 *)
     echo "Unknown dependency: ${DEPENDENCY}"
     exit 1

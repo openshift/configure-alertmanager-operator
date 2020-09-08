@@ -11,7 +11,7 @@ source $CONVENTION_ROOT/_lib/common.sh
 echo "Copying .codecov.yml to your repository root."
 cp ${HERE}/.codecov.yml $REPO_ROOT
 
-echo <<EOF
+cat <<EOF
 =====================
 THINGS YOU NEED TO DO
 =====================
