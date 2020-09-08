@@ -25,9 +25,6 @@ type Config struct {
 	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
 	Templates    []string       `yaml:"templates" json:"templates"`
 	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-
-	// original is the input from which the config was parsed.
-	original string
 }
 
 type InhibitRule struct {
