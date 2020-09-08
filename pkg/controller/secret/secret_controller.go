@@ -312,6 +312,18 @@ func createAlertManagerConfig(pagerdutyRoutingKey string, watchdogURL string) *a
 					"alertname": "ClusterOperatorDegraded",
 				},
 			},
+			{
+				Equal: []string{
+					"namespace",
+					"instance",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubeNodeNotReady",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "KubeDaemonSetRolloutStuck",
+				},
+			},
 		},
 	}
 
