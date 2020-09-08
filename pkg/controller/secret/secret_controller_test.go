@@ -299,21 +299,13 @@ func Test_createPagerdutyRoute(t *testing.T) {
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
-<<<<<<< HEAD
-	assertEquals(t, 0, len(createPagerdutyReceivers("", "")), "Number of Receivers")
-=======
-	assertEquals(t, 0, len(createPagerdutyReceivers("", "fake-cluster-id")), "Number of Receivers")
->>>>>>> Add ClusterID to alert message
+	assertEquals(t, 0, len(createPagerdutyReceivers("", "", "fake-cluster-id")), "Number of Receivers")
 }
 
 func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 	key := "abcdefg1234567890"
 
-<<<<<<< HEAD
-	receivers := createPagerdutyReceivers(key, exampleConsoleUrl)
-=======
-	receivers := createPagerdutyReceivers(key, "fake-cluster-id")
->>>>>>> Add ClusterID to alert message
+	receivers := createPagerdutyReceivers(key, exampleConsoleUrl, "fake-cluster-id")
 
 	verifyPagerdutyReceivers(t, key, receivers)
 }
