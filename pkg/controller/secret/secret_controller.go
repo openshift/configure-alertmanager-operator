@@ -329,12 +329,12 @@ func (r *ReconcileSecret) getWebConsoleUrl() (string, error) {
 	consolePublicConfig := &corev1.ConfigMap{}
 	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: openShiftConfigManagedNamespaceName, Name: consolePublicConfigMap}, consolePublicConfig)
 	if err != nil {
-		return "", fmt.Errorf("unable to determine console location: %v", err)
+		return "", fmt.Errorf("unable to get console configmap: %v", err)
 	}
 
 	consoleUrl, exists := consolePublicConfig.Data["consoleURL"]
 	if !exists {
-		return "", fmt.Errorf("unable to determine console location from the cluster")
+		return "", fmt.Errorf("unable to determine console location from the configmap")
 	}
 	return consoleUrl, nil
 }
@@ -407,7 +407,7 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	// grab the console URL for PD alerts
 	consoleUrl, err := r.getWebConsoleUrl()
 	if err != nil {
-		return reconcile.Result{}, err
+		log.Error(err, "unable to determine console URL")
 	}
 
 	// create the desired alertmanager Config
