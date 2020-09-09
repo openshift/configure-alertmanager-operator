@@ -58,6 +58,7 @@ rules:
   attributeRestrictions: null
   resources:
   - secrets
+  - configmaps
   verbs:
   - get
   - list
@@ -73,6 +74,7 @@ rules:
   attributeRestrictions: null
   resources:
   - secrets
+  - configmaps
   verbs:
   - get
   - list
