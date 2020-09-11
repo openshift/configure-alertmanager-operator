@@ -343,6 +343,18 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 					"alertname": "KubeDeploymentReplicasMismatch",
 				},
 			},
+			{
+				Equal: []string{
+					"namespace",
+					"pod",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubePodCrashLooping",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "KubeDeploymentReplicasMismatch",
+				},
+			},
 		},
 	}
 
