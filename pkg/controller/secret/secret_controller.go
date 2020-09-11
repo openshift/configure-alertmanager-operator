@@ -425,7 +425,10 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	}
 
 	// create the desired alertmanager Config
-	clusterID := r.getClusterID()
+	clusterID, err := r.getClusterID()
+	if err != nil {
+		log.Error(err, "Error reading cluster id.")
+	}
 	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl, clusterID)
 
 	// write the alertmanager Config
@@ -436,14 +439,13 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileSecret) getClusterID() string {
+func (r *ReconcileSecret) getClusterID() (string, error) {
 	var version configv1.ClusterVersion
 	err := r.client.Get(context.TODO(), client.ObjectKey{Name: "version"}, &version)
 	if err != nil {
-		log.Error(err, "Error reading cluster id.")
-		return ""
+		return "", err
 	}
-	return string(version.Spec.ClusterID)
+	return string(version.Spec.ClusterID), nil
 }
 
 // secretInList takes the name of Secret, and a list of Secrets, and returns a Bool
