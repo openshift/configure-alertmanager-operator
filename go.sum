@@ -514,8 +514,11 @@ github.com/opencontainers/runc v0.1.1/go.mod h1:qT5XzbpPznkRYVz/mWwUaVBUv2rmF59P
 github.com/opencontainers/runc v1.0.0-rc2.0.20190611121236-6cc515888830/go.mod h1:qT5XzbpPznkRYVz/mWwUaVBUv2rmF59PVA73FjuZG0U=
 github.com/opencontainers/runtime-spec v1.0.0/go.mod h1:jwyrGlmzljRJv/Fgzds9SsS/C5hL+LL3ko9hs6T5lQ0=
 github.com/opencontainers/selinux v1.2.2/go.mod h1:+BLncwf63G4dgOzykXAxcmnFlUaOlkDdmw/CqsW6pjs=
+github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible h1:6il8W875Oq9vycPkRV5TteLP9IfMEX3lyOl5yN+CtdI=
 github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b/go.mod h1:6rzn+JTr7+WYS2E1TExP4gByoABxMznR6y2SnUIkmxk=
+github.com/openshift/cluster-operator v0.0.0-20190529110107-668db5da8c20 h1:FXE0nwGK3/MC0zUGqa2Wj+xhhawWo0U7q9s5vom+csA=
+github.com/openshift/cluster-operator v0.0.0-20190529110107-668db5da8c20/go.mod h1:TOaKmt2XSw3ccak2GoVYvj8UtApTyLBf1vGl3u3+cV4=
 github.com/openshift/origin v0.0.0-20160503220234-8f127d736703/go.mod h1:0Rox5r9C8aQn6j1oAOQ0c1uC86mYbUFObzjBRvUKHII=
 github.com/openshift/prom-label-proxy v0.1.1-0.20191016113035-b8153a7f39f1/go.mod h1:p5MuxzsYP1JPsNGwtjtcgRHHlGziCJJfztff91nNixw=
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
@@ -951,6 +954,7 @@ k8s.io/kube-openapi v0.0.0-20190918143330-0270cf2f1c1d/go.mod h1:1TqjTSzOxsLGIKf
 k8s.io/kube-proxy v0.0.0-20191016114407-2e83b6f20229/go.mod h1:2Hxci1uzXO5ipP0h9n2+h18fvNkBTpYlckk5dOPu8zg=
 k8s.io/kube-scheduler v0.0.0-20191016114748-65049c67a58b/go.mod h1:BgDUHHC5Wl0xcBUQgo2XEprE5nG5i9tlRR4iNgEFbL0=
 k8s.io/kube-state-metrics v1.7.2/go.mod h1:U2Y6DRi07sS85rmVPmBFlmv+2peBcL8IWGjM+IjYA/E=
+k8s.io/kubectl v0.0.0-20191016120415-2ed914427d51 h1:RBkTKVMF+xsNsSOVc0+HdC0B5gD1sr6s6Cu5w9qNbuQ=
 k8s.io/kubectl v0.0.0-20191016120415-2ed914427d51/go.mod h1:gL826ZTIfD4vXTGlmzgTbliCAT9NGiqpCqK2aNYv5MQ=
 k8s.io/kubelet v0.0.0-20191016114556-7841ed97f1b2/go.mod h1:SBvrtLbuePbJygVXGGCMtWKH07+qrN2dE1iMnteSG8E=
 k8s.io/kubernetes v1.16.0/go.mod h1:nlP2zevWKRGKuaaVbKIwozU0Rjg9leVDXkL4YTtjmVs=
@@ -970,6 +974,7 @@ modernc.org/strutil v1.0.0/go.mod h1:lstksw84oURvj9y3tn8lGvRxyRC1S2+g5uuIzNfIOBs
 modernc.org/xc v1.0.0/go.mod h1:mRNCo0bvLjGhHO9WsyuKVU4q0ceiDDDoEeWDJHrNx8I=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
 rsc.io/letsencrypt v0.0.1/go.mod h1:buyQKZ6IXrRnB7TdkHP0RyEybLx18HHyOSoTyoOLqNY=
+sigs.k8s.io/cluster-api v0.3.9 h1:WongQFeW+vbII9Karc3nIarxMfuUuTr33QU9aSyiKfs=
 sigs.k8s.io/controller-runtime v0.4.0 h1:wATM6/m+3w8lj8FXNaO6Fs/rq/vqoOjO1Q116Z9NPsg=
 sigs.k8s.io/controller-runtime v0.4.0/go.mod h1:ApC79lpY3PHW9xj/w9pj+lYkLgwAAUZwfXkME1Lajns=
 sigs.k8s.io/controller-tools v0.2.4/go.mod h1:m/ztfQNocGYBgTTCmFdnK94uVvgxeZeE3LtJvd/jIzA=

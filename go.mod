@@ -9,6 +9,8 @@ require (
 	github.com/json-iterator/go v1.1.8 // indirect
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.9.0 // indirect
+	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
+	github.com/openshift/cluster-operator v0.0.0-20190529110107-668db5da8c20
 	github.com/operator-framework/operator-sdk v0.16.0
 	github.com/prometheus/client_golang v1.2.1
 	github.com/spf13/pflag v1.0.5
@@ -18,6 +20,7 @@ require (
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/kubectl v0.0.0
 	sigs.k8s.io/controller-runtime v0.4.0
 )
 

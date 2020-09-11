@@ -21,6 +21,7 @@ import (
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 
+	configv1 "github.com/openshift/api/config/v1"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -173,7 +174,7 @@ func createPagerdutyRoute() *alertmanager.Route {
 }
 
 // createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
-func createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl string) *alertmanager.PagerdutyConfig {
+func createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl string, clusterID string) *alertmanager.PagerdutyConfig {
 	return &alertmanager.PagerdutyConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
 		RoutingKey:     pagerdutyRoutingKey,
@@ -188,13 +189,14 @@ func createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl string) *alertmanager
 			"num_firing":   `{{ .Alerts.Firing | len }}`,
 			"num_resolved": `{{ .Alerts.Resolved | len }}`,
 			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+			"cluster_id":   clusterID,
 		},
 	}
 
 }
 
 // createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
-func createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl string) []*alertmanager.Receiver {
+func createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl string, clusterID string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -202,12 +204,12 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl string) []*alertma
 	receivers := []*alertmanager.Receiver{
 		{
 			Name:             receiverPagerduty,
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl)},
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl, clusterID)},
 		},
 	}
 
 	// make-it-warning overrides the severity
-	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl)
+	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey, consoleUrl, clusterID)
 	pdconfig.Severity = "warning"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItWarning,
@@ -246,13 +248,13 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl string) *alertmanager.Config {
+func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl string, clusterID string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
 	if pagerdutyRoutingKey != "" {
 		routes = append(routes, createPagerdutyRoute())
-		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl)...)
+		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl, clusterID)...)
 	}
 
 	if watchdogURL != "" {
@@ -423,7 +425,11 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	}
 
 	// create the desired alertmanager Config
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl)
+	clusterID, err := r.getClusterID()
+	if err != nil {
+		log.Error(err, "Error reading cluster id.")
+	}
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl, clusterID)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)
@@ -431,6 +437,15 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
 	reqLogger.Info("Finished reconcile for secret.")
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileSecret) getClusterID() (string, error) {
+	var version configv1.ClusterVersion
+	err := r.client.Get(context.TODO(), client.ObjectKey{Name: "version"}, &version)
+	if err != nil {
+		return "", err
+	}
+	return string(version.Spec.ClusterID), nil
 }
 
 // secretInList takes the name of Secret, and a list of Secrets, and returns a Bool

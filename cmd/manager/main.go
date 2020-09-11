@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/configure-alertmanager-operator/pkg/apis"
 	"github.com/openshift/configure-alertmanager-operator/pkg/controller"
 	operatormetrics "github.com/openshift/configure-alertmanager-operator/pkg/metrics"
@@ -89,6 +90,11 @@ func main() {
 
 	// Setup Scheme for all resources
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	if err := configv1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}
