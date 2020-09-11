@@ -331,6 +331,18 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 					"alertname": "KubeDaemonSetRolloutStuck",
 				},
 			},
+			{
+				Equal: []string{
+					"namespace",
+					"pod",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubePodNotReady",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "KubeDeploymentReplicasMismatch",
+				},
+			},
 		},
 	}
 

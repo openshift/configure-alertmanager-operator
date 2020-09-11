@@ -255,6 +255,19 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 			},
 			Expected: true,
 		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "KubePodNotReady",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "KubeDeploymentReplicasMismatch",
+			},
+			Equal: []string{
+				"namespace",
+				"pod",
+			},
+			Expected: true,
+		},
 	}
 
 	// keep track of which inhibition rules were affirmatively tested
