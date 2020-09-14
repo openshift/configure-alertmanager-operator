@@ -57,8 +57,6 @@ rules:
   - ""
   attributeRestrictions: null
   resources:
-  - secrets
-  - configmaps
   - clusterversions
   verbs:
   - get
