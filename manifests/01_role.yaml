@@ -54,7 +54,7 @@ metadata:
   name: configure-alertmanager-operator-view
 rules:
 - apiGroups:
-  - ""
+  - config.openshift.io
   attributeRestrictions: null
   resources:
   - clusterversions
