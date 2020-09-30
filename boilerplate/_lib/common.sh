@@ -3,6 +3,23 @@ err() {
   exit 1
 }
 
+## osdk_version BINARY
+#
+# Print the version of the specified operator-sdk BINARY
+osdk_version() {
+    local osdk=$1
+    # `operator-sdk version` output looks like
+    #       operator-sdk version: v0.8.2, commit: 28bd2b0d4fd25aa68e15d928ae09d3c18c3b51da
+    # or
+    #       operator-sdk version: "v0.16.0", commit: "55f1446c5f472e7d8e308dcdf36d0d7fc44fc4fd", go version: "go1.13.8 linux/amd64"
+    # Peel out the version number, accounting for the optional quotes.
+    $osdk version | sed 's/operator-sdk version: "*\([^,"]*\)"*,.*/\1/'
+}
+
+if [ "$BOILERPLATE_SET_X" ]; then
+  set -x
+fi
+
 # Only used for error messages
 _lib=${BASH_SOURCE##*/}
 
