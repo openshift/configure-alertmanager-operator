@@ -406,7 +406,8 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	opts := []client.ListOption{
 		client.InNamespace(request.Namespace),
 	}
-	r.client.List(context.TODO(), secretList, opts...)
+	// TODO: Check error from List
+	_ = r.client.List(context.TODO(), secretList, opts...)
 
 	// Check for the presence of specific secrets.
 	pagerDutySecretExists := secretInList(secretNamePD, secretList)
@@ -497,7 +498,8 @@ func readSecretKey(r *ReconcileSecret, request *reconcile.Request, secretname st
 	}
 
 	// Fetch the key from the secret object.
-	r.client.Get(context.TODO(), objectKey, secret)
+	// TODO: Check error from Get(). Right now secret.Data[fieldname] will panic.
+	_ = r.client.Get(context.TODO(), objectKey, secret)
 	secretkey := secret.Data[fieldname]
 
 	return string(secretkey)

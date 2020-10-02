@@ -61,12 +61,16 @@ var (
 )
 
 // StartMetrics register metrics and exposes them
-func StartMetrics() {
+func StartMetrics() error {
 
 	// Register metrics and start serving them on /metrics endpoint
-	RegisterMetrics()
+	if err := RegisterMetrics(); err != nil {
+		return err
+	}
 	http.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(MetricsEndpoint, nil)
+	// TODO: Check errors from ListenAndServe()
+	go func() { _ = http.ListenAndServe(MetricsEndpoint, nil) }()
+	return nil
 }
 
 // RegisterMetrics for the operator

@@ -13,7 +13,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubectl/pkg/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -42,7 +41,9 @@ func readAlertManagerConfig(r *ReconcileSecret, request *reconcile.Request) *ale
 	}
 
 	// Fetch the alertmanager config and load it into an alertmanager.Config struct.
-	r.client.Get(context.TODO(), objectKey, secret)
+	if err := r.client.Get(context.TODO(), objectKey, secret); err != nil {
+		panic(err)
+	}
 	secretdata := secret.Data["alertmanager.yaml"]
 	err := yaml.Unmarshal(secretdata, &amconfig)
 	if err != nil {
@@ -468,7 +469,9 @@ func createConsolePublicConfigMap(reconciler *ReconcileSecret, t *testing.T) {
 			"consoleURL": exampleConsoleUrl,
 		},
 	}
-	reconciler.client.Create(context.TODO(), newconfigmap)
+	if err := reconciler.client.Create(context.TODO(), newconfigmap); err != nil {
+		panic(err)
+	}
 }
 
 // createSecret creates a fake Secret to use in testing.
@@ -482,7 +485,9 @@ func createSecret(reconciler *ReconcileSecret, secretname string, secretkey stri
 			secretkey: []byte(secretdata),
 		},
 	}
-	reconciler.client.Create(context.TODO(), newsecret)
+	if err := reconciler.client.Create(context.TODO(), newsecret); err != nil {
+		panic(err)
+	}
 }
 
 // createReconciler creates a fake ReconcileSecret for testing.
@@ -537,7 +542,9 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, "pd-secret")
-	reconciler.Reconcile(*req)
+	ret, err := reconciler.Reconcile(*req)
+	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+	assertEquals(t, nil, err, "Unexpected err")
 
 	// read config and a copy for comparison
 	configActual := readAlertManagerConfig(reconciler, req)
@@ -549,6 +556,9 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
+
+	var ret reconcile.Result
+	var err error
 
 	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleConsoleUrl, exampleClusterId)
 
@@ -563,7 +573,9 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, secretNamePD)
-	reconciler.Reconcile(*req)
+	ret, err = reconciler.Reconcile(*req)
+	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+	assertEquals(t, nil, err, "Unexpected err")
 
 	// verify what we have configured is NOT what we expect at the end (we have updates to do still)
 	configActual := readAlertManagerConfig(reconciler, req)
@@ -572,7 +584,9 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	// update environment
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
 	req = createReconcileRequest(reconciler, secretNameDMS)
-	reconciler.Reconcile(*req)
+	ret, err = reconciler.Reconcile(*req)
+	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+	assertEquals(t, nil, err, "Unexpected err")
 
 	// read config and compare
 	configActual = readAlertManagerConfig(reconciler, req)
@@ -589,14 +603,12 @@ func createClusterVersion(reconciler *ReconcileSecret) {
 			ClusterID: exampleClusterId,
 		},
 	}
-	reconciler.client.Create(context.TODO(), clusterVersion)
+	if err := reconciler.client.Create(context.TODO(), clusterVersion); err != nil {
+		panic(err)
+	}
 }
 
 func Test_ReconcileSecrets(t *testing.T) {
-	type fields struct {
-		client client.Client
-		scheme *runtime.Scheme
-	}
 	tests := []struct {
 		name        string
 		dmsExists   bool
@@ -698,7 +710,9 @@ func Test_ReconcileSecrets(t *testing.T) {
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
-		reconciler.Reconcile(*req)
+		ret, err := reconciler.Reconcile(*req)
+		assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+		assertEquals(t, nil, err, "Unexpected err")
 
 		// load the config and check it
 		configActual := readAlertManagerConfig(reconciler, req)

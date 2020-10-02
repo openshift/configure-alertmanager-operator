@@ -134,7 +134,10 @@ func main() {
 	}
 
 	log.Info("Starting prometheus metrics.")
-	operatormetrics.StartMetrics()
+	if err := operatormetrics.StartMetrics(); err != nil {
+		log.Error(err, "Failed to start metrics service")
+		os.Exit(1)
+	}
 
 	log.Info("Starting the Cmd.")
 

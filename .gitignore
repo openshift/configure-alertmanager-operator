@@ -65,6 +65,7 @@ anaconda-mode/
 # swap
 .sw[a-p]
 .*.sw[a-p]
+*.orig
 # session
 Session.vim
 # temporary
@@ -75,3 +76,6 @@ tags
 .vscode/*
 .history
 # End of https://www.gitignore.io/api/go,vim,emacs,visualstudiocode
+# Boilerplate: used for make op-generate
+.operator-sdk/
+.venv/
