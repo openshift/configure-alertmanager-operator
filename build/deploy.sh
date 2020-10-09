@@ -10,4 +10,4 @@ fi
 
 # Build the image
 
-make IMAGE_REPOSITORY=$IMAGE_REPOSITORY build push build-catalog-image
+make IMAGE_REPOSITORY=$IMAGE_REPOSITORY build skopeo-push build-catalog-image
