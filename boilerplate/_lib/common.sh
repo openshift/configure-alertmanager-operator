@@ -46,3 +46,9 @@ if [[ "$HERE" == "$CONVENTION_ROOT/"* ]]; then
   [[ -n "$CONVENTION_NAME" ]] || err "$_lib couldn't discover the name of the sourcing convention"
 fi
 
+if [ -z "$BOILERPLATE_GIT_REPO" ]; then
+  export BOILERPLATE_GIT_REPO=git@github.com:openshift/boilerplate.git
+fi
+if [ -z "$BOILERPLATE_GIT_CLONE" ]; then
+  export BOILERPLATE_GIT_CLONE="git clone $BOILERPLATE_GIT_REPO"
+fi

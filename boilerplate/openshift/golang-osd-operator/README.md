@@ -26,6 +26,15 @@ follows:
 | `coverage`                | (Code coverage)[#code-coverage] analysis and reporting.                                                         |
 | `build`                   | Code compilation and bundle generation.                                                                         |
 
+In addition to configuring these test targets, make sure your
+`build_root` stanza is configured to use the configuration from your
+repository, which is provided by this convention:
+
+```yaml
+build_root:
+  from_repository: true
+```
+
 ### app-sre
 
 The `build-push` target builds and pushes the operator and OLM registry images,
