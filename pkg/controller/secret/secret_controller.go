@@ -145,6 +145,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "CPUThrottlingHigh"}},
 		// https://issues.redhat.com/browse/OSD-4373
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
+		// https://issues.redhat.com/browse/SDE-895 Mute until fixed
+		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-logging", "alertname": "KubeJobFailed"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
