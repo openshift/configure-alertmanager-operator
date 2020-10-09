@@ -49,18 +49,26 @@ scrubbed_conventions() {
   done < "$CONFIG_FILE"
 }
 
-# unacceptable_deltas [GREP_FLAGS]
+## unacceptable_deltas [GREP_FLAGS]
+#
+# Looks for uncommitted changes in the current checkout, ignoring certain
+# things as noted below.
+#
+# If changes are found, they are printed (à la `git status --porcelain`)
+# and the function returns nonzero.
+#
+# If no changes are found, the function is silent and returns zero.
+#
+# Ignores:
+# This function ignores uncommitted changes to:
+# - Makefile: Editing this file is part of bootstrapping, and we don't
+#   want to force an additional commit in the bootstrapping process.
+# - ?? boilerplate/: I.e. the boilerplate subdirectory is brand new,
+#   meaning you're bootstrapping. See above.
+# - boilerplate/update.cfg: Changing this file prior to an update is
+#   part of the process of subscribing to new conventions.
 unacceptable_deltas() {
-  # Allow dirty checkout only when bootstrapping, or when modifying the
-  # config (e.g. subscribing to a new convention).
-  # These are always ignoreable:
-  ignores="Makefile|boilerplate/(update\.cfg)?|go.mod|go.sum"
-  # Now add any ignores from subscribed conventions
-  for convention in $(scrubbed_conventions); do
-    ignorefile=$CONVENTION_ROOT/$convention/.boilerplate-ignore-files
-    [[ -s $ignorefile ]] || continue
-    ignores="$ignores|$(paste -d '|' -s $ignorefile)"
-  done
+  ignores="Makefile|boilerplate/(update\.cfg)?"
   git status --porcelain | grep -E -v $1 " ($ignores)$"
 }
 

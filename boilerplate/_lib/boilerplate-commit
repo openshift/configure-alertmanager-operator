@@ -53,12 +53,6 @@ elif grep -q '^ M boilerplate/_data/last-boilerplate-commit$' $git_status; then
   bp_compare_url="https://github.com/openshift/boilerplate/compare/$bp_commit_change"
   # Generate the commit history for this range. This will go in the commit message.
   (
-    if [ -z "$BOILERPLATE_GIT_REPO" ]; then
-      BOILERPLATE_GIT_REPO=git@github.com:openshift/boilerplate.git
-    fi
-    if [ -z "$BOILERPLATE_GIT_CLONE" ]; then
-      BOILERPLATE_GIT_CLONE="git clone $BOILERPLATE_GIT_REPO"
-    fi
     $BOILERPLATE_GIT_CLONE $bp_clone
     cd $bp_clone
     # Matches promote.sh
@@ -132,6 +126,13 @@ fi
 # Generate the commit title and branch name indicating the *main* action
 # we're taking. This is 'bootstrap' or 'update'; or if we're doing
 # neither of those things and only changing config, 'subscribe'.
+# => Commit titles will be of one of the following forms:
+#       "Boilerplate: Bootstrap at {hash}"
+#       "Boilerplate: Update to {hash}"
+#       "Boilerplate: Subscribe at {hash}"
+# => Branch names will be of the form:
+#       boilerplate-{bootstrap|update|subscribe}-{N}-{hash}
+#    where {N} is the number of configured conventions (omitted if zero)
 title="Boilerplate:"
 branch=boilerplate
 if [[ -n "$bootstrap" ]]; then
