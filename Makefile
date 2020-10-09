@@ -16,6 +16,17 @@ include functions.mk
 
 CATALOG_REGISTRY_ORGANIZATION?=app-sre
 
+.PHONY: skopeo-push
+skopeo-push: build
+	skopeo copy \
+		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
+		"docker-daemon:${OPERATOR_IMAGE_URI_LATEST}" \
+		"docker://${OPERATOR_IMAGE_URI_LATEST}"
+	skopeo copy \
+		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
+		"docker-daemon:${OPERATOR_IMAGE_URI}" \
+		"docker://${OPERATOR_IMAGE_URI}"
+
 .PHONY: build-catalog-image
 build-catalog-image:
 	$(call create_push_catalog_image,staging,service/saas-configure-alertmanager-operator-bundle,$$APP_SRE_BOT_PUSH_TOKEN,false,service/saas-osd-operators,$(OPERATOR_NAME)-services/$(OPERATOR_NAME).yaml,build/generate-operator-bundle.py,$(CATALOG_REGISTRY_ORGANIZATION))
