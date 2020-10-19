@@ -18,7 +18,7 @@ define create_push_catalog_image
 	mkdir -p bundles-$(1)/$(OPERATOR_NAME) ;\
 	removed_versions="" ;\
 	if [[ "$$(echo $(4) | tr [:upper:] [:lower:])" == "true" ]]; then \
-		deployed_hash=$$(curl -s 'https://gitlab.cee.redhat.com/$(5)/raw/master/$(6)' | $(CONTAINER_ENGINE) run --rm -i quay.io/app-sre/yq -r '.services[]|select(.name="configure-alertmanager-operator").hash') ;\
+		deployed_hash=$$(curl -s 'https://gitlab.cee.redhat.com/service/app-interface/-/raw/master/data/services/osd-operators/cicd/saas/saas-configure-alertmanager-operator.yaml' | $(CONTAINER_ENGINE) run --rm -i quay.io/app-sre/yq yq r - 'resourceTemplates[*].targets(namespace.$ref==/services/osd-operators/namespaces/hivep01ue1/cluster-scope.yml).ref') ;\
 		delete=false ;\
 		for bundle_path in $$(find bundles-$(1) -mindepth 2 -maxdepth 2 -type d | grep -v .git | sort -V); do \
 			if [[ "$${delete}" == false ]]; then \
