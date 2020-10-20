@@ -1,0 +1,176 @@
+#!/bin/bash -e
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source $REPO_ROOT/boilerplate/_lib/common.sh
+
+cmd=${0##*/}
+
+release_repo=openshift/release
+
+usage() {
+    cat <<EOF
+Usage: $cmd [PATH_TO_RELEASE_CLONE]
+
+Creates a delta in $release_repo standardizing prow configuration for a
+boilerplate consumer. Must be invoked from within a local clone of a repository
+already subscribed to the $CONVENTION_NAME convention.
+
+Parameters:
+    PATH_TO_RELEASE_CLONE   File system path to a local clone of
+                            https://github.com/$release_repo. If not
+                            specified, the repository will be cloned in a
+                            temporary directory.
+EOF
+    exit -1
+}
+
+repo_name() {
+    (git -C $1 config --get remote.upstream.url || git -C $1 config --get remote.origin.url) | sed 's,.*:,,; s/\.git$//'
+}
+
+# Was a release repo clone specified?
+release_clone=
+if [[ $# -eq 1 ]]; then
+    # Special cases for usage queries
+    if [[ "$1" == '-'* ]] || [[ "$1" == help ]]; then
+        usage
+    fi
+
+    [[ -d $1 ]] || err "$1: Not a directory."
+
+    [[ $(repo_name $1) == "$release_repo" ]] || err "$1 is not a clone of $release_repo; or its 'origin' remote is not set properly."
+
+    # Got a usable clone of openshift/release
+    release_clone=$1
+
+elif [[ $# -ne 0 ]]; then
+    usage
+fi
+
+consumer=$(repo_name .)
+[[ -z "$consumer" ]] && err "Failed to determine current repository name"
+consumer_org=${consumer%/*}
+[[ -z "$consumer_org" ]] && err "Failed to determine consumer org"
+consumer_name=${consumer#*/}
+[[ -z "$consumer_name" ]] && err "Failed to determine consumer name"
+# This will be something like refs/remotes/origin/master
+default_branch=$(git symbolic-ref refs/remotes/origin/HEAD)
+[[ -z "$default_branch" ]] && err "Failed to determine default branch name"
+# Strip off refs/remotes/origin/
+default_branch=${default_branch##*/}
+[[ -z "$default_branch" ]] && err "Failed to determine default branch name"
+
+# Make sure we were invoked from a boilerplate consumer.
+[[ -z "$CONVENTION_NAME" ]] && err "$cmd must be invoked from a consumer of an appropriate convention. Where did you get this script from?"
+# Or at least not from boilerplate itself
+[[ "$consumer" == "openshift/boilerplate" ]] && err "$cmd must be invoked from a boilerplate consumer, not from boilerplate itself."
+
+[[ -s $CONVENTION_ROOT/_data/last-boilerplate-commit ]] || err "
+$cmd must be invoked from a boilerplate consumer!"
+
+grep -E -q "^$CONVENTION_NAME(\s.*)?$" $CONVENTION_ROOT/update.cfg || err "
+$consumer is not subscribed to $CONVENTION_NAME!"
+
+# Due to the DPTP-1640 workaround, we need to be even stricter, since we have
+# to copy in the ImageStreamTag config.
+# TODO: Get rid of this check, and $ci_config, and its usage in the config
+# dump, once DPTP-1640 is resolved.
+ci_config=$REPO_ROOT/.ci-operator.yaml
+[[ -s $ci_config ]] || err ".ci-operator.yaml not found! Do you need to 'make boilerplate-update'?"
+
+# If a release repo clone wasn't specified, create one
+if [[ -z "$release_clone" ]]; then
+    release_clone=$(mktemp -dt openshift_release_XXXXXXX)
+    git clone git@github.com:${release_repo}.git $release_clone
+else
+    [[ -z "$(git -C $release_clone status --porcelain)" ]] || err "Your release clone must start clean."
+    # These will blow up if it's misconfigured
+    git -C $release_clone checkout master
+    git -C $release_clone pull
+fi
+
+cd $release_clone
+release_branch=$consumer_org-$consumer_name-$default_branch-boilerplate-prow-config
+config_dir=ci-operator/config/${consumer_org}/${consumer_name}
+config=${consumer_org}-${consumer_name}-${default_branch}.yaml
+[[ -f $config_dir/$config ]] || err "
+$release_repo bootstrapping is not fully supported! Recommend running 'make new-repo' first!
+To circumvent this warning (not recommended), run:
+
+git -C $release_clone checkout -b $release_branch
+mkdir -p $release_clone/$config_dir
+touch $release_clone/$config_dir/$config
+git -C $release_clone add $config_dir/$config
+git -C $release_clone commit
+$0 $release_clone"
+
+# If we get here, the config file exists. Replace it.
+# TODO: Edit it instead, replacing only the relevant sections. This would allow
+# the consumer to preserve any additional checks they want in prow.
+cat <<EOF > $config_dir/$config
+base_images:
+  temporarily_needed_to_make_this_image_appear_in_all_build_clusters_see_jira_dptp_1640:
+$(sed -n '2,5s/^/  /p' $ci_config)
+build_root:
+  from_repository: true
+resources:
+  '*':
+    limits:
+      memory: 4Gi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+tests:
+- as: coverage
+  commands: |
+    export CODECOV_TOKEN=\$(cat /tmp/secret/CODECOV_TOKEN)
+    make coverage
+  container:
+    from: src
+  secret:
+    mount_path: /tmp/secret
+    name: ${consumer_name}-codecov-token
+- as: publish-coverage
+  commands: |
+    export CODECOV_TOKEN=\$(cat /tmp/secret/CODECOV_TOKEN)
+    make coverage
+  container:
+    from: src
+  postsubmit: true
+  secret:
+    mount_path: /tmp/secret
+    name: ${consumer_name}-codecov-token
+- as: lint
+  commands: make lint
+  container:
+    from: src
+- as: test
+  commands: make test
+  container:
+    from: src
+- as: validate
+  commands: make validate
+  container:
+    from: src
+zz_generated_metadata:
+  branch: ${default_branch}
+  org: ${consumer_org}
+  repo: ${consumer_name}
+EOF
+
+make jobs
+
+echo
+git status
+
+cat <<EOF
+
+Ready to commit, push, and create a PR in $release_clone
+You may wish to:
+
+cd $release_clone
+git checkout -b $release_branch
+git add -A
+git commit
+git push origin $release_branch
+EOF

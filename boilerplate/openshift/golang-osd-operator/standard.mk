@@ -133,6 +133,10 @@ yaml-validate: python-venv
 olm-deploy-yaml-validate: python-venv
 	${PYTHON} ${CONVENTION_DIR}/validate-yaml.py $(shell git ls-files 'deploy/*.yaml' 'deploy/*.yml')
 
+.PHONY: prow-config
+prow-config:
+	${CONVENTION_DIR}/prow-config ${RELEASE_CLONE}
+
 ######################
 # Targets used by prow
 ######################

@@ -1,5 +1,5 @@
 err() {
-  echo "$@" >&2
+  echo "==ERROR== $@" >&2
   exit 1
 }
 
@@ -52,3 +52,9 @@ fi
 if [ -z "$BOILERPLATE_GIT_CLONE" ]; then
   export BOILERPLATE_GIT_CLONE="git clone $BOILERPLATE_GIT_REPO"
 fi
+
+# The namespace of the ImageStream by which prow will import the image.
+IMAGE_NAMESPACE=openshift
+IMAGE_NAME=boilerplate
+# The public image location
+IMAGE_PULL_PATH=quay.io/app-sre/$IMAGE_NAME:$LATEST_IMAGE_TAG

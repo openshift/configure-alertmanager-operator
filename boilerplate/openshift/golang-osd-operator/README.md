@@ -13,8 +13,8 @@ include boilerplate/generated-includes.mk
 ```
 
 One of the primary purposes of these `make` targets is to allow you to
-standardize your prow and app-sre pipeline configurations. They should be as
-follows:
+standardize your prow and app-sre pipeline configurations using the
+following:
 
 ### Prow
 
@@ -23,16 +23,19 @@ follows:
 | `validate`                | Ensure code generation has not been forgotten; and ensure generated and boilerplate code has not been modified. |
 | `lint`                    | Perform static analysis.                                                                                        |
 | `test`                    | "Local" unit and functional testing.                                                                            |
-| `coverage`                | (Code coverage)[#code-coverage] analysis and reporting.                                                         |
-| `build`                   | Code compilation and bundle generation.                                                                         |
+| `coverage`                | [Code coverage](#code-coverage) analysis and reporting.                                                         |
 
-In addition to configuring these test targets, make sure your
-`build_root` stanza is configured to use the configuration from your
-repository, which is provided by this convention:
+To standardize your prow configuration, you may run:
 
-```yaml
-build_root:
-  from_repository: true
+```shell
+$ make prow-config
+```
+
+If you already have the openshift/release repository cloned locally, you
+may specify its path via `$RELEASE_CLONE`:
+
+```shell
+$ make RELEASE_CLONE=/home/me/github/openshift/release prow-config
 ```
 
 ### app-sre
