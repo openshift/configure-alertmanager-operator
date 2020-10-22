@@ -11,7 +11,7 @@ const PDRegexLP string = "^redhat-.*"
 
 // PDRegex is the regular expression used in the Pager Duty receiver.
 // This is specific to our environment.
-const PDRegex string = "^default$|^kube.*|^openshift.*|" + PDRegexLP
+const PDRegex string = "^kube.*|^openshift.*|" + PDRegexLP
 
 // The following types are taken from the upstream Alertmanager types, and modified
 // to allow printing of Secrets so that we can generate valid configs from them.
