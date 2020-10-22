@@ -1,5 +1,5 @@
 err() {
-  echo "$@" >&2
+  echo "==ERROR== $@" >&2
   exit 1
 }
 
@@ -14,6 +14,10 @@ osdk_version() {
     #       operator-sdk version: "v0.16.0", commit: "55f1446c5f472e7d8e308dcdf36d0d7fc44fc4fd", go version: "go1.13.8 linux/amd64"
     # Peel out the version number, accounting for the optional quotes.
     $osdk version | sed 's/operator-sdk version: "*\([^,"]*\)"*,.*/\1/'
+}
+
+repo_name() {
+    (git -C $1 config --get remote.upstream.url || git -C $1 config --get remote.origin.url) | sed 's,.*:,,; s/\.git$//'
 }
 
 if [ "$BOILERPLATE_SET_X" ]; then
@@ -52,3 +56,33 @@ fi
 if [ -z "$BOILERPLATE_GIT_CLONE" ]; then
   export BOILERPLATE_GIT_CLONE="git clone $BOILERPLATE_GIT_REPO"
 fi
+
+## Information about the boilerplate consumer
+# E.g. "openshift/my-wizbang-operator"
+CONSUMER=$(repo_name .)
+[[ -z "$CONSUMER" ]] && err "
+Failed to determine current repository name"
+#
+# E.g. "openshift"
+CONSUMER_ORG=${CONSUMER%/*}
+[[ -z "$CONSUMER_ORG" ]] && err "
+Failed to determine consumer org"
+#
+# E.g. "my-wizbang-operator"
+CONSUMER_NAME=${CONSUMER#*/}
+[[ -z "$CONSUMER_NAME" ]] && err "
+Failed to determine consumer name"
+#
+# E.g. "master"
+# This will produce something like refs/remotes/origin/master
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/upstream/HEAD || git symbolic-ref refs/remotes/origin/HEAD || echo defaulting/to/master)
+# Strip off refs/remotes/{upstream|origin}/
+DEFAULT_BRANCH=${DEFAULT_BRANCH##*/}
+[[ -z "$DEFAULT_BRANCH" ]] && err "
+Failed to determine default branch name"
+
+# The namespace of the ImageStream by which prow will import the image.
+IMAGE_NAMESPACE=openshift
+IMAGE_NAME=boilerplate
+# The public image location
+IMAGE_PULL_PATH=quay.io/app-sre/$IMAGE_NAME:$LATEST_IMAGE_TAG
