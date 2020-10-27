@@ -51,7 +51,7 @@ if [[ "$HERE" == "$CONVENTION_ROOT/"* ]]; then
 fi
 
 if [ -z "$BOILERPLATE_GIT_REPO" ]; then
-  export BOILERPLATE_GIT_REPO=git@github.com:openshift/boilerplate.git
+  export BOILERPLATE_GIT_REPO=https://github.com/openshift/boilerplate.git
 fi
 if [ -z "$BOILERPLATE_GIT_CLONE" ]; then
   export BOILERPLATE_GIT_CLONE="git clone $BOILERPLATE_GIT_REPO"
