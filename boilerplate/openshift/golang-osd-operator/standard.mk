@@ -163,13 +163,6 @@ test: go-test
 coverage:
 	${CONVENTION_DIR}/codecov.sh
 
-# build: Code compilation and bundle generation. This should do as much
-# of what app-sre does as possible, so that there are no surprises after
-# a PR is merged.
-# TODO: Include generating (but not pushing) the bundle
-.PHONY: build
-build: docker-build
-
 #########################
 # Targets used by app-sre
 #########################

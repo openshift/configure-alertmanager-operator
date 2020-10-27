@@ -38,6 +38,12 @@ may specify its path via `$RELEASE_CLONE`:
 $ make RELEASE_CLONE=/home/me/github/openshift/release prow-config
 ```
 
+This will generate a delta configuring prow to:
+- Build your `build/Dockerfile`.
+- Run the above targets in presubmit tests.
+- Run the `coverage` target in a postsubmit. This is the step that
+  updates your coverage report in codecov.io.
+
 ### app-sre
 
 The `build-push` target builds and pushes the operator and OLM registry images,
