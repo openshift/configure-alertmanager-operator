@@ -1,12 +1,6 @@
 # Include boilerplate's generated Makefile libraries
 include boilerplate/generated-includes.mk
 
-# TODO: operator-sdk generate wasn't working in this repo prior to
-# boilerplate integration, so we're disabling it for now with this
-# explicit no-op override. It needs to be fixed -- at a minimum when we
-# upgrade to 1.0.0.
-op-generate: ;
-
 .PHONY: boilerplate-update
 boilerplate-update:
 	@boilerplate/update
