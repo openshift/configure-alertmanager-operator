@@ -248,13 +248,61 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 		},
 		{
 			SourceMatch: map[string]string{
+				"alertname": "KubeNodeUnreachable",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "KubeNodeNotReady",
+			},
+			Equal: []string{
+				"node",
+				"instance",
+			},
+			Expected: true,
+		},
+		{
+			SourceMatch: map[string]string{
 				"alertname": "KubeNodeNotReady",
 			},
 			TargetMatchRE: map[string]string{
 				"alertname": "KubeDaemonSetRolloutStuck",
 			},
 			Equal: []string{
-				"namespace",
+				"instance",
+			},
+			Expected: true,
+		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "KubeNodeNotReady",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "KubeDaemonSetMisScheduled",
+			},
+			Equal: []string{
+				"instance",
+			},
+			Expected: true,
+		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "KubeNodeNotReady",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "SDNPodNotReady",
+			},
+			Equal: []string{
+				"instance",
+			},
+			Expected: true,
+		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "KubeNodeNotReady",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "TargetDown",
+			},
+			Equal: []string{
 				"instance",
 			},
 			Expected: true,
