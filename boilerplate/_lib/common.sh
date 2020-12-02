@@ -3,6 +3,13 @@ err() {
   exit 1
 }
 
+banner() {
+    echo
+    echo "=============================="
+    echo "$@"
+    echo "=============================="
+}
+
 ## osdk_version BINARY
 #
 # Print the version of the specified operator-sdk BINARY
@@ -16,8 +23,40 @@ osdk_version() {
     $osdk version | sed 's/operator-sdk version: "*\([^,"]*\)"*,.*/\1/'
 }
 
+## opm_version BINARY
+#
+# Print the version of the specified opm BINARY
+opm_version() {
+    local opm=$1
+    # `opm version` output looks like:
+    #    Version: version.Version{OpmVersion:"v1.15.2", GitCommit:"fded0bf", BuildDate:"2020-11-18T14:21:24Z", GoOs:"darwin", GoArch:"amd64"}
+    $opm version | sed 's/.*OpmVersion:"//;s/".*//'
+}
+
+## grpcurl_version BINARY
+#
+# Print the version of the specified grpcurl BINARY
+grpcurl_version() {
+    local grpcurl=$1
+    # `grpcurl -version` output looks like:  grpcurl 1.7.0
+    $grpcurl -version 2>&1 | cut -d " " -f 2
+}
+
 repo_name() {
-    (git -C $1 config --get remote.upstream.url || git -C $1 config --get remote.origin.url) | sed 's,.*:,,; s/\.git$//'
+    # Account for remotes which are
+    # - upstream or origin
+    # - ssh ("git@host.com:org/name.git") or https ("https://host.com/org/name.git")
+    (git -C $1 config --get remote.upstream.url || git -C $1 config --get remote.origin.url) | sed 's,git@[^:]*:,,; s,https://[^/]*/,,; s/\.git$//'
+}
+
+## current_branch REPO
+#
+# Outputs the name of the current branch in the REPO directory
+current_branch() {
+    (
+        cd $1
+        git rev-parse --abbrev-ref HEAD
+    )
 }
 
 if [ "$BOILERPLATE_SET_X" ]; then
