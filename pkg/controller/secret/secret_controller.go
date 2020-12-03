@@ -325,7 +325,18 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 			},
 			{
 				Equal: []string{
-					"namespace",
+					"node",
+					"instance",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubeNodeUnreachable",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "KubeNodeNotReady",
+				},
+			},
+			{
+				Equal: []string{
 					"instance",
 				},
 				SourceMatch: map[string]string{
@@ -333,6 +344,39 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 				},
 				TargetMatchRE: map[string]string{
 					"alertname": "KubeDaemonSetRolloutStuck",
+				},
+			},
+			{
+				Equal: []string{
+					"instance",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubeNodeNotReady",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "KubeDaemonSetMisScheduled",
+				},
+			},
+			{
+				Equal: []string{
+					"instance",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubeNodeNotReady",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "SDNPodNotReady",
+				},
+			},
+			{
+				Equal: []string{
+					"instance",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubeNodeNotReady",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "TargetDown",
 				},
 			},
 			{
