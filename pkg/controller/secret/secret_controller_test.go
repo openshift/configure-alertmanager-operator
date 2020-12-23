@@ -333,6 +333,18 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 			},
 			Expected: true,
 		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "ElasticsearchOperatorCSVNotSuccessful",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "ElasticsearchClusterNotHealthy",
+			},
+			Equal: []string{
+				"dummylabel",
+			},
+			Expected: true,
+		},
 	}
 
 	// keep track of which inhibition rules were affirmatively tested

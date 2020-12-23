@@ -407,6 +407,17 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 					"alertname": "KubeDeploymentReplicasMismatch",
 				},
 			},
+			{
+				Equal: []string{
+					"dummylabel",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "ElasticsearchOperatorCSVNotSuccessful",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "ElasticsearchClusterNotHealthy",
+				},
+			},
 		},
 	}
 
