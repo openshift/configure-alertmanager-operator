@@ -408,6 +408,10 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 				},
 			},
 			{
+				// NB this label obviously won't match and that's both ok and expected. When a label is missing (or empty) on both source and target, the rule will apply (see: docs ).
+				// see: https://www.prometheus.io/docs/alerting/latest/configuration/#inhibit_rule
+
+				// If there wasn't a label here, the tests exploded spectacularly, so I figured a label that would never match is the next best thing.
 				Equal: []string{
 					"dummylabel",
 				},
