@@ -111,12 +111,6 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// This will be renamed in release 4.5
 		// https://issues.redhat.com/browse/OSD-4017
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaFullyUsed"}},
-		// https://issues.redhat.com/browse/OSD-2382
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "UsingDeprecatedAPIAppsV1Beta1"}},
-		// https://issues.redhat.com/browse/OSD-2382
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "UsingDeprecatedAPIAppsV1Beta2"}},
-		// https://issues.redhat.com/browse/OSD-2382
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "UsingDeprecatedAPIExtensionsV1Beta1"}},
 		// https://issues.redhat.com/browse/OSD-2980
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh", "container": "registry-server"}},
 		// https://issues.redhat.com/browse/OSD-3008
