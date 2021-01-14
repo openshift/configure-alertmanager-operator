@@ -145,6 +145,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyReloadFail", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OHSS-2163
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRuleFailures"}},
+		// https://issues.redhat.com/browse/OSD-6215
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
@@ -286,6 +288,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 		// Reference: https://github.com/openshift/cluster-monitoring-operator/blob/6a02b14773169330d7a31ede73dce5adb1c66bb4/assets/alertmanager/secret.yaml
 		InhibitRules: []*alertmanager.InhibitRule{
 			{
+				// Critical alert shouldn't also alert for warning/info
 				Equal: []string{
 					"namespace",
 					"alertname",
@@ -298,6 +301,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 				},
 			},
 			{
+				// Warning alerts shouldn't also alert for info
 				Equal: []string{
 					"namespace",
 					"alertname",
@@ -310,30 +314,34 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 				},
 			},
 			{
+				// If a cluster operator is degraded, don't also fire ClusterOperatorDown
+				// The degraded alert is critical, and usually has more details
 				Equal: []string{
 					"namespace",
 					"name",
 				},
 				SourceMatch: map[string]string{
-					"alertname": "ClusterOperatorDown",
+					"alertname": "ClusterOperatorDegraded",
 				},
 				TargetMatchRE: map[string]string{
-					"alertname": "ClusterOperatorDegraded",
+					"alertname": "ClusterOperatorDown",
 				},
 			},
 			{
+				// If a node is not ready, we already know it's Unreachable
 				Equal: []string{
 					"node",
 					"instance",
 				},
 				SourceMatch: map[string]string{
+					"alertname": "KubeNodeNotReady",
+				},
+				TargetMatchRE: map[string]string{
 					"alertname": "KubeNodeUnreachable",
 				},
-				TargetMatchRE: map[string]string{
-					"alertname": "KubeNodeNotReady",
-				},
 			},
 			{
+				// If a node is NotReady, then we also know that there will be pods that aren't running
 				Equal: []string{
 					"instance",
 				},
@@ -341,64 +349,19 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 					"alertname": "KubeNodeNotReady",
 				},
 				TargetMatchRE: map[string]string{
-					"alertname": "KubeDaemonSetRolloutStuck",
+					"alertname": "KubeDaemonSetRolloutStuck|KubeDaemonSetMisScheduled|SDNPodNotReady|TargetDown",
 				},
 			},
 			{
-				Equal: []string{
-					"instance",
-				},
-				SourceMatch: map[string]string{
-					"alertname": "KubeNodeNotReady",
-				},
-				TargetMatchRE: map[string]string{
-					"alertname": "KubeDaemonSetMisScheduled",
-				},
-			},
-			{
-				Equal: []string{
-					"instance",
-				},
-				SourceMatch: map[string]string{
-					"alertname": "KubeNodeNotReady",
-				},
-				TargetMatchRE: map[string]string{
-					"alertname": "SDNPodNotReady",
-				},
-			},
-			{
-				Equal: []string{
-					"instance",
-				},
-				SourceMatch: map[string]string{
-					"alertname": "KubeNodeNotReady",
-				},
-				TargetMatchRE: map[string]string{
-					"alertname": "TargetDown",
-				},
-			},
-			{
+				// If a deployment doesn't have it's replicas mismatch, then we don't need to fire for the pod not being ready
 				Equal: []string{
 					"namespace",
-					"pod",
 				},
 				SourceMatch: map[string]string{
-					"alertname": "KubePodNotReady",
-				},
-				TargetMatchRE: map[string]string{
 					"alertname": "KubeDeploymentReplicasMismatch",
 				},
-			},
-			{
-				Equal: []string{
-					"namespace",
-					"pod",
-				},
-				SourceMatch: map[string]string{
-					"alertname": "KubePodCrashLooping",
-				},
 				TargetMatchRE: map[string]string{
-					"alertname": "KubeDeploymentReplicasMismatch",
+					"alertname": "KubePodNotReady|KubePodCrashLooping",
 				},
 			},
 		},
