@@ -208,128 +208,78 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 			Expected: false,
 		},
 		{
+			Equal: []string{
+				"namespace",
+				"alertname",
+			},
 			SourceMatch: map[string]string{
 				"severity": "critical",
 			},
 			TargetMatchRE: map[string]string{
 				"severity": "warning|info",
 			},
+			Expected: true,
+		},
+		{
 			Equal: []string{
 				"namespace",
 				"alertname",
 			},
-			Expected: true,
-		},
-		{
 			SourceMatch: map[string]string{
 				"severity": "warning",
 			},
 			TargetMatchRE: map[string]string{
 				"severity": "info",
 			},
-			Equal: []string{
-				"namespace",
-				"alertname",
-			},
 			Expected: true,
 		},
 		{
-			SourceMatch: map[string]string{
-				"alertname": "ClusterOperatorDown",
-			},
-			TargetMatchRE: map[string]string{
-				"alertname": "ClusterOperatorDegraded",
-			},
 			Equal: []string{
 				"namespace",
 				"name",
 			},
+			SourceMatch: map[string]string{
+				"alertname": "ClusterOperatorDegraded",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "ClusterOperatorDown",
+			},
 			Expected: true,
 		},
 		{
-			SourceMatch: map[string]string{
-				"alertname": "KubeNodeUnreachable",
-			},
-			TargetMatchRE: map[string]string{
-				"alertname": "KubeNodeNotReady",
-			},
 			Equal: []string{
 				"node",
 				"instance",
 			},
-			Expected: true,
-		},
-		{
 			SourceMatch: map[string]string{
 				"alertname": "KubeNodeNotReady",
 			},
 			TargetMatchRE: map[string]string{
-				"alertname": "KubeDaemonSetRolloutStuck",
-			},
-			Equal: []string{
-				"instance",
+				"alertname": "KubeNodeUnreachable",
 			},
 			Expected: true,
 		},
 		{
+			Equal: []string{
+				"instance",
+			},
 			SourceMatch: map[string]string{
 				"alertname": "KubeNodeNotReady",
 			},
 			TargetMatchRE: map[string]string{
-				"alertname": "KubeDaemonSetMisScheduled",
-			},
-			Equal: []string{
-				"instance",
+				"alertname": "KubeDaemonSetRolloutStuck|KubeDaemonSetMisScheduled|SDNPodNotReady|TargetDown",
 			},
 			Expected: true,
 		},
 		{
-			SourceMatch: map[string]string{
-				"alertname": "KubeNodeNotReady",
-			},
-			TargetMatchRE: map[string]string{
-				"alertname": "SDNPodNotReady",
-			},
-			Equal: []string{
-				"instance",
-			},
-			Expected: true,
-		},
-		{
-			SourceMatch: map[string]string{
-				"alertname": "KubeNodeNotReady",
-			},
-			TargetMatchRE: map[string]string{
-				"alertname": "TargetDown",
-			},
-			Equal: []string{
-				"instance",
-			},
-			Expected: true,
-		},
-		{
-			SourceMatch: map[string]string{
-				"alertname": "KubePodNotReady",
-			},
-			TargetMatchRE: map[string]string{
-				"alertname": "KubeDeploymentReplicasMismatch",
-			},
 			Equal: []string{
 				"namespace",
-				"pod",
 			},
-			Expected: true,
-		},
-		{
 			SourceMatch: map[string]string{
-				"alertname": "KubePodCrashLooping",
-			},
-			TargetMatchRE: map[string]string{
 				"alertname": "KubeDeploymentReplicasMismatch",
 			},
-			Equal: []string{
-				"namespace",
-				"pod",
+			TargetMatchRE: map[string]string{
+				"alertname": "KubePodNotReady|KubePodCrashLooping",
 			},
 			Expected: true,
 		},
