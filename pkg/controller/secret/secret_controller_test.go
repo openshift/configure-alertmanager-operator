@@ -283,6 +283,22 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 			},
 			Expected: true,
 		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "ElasticsearchOperatorCSVNotSuccessful",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "ElasticsearchClusterNotHealthy",
+			},
+			// NB this label obviously won't match and that's both ok and expected. When a label is missing (or empty) on both source and target, the rule will apply (see: docs ).
+			// see: https://www.prometheus.io/docs/alerting/latest/configuration/#inhibit_rule
+
+			// If there wasn't a label here, the tests exploded spectacularly, so I figured a label that would never match is the next best thing.
+			Equal: []string{
+				"dummylabel",
+			},
+			Expected: true,
+		},
 	}
 
 	// keep track of which inhibition rules were affirmatively tested
