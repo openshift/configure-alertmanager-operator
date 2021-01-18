@@ -341,6 +341,15 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 				},
 			},
 			{
+				// node being Unreachable may also trigger certain pods being unavailable
+				SourceMatch: map[string]string{
+					"alertname": "KubeNodeUnreachable",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "SDNPodNotReady|TargetDown",
+				},
+			},
+			{
 				// If a node is NotReady, then we also know that there will be pods that aren't running
 				Equal: []string{
 					"instance",
@@ -349,7 +358,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 					"alertname": "KubeNodeNotReady",
 				},
 				TargetMatchRE: map[string]string{
-					"alertname": "KubeDaemonSetRolloutStuck|KubeDaemonSetMisScheduled|SDNPodNotReady|TargetDown",
+					"alertname": "KubeDaemonSetRolloutStuck|KubeDaemonSetMisScheduled|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch|KubePodNotReady",
 				},
 			},
 			{
