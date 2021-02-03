@@ -147,6 +147,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRuleFailures"}},
 		// https://issues.redhat.com/browse/OSD-6215
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
+		// https://issues.redhat.com/browse/OSD-6363
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
 
 		// https://issues.redhat.com/browse/OSD-6327
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
