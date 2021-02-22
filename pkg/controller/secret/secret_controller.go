@@ -111,10 +111,9 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// This will be renamed in release 4.5
 		// https://issues.redhat.com/browse/OSD-4017
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaFullyUsed"}},
-		// https://issues.redhat.com/browse/OSD-2980
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh", "container": "registry-server"}},
-		// https://issues.redhat.com/browse/OSD-3008
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh", "container": "configmap-registry-server"}},
+		// TODO: Remove CPUThrottlingHigh entry after all OSD clusters upgrade to 4.6 and above version
+		// https://issues.redhat.com/browse/OSD-6351 based on https://bugzilla.redhat.com/show_bug.cgi?id=1843346
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh"}},
 		// https://issues.redhat.com/browse/OSD-3010
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"}},
 		// https://issues.redhat.com/browse/OSD-2611
@@ -133,8 +132,6 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetLimit"}},
 		// https://issues.redhat.com/browse/OSD-3973
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetAtLimit"}},
-		// https://issues.redhat.com/browse/OSD-4265, https://issues.redhat.com/browse/INTLY-8790
-		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "CPUThrottlingHigh"}},
 		// https://issues.redhat.com/browse/OSD-4373
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
 		// https://issues.redhat.com/browse/OSD-5544
