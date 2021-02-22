@@ -112,7 +112,7 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-4017
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaFullyUsed"}},
 		// TODO: Remove CPUThrottlingHigh entry after all OSD clusters upgrade to 4.6 and above version
-		// https://issues.redhat.com/browse/OSD-6351
+		// https://issues.redhat.com/browse/OSD-6351 based on https://bugzilla.redhat.com/show_bug.cgi?id=1843346
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh"}},
 		// https://issues.redhat.com/browse/OSD-3010
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"}},
