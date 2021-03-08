@@ -7,8 +7,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/configure-alertmanager-operator/config"
+	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -514,15 +516,21 @@ func createSecret(reconciler *ReconcileSecret, secretname string, secretkey stri
 }
 
 // createReconciler creates a fake ReconcileSecret for testing.
-func createReconciler(t *testing.T) *ReconcileSecret {
+// If ready is nil, a real readiness Impl is constructed.
+func createReconciler(t *testing.T, ready readiness.Interface) *ReconcileSecret {
 	scheme := scheme.Scheme
 
 	if err := configv1.AddToScheme(scheme); err != nil {
 		t.Fatalf("Unable to add route scheme: (%v)", err)
 	}
+	if ready == nil {
+		ready = &readiness.Impl{}
+	}
+
 	return &ReconcileSecret{
-		client: fake.NewFakeClientWithScheme(scheme),
-		scheme: scheme,
+		client:    fake.NewFakeClientWithScheme(scheme),
+		scheme:    scheme,
+		readiness: ready,
 	}
 }
 
@@ -556,7 +564,12 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
 	// prepare environment
-	reconciler := createReconciler(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	mockReadiness.EXPECT().IsReady().Times(1).Return(true, nil)
+	mockReadiness.EXPECT().Result().Times(1).Return(reconcile.Result{})
+	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createConsolePublicConfigMap(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
@@ -588,7 +601,12 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
 	// prepare environment
-	reconciler := createReconciler(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	mockReadiness.EXPECT().IsReady().Times(2).Return(true, nil)
+	mockReadiness.EXPECT().Result().Times(2).Return(reconcile.Result{})
+	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createConsolePublicConfigMap(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
@@ -632,6 +650,9 @@ func createClusterVersion(reconciler *ReconcileSecret) {
 }
 
 func Test_ReconcileSecrets(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	tests := []struct {
 		name        string
 		dmsExists   bool
@@ -704,7 +725,10 @@ func Test_ReconcileSecrets(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		reconciler := createReconciler(t)
+		mockReadiness := readiness.NewMockInterface(ctrl)
+		mockReadiness.EXPECT().IsReady().Times(1).Return(true, nil)
+		mockReadiness.EXPECT().Result().Times(1).Return(reconcile.Result{})
+		reconciler := createReconciler(t, mockReadiness)
 		createNamespace(reconciler, t)
 		createConsolePublicConfigMap(reconciler, t)
 		createClusterVersion(reconciler)
@@ -736,6 +760,91 @@ func Test_ReconcileSecrets(t *testing.T) {
 		ret, err := reconciler.Reconcile(*req)
 		assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
 		assertEquals(t, nil, err, "Unexpected err")
+
+		// load the config and check it
+		configActual := readAlertManagerConfig(reconciler, req)
+
+		// NOTE compare of the objects will fail when no secrets are created for some reason, so using .String()
+		assertEquals(t, configExpected.String(), configActual.String(), tt.name)
+	}
+}
+
+// Test_ReconcileSecrets_Readiness tests the Reconcile loop for different results of the
+// cluster readiness check.
+func Test_ReconcileSecrets_Readiness(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	tests := []struct {
+		name      string
+		ready     bool
+		readyErr  bool
+		expectDMS bool
+		expectPD  bool
+	}{
+		{
+			name:      "Cluster not ready: don't configure PD.",
+			ready:     false,
+			readyErr:  false,
+			expectDMS: true,
+			expectPD:  false,
+		},
+		{
+			// This is covered by other test cases, but for completeness...
+			name:      "Cluster ready: configure everything.",
+			ready:     true,
+			readyErr:  false,
+			expectDMS: true,
+			expectPD:  true,
+		},
+		{
+			name:      "Readiness check errors: don't configure anything.",
+			ready:     false,
+			readyErr:  true,
+			expectDMS: false,
+			expectPD:  false,
+		},
+	}
+	for _, tt := range tests {
+		mockReadiness := readiness.NewMockInterface(ctrl)
+		var expectErr error = nil
+		if tt.readyErr {
+			expectErr = fmt.Errorf("An error occurred")
+		}
+		mockReadiness.EXPECT().IsReady().Times(1).Return(tt.ready, expectErr)
+		// Use a weird Result() to validate that all the code paths are using it.
+		expectResult := reconcile.Result{RequeueAfter: 12345}
+		mockReadiness.EXPECT().Result().Times(1).Return(expectResult)
+		reconciler := createReconciler(t, mockReadiness)
+		createNamespace(reconciler, t)
+		createConsolePublicConfigMap(reconciler, t)
+		createClusterVersion(reconciler)
+
+		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", ""))
+
+		pdKey := "asdfjkl123"
+		dmsURL := "https://hjklasdf09876"
+
+		// Create the secrets for this specific test.
+		// We're testing that Reconcile parlays the PD/DMS secrets into the AM config as
+		// appropriate. So we always start with those two secrets
+		createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
+		createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+
+		// However, we expect the AM config to be updated only according to the test spec
+		if !tt.expectDMS {
+			dmsURL = ""
+		}
+		if !tt.expectPD {
+			pdKey = ""
+		}
+		configExpected := createAlertManagerConfig(pdKey, dmsURL, exampleConsoleUrl, exampleClusterId)
+
+		verifyInhibitRules(t, configExpected.InhibitRules)
+
+		req := createReconcileRequest(reconciler, secretNameAlertmanager)
+		ret, err := reconciler.Reconcile(*req)
+		assertEquals(t, expectResult, ret, "Unexpected result")
+		assertEquals(t, expectErr, err, "Unexpected err")
 
 		// load the config and check it
 		configActual := readAlertManagerConfig(reconciler, req)
