@@ -455,13 +455,13 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	// if there was an error other than "not found" requeue
 	if err != nil {
 		if errors.IsNotFound(err) {
+			// Don't requeue if a Secret is not found. It's valid to have an absent Pager Duty or DMS secret.
 			log.Info("INFO: This secret has been deleted", "name", request.Name)
 		} else {
 			// Error and requeue in all other circumstances.
-			// Don't requeue if a Secret is not found. It's valid to have an absent Pager Duty or DMS secret.
 			log.Error(err, "Error reading object. Requeuing request")
 			// NOTE originally updated metrics here, this has been removed
-			return reconcile.Result{}, nil
+			return reconcile.Result{}, err
 		}
 	}
 
