@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+    name: osd-cluster-ready
+    namespace: openshift-monitoring
+spec:
+    template:
+        metadata:
+            name: osd-cluster-ready
+        spec:
+            containers:
+            - name: osd-cluster-ready
+              image: quay.io/openshift-sre/osd-cluster-ready
+              imagePullPolicy: Always
+              command: ["/root/main"]
+            restartPolicy: OnFailure
+            serviceAccountName: osd-cluster-ready

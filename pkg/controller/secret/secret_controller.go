@@ -19,6 +19,7 @@ import (
 
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
+	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -66,8 +67,9 @@ var _ reconcile.Reconciler = &ReconcileSecret{}
 type ReconcileSecret struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client    client.Client
+	scheme    *runtime.Scheme
+	readiness readiness.Interface
 }
 
 // Add creates a new Secret Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -78,7 +80,12 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileSecret{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	client := mgr.GetClient()
+	return &ReconcileSecret{
+		client:    client,
+		scheme:    mgr.GetScheme(),
+		readiness: &readiness.Impl{Client: client},
+	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -424,6 +431,7 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	reqLogger.Info("Reconciling Secret")
 
 	// This operator is only interested in the 3 secrets listed below. Skip reconciling for all other secrets.
+	// TODO: Filter these with a predicate instead
 	switch request.Name {
 	case secretNamePD:
 	case secretNameDMS:
@@ -433,6 +441,12 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		return reconcile.Result{}, nil
 	}
 	log.Info("DEBUG: Started reconcile loop")
+
+	clusterReady, err := r.readiness.IsReady()
+	if err != nil {
+		log.Error(err, "Error determining cluster readiness.")
+		return r.readiness.Result(), err
+	}
 
 	// Get a list of all Secrets in the `openshift-monitoring` namespace.
 	// This is used for determining which secrets are present so that the necessary
@@ -450,7 +464,7 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 
 	// Get the secret from the request.  If it's a secret we monitor, flag for reconcile.
 	instance := &corev1.Secret{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	err = r.client.Get(context.TODO(), request.NamespacedName, instance)
 
 	// if there was an error other than "not found" requeue
 	if err != nil {
@@ -469,9 +483,16 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	pagerdutyRoutingKey := ""
 	watchdogURL := ""
 	// If a secret exists, add the necessary configs to Alertmanager.
+	// But don't activate PagerDuty unless the cluster is "ready".
+	// This is to avoid alert noise while the cluster is still being installed and configured.
 	if pagerDutySecretExists {
 		log.Info("INFO: Pager Duty secret exists")
-		pagerdutyRoutingKey = readSecretKey(r, &request, secretNamePD, secretKeyPD)
+		if clusterReady {
+			log.Info("INFO: Cluster is ready; configuring Pager Duty")
+			pagerdutyRoutingKey = readSecretKey(r, &request, secretNamePD, secretKeyPD)
+		} else {
+			log.Info("INFO: Cluster is not ready; skipping Pager Duty configuration")
+		}
 	}
 	if snitchSecretExists {
 		log.Info("INFO: Dead Man's Snitch secret exists")
@@ -496,7 +517,9 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	// Update metrics after all reconcile operations are complete.
 	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
 	reqLogger.Info("Finished reconcile for secret.")
-	return reconcile.Result{}, nil
+
+	// The readiness Result decides whether we should requeue, effectively "polling" the readiness logic.
+	return r.readiness.Result(), nil
 }
 
 func (r *ReconcileSecret) getClusterID() (string, error) {

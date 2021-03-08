@@ -1,6 +1,14 @@
 # Include boilerplate's generated Makefile libraries
 include boilerplate/generated-includes.mk
 
+# ===> TODO: Remove this override once the boilerplate backing image has go-bindata
+.PHONY: go-generate
+go-generate:
+	go get github.com/go-bindata/go-bindata/...@v3.1.2
+	${GOENV} go generate $(TESTTARGETS)
+	# Don't forget to commit generated files
+# <=== TODO: Remove this override once the boilerplate backing image has go-bindata
+
 .PHONY: boilerplate-update
 boilerplate-update:
 	@boilerplate/update

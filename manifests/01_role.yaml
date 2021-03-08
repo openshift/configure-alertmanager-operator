@@ -80,4 +80,9 @@ rules:
   - watch
   - patch
   - update
-
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - "*"
