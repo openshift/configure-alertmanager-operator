@@ -136,15 +136,18 @@ func (impl *Impl) IsReady() (bool, error) {
 		// The Job is still running (we checked Active == 0 above).
 		// Requeue with a short delay. We don't want to thrash, but we want to poll the
 		// Job fairly frequently so we configure alerts promptly once it finishes.
-		log.Info(fmt.Sprintf("INFO: Found an Active %s Job. Will requeue.", jobName))
-		impl.result = reconcile.Result{Requeue: true, RequeueAfter: 10 * time.Second}
+		delay := 10 * time.Second
+		log.Info(fmt.Sprintf("INFO: Found an Active %s Job. Will requeue after %v.", jobName, delay))
+		impl.result = reconcile.Result{Requeue: true, RequeueAfter: delay}
 		return false, nil
 	}
 
 	// The Job doesn't exist -- requeue with a delay and keep looking for it. The delay
 	// here can be longish because the readiness job will take a while to complete once
 	// it does start.
-	impl.result = reconcile.Result{Requeue: true, RequeueAfter: 5 * time.Minute}
+	delay := 5 * time.Minute
+	log.Info(fmt.Sprintf("INFO: No %s Job found; requeueing after %v to wait for it.", jobName, delay))
+	impl.result = reconcile.Result{Requeue: true, RequeueAfter: delay}
 	return false, nil
 }
 
