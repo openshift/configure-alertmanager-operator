@@ -1,4 +1,4 @@
-FROM quay.io/openshift/origin-operator-registry:4.5
+FROM quay.io/openshift/origin-operator-registry:latest
 
 ARG SRC_BUNDLES
 
