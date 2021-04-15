@@ -12,6 +12,8 @@ parameters:
 - name: IMAGE_TAG
   value: latest
   required: true
+- name: REPO_DIGEST
+  required: true
 
 objects:
 - apiVersion: hive.openshift.io/v1
@@ -34,7 +36,7 @@ objects:
         name: configure-alertmanager-operator-registry
         namespace: openshift-monitoring
       spec:
-        image: ${REGISTRY_IMG}:${CHANNEL}-${IMAGE_TAG}
+        image: ${REPO_DIGEST}
         affinity:
           nodeAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
