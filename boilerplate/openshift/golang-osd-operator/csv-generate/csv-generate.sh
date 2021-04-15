@@ -70,7 +70,7 @@ REPO_DIGEST=${operator_image}@${IMAGE_DIGEST}
 
 # If no override, using the gitlab repo
 if [ -z "$GIT_PATH" ] ; then
-    GIT_PATH="https://app:@gitlab.cee.redhat.com/service/saas-${operator_name}-bundle.git"
+    GIT_PATH="https://app:"${APP_SRE_BOT_PUSH_TOKEN}"@gitlab.cee.redhat.com/service/saas-${operator_name}-bundle.git"
 fi
 
 # Calculate previous version
