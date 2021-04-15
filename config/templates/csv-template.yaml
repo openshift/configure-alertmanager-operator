@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   name: #OPERATOR_NAME#-v#OPERATOR_VERSION#
-  namespace: #OPERATOR_NAMESPACE#
+  namespace: openshift-monitoring
   annotations:
     categories: A list of comma separated categories that your operator falls under.
     certified: "false"
@@ -11,8 +11,8 @@ metadata:
     createdAt: "$TIME"
     support: OSD SRE
 spec:
-  displayName: #OPERATOR_NAME#
-  description: SRE operator - #OPERATOR_NAME#
+  displayName: configure-alertmanager-operator
+  description: SRE operator - configure-alertmanager-operator
   keywords:
   - kubernetes
   - openshift
