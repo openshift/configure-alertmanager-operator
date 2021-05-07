@@ -185,6 +185,12 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
 		// TODO: This can be removed when RHODS-280 is completed
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
+
+		// Stop receiving alerts from customer namespace 'openshift-redhat-marketplace'
+		// TODO: Check again when 4.9 is out
+		// https://issues.redhat.com/browse/OSD-6951
+		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-redhat-marketplace"}},
+
 	}
 
 	return &alertmanager.Route{
