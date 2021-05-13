@@ -9,10 +9,7 @@ parameters:
 - name: CHANNEL
   value: staging
   required: true
-- name: IMAGE_TAG
-  value: latest
-  required: true
-- name: REPO_DIGEST
+- name: IMAGE_DIGEST
   required: true
 
 objects:
@@ -36,7 +33,7 @@ objects:
         name: configure-alertmanager-operator-registry
         namespace: openshift-monitoring
       spec:
-        image: ${REPO_DIGEST}
+        image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
         affinity:
           nodeAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
