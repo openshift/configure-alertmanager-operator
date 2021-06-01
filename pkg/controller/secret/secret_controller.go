@@ -170,9 +170,9 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 
 
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
 		// general: route anything in core namespaces to PD
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
 
 		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
 		// TODO: This can be removed when RHODS-280 is completed
