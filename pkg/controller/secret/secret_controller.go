@@ -108,7 +108,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 // createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
 func createPagerdutyRoute() *alertmanager.Route {
 	// order matters.
-	// these are sub-routes.  if any matches it will not continue processing.
+	// these are sub-routes. If any matches it will not continue processing.
 	// 1. route anything we want to silence to "null"
 	// 2. route anything that should be a warning to "make-it-warning"
 	// 3. route anything we want to go to PD
@@ -153,47 +153,30 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
 		// https://issues.redhat.com/browse/OSD-6363
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
-
 		// https://issues.redhat.com/browse/OSD-6327
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
-
 		//https://issues.redhat.com/browse/OSD-6559
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
-
 		//https://issues.redhat.com/browse/OSD-6704
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteStorageFailures", "namespace": "openshift-monitoring"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteDesiredShards", "namespace": "openshift-monitoring"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteBehind", "namespace": "openshift-monitoring"}},
-
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-gitops"}},
-		// https://issues.redhat.com/browse/OSD-1922
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
-
-		// https://issues.redhat.com/browse/OSD-3086
-		// https://issues.redhat.com/browse/OSD-5872
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"exported_namespace": alertmanager.PDRegex}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
-		// general: route anything in core namespaces to PD
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"namespace": alertmanager.PDRegex}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
-		// fluentd: route any fluentd alert to PD
-		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "FluentdNodeDown", "prometheus": "openshift-monitoring/k8s"}},
-		// elasticsearch: route any ES alert to PD
-		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
-
 		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
 		// TODO: This can be removed when RHODS-280 is completed
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
-
 		// Stop receiving alerts from customer namespace 'openshift-redhat-marketplace'
 		// TODO: Check again when 4.9 is out
 		// https://issues.redhat.com/browse/OSD-6951
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-redhat-marketplace"}},
-
 		// https://issues.redhat.com/browse/OSD-6821
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-user-workload-monitoring"}},
+		// https://issues.redhat.com/browse/OSD-1922
+		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
+
+		// General: route anything to PD
+		{Receiver: receiverPagerduty, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
 	}
 
 	return &alertmanager.Route{
