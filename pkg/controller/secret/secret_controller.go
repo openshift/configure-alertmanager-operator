@@ -169,18 +169,10 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 
-		// https://issues.redhat.com/browse/OSD-3086
-		// https://issues.redhat.com/browse/OSD-5872
+
 		{Receiver: receiverPagerduty, MatchRE: map[string]string{Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
 		// general: route anything in core namespaces to PD
 		{Receiver: receiverPagerduty, MatchRE: map[string]string{Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
-		// fluentd: route any fluentd alert to PD
-		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "FluentdNodeDown", "prometheus": "openshift-monitoring/k8s"}},
-		// elasticsearch: route any ES alert to PD
-		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
 
 		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
 		// TODO: This can be removed when RHODS-280 is completed
