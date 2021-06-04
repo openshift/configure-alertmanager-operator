@@ -113,9 +113,11 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
 	for _, route := range route.Routes {
 		if route.Match["prometheus"] == "openshift-monitoring/k8s" {
 			hasCorePrometheus = true
-		} else if route.Match["job"] == "fluentd" {
+		}
+		if route.Match["job"] == "fluentd" {
 			hasFluentd = true
-		} else if route.Match["cluster"] == "elasticsearch" {
+		}
+		if route.Match["cluster"] == "elasticsearch" {
 			hasElasticsearch = true
 		}
 	}
