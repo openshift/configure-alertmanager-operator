@@ -107,12 +107,12 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
 	assertGte(t, 1, len(route.Routes), "Number of Routes")
 
 	// verify we have the core routes for namespace, ES, and fluentd
-	hasNamespace := false
+	hasCorePrometheus := false
 	hasElasticsearch := false
 	hasFluentd := false
 	for _, route := range route.Routes {
-		if route.MatchRE["namespace"] == alertmanager.PDRegex {
-			hasNamespace = true
+		if route.Match["prometheus"] == "openshift-monitoring/k8s" {
+			hasCorePrometheus = true
 		} else if route.Match["job"] == "fluentd" {
 			hasFluentd = true
 		} else if route.Match["cluster"] == "elasticsearch" {
@@ -120,7 +120,7 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
 		}
 	}
 
-	assertTrue(t, hasNamespace, "No route for MatchRE on namespace")
+	assertTrue(t, hasCorePrometheus, "No route for Match on prometheus=openshift-monitoring/k8s")
 	assertTrue(t, hasElasticsearch, "No route for Match on cluster=elasticsearch")
 	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
 }
