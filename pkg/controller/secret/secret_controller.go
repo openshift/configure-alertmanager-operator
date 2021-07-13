@@ -201,6 +201,7 @@ func createPagerdutyRoute() *alertmanager.Route {
 
 		//https://issues.redhat.com/browse/OSD-7671
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "FailingOperator", "namespace": "openshift-operator-lifecycle-manager", "severity": "warning"}},
 	}
 
 	return &alertmanager.Route{
