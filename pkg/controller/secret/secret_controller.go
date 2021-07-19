@@ -149,6 +149,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
 		// https://issues.redhat.com/browse/OSD-5544
 		{Receiver: receiverNull, MatchRE: map[string]string{"job_name": "^elasticsearch.*"}, Match: map[string]string{"alertname": "KubeJobFailed", "namespace": "openshift-logging"}},
+		// https://issues.redhat.com/browse/OSD-7437
+		{Receiver: receiverNull, MatchRE: map[string]string{"job_name": "^image-pruner.*"}, Match: map[string]string{"alertname": "KubeJobFailed", "namespace": "openshift-image-registry"}},
 		// Suppress the alerts and use HAProxyReloadFailSRE instead (openshift/managed-cluster-config#600)
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyReloadFail", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OHSS-2163
