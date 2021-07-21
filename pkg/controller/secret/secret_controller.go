@@ -129,6 +129,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-operators"}},
 		// https://issues.redhat.com/browse/OSD-7631
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-pipelines"}},
+		// https://issues.redhat.com/browse/OSD-7747
+		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-cnv"}},
 		// https://issues.redhat.com/browse/OSD-6505
 		{Receiver: receiverNull, Match: map[string]string{"exported_namespace": "openshift-operators"}},
 		// https://issues.redhat.com/browse/OSD-7653
