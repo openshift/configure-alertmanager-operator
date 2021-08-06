@@ -192,6 +192,10 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
 
+		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
+		// https://issues.redhat.com/browse/OSD-8006
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+
 		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
 		// TODO: This can be removed when RHODS-280 is completed
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
