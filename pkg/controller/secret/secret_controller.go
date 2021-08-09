@@ -176,6 +176,10 @@ func createPagerdutyRoute() *alertmanager.Route {
 		//https://issues.redhat.com/browse/OSD-7671
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
 
+		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
+		// TODO: This can be removed when RHODS-280 is completed
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
+
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 
@@ -195,10 +199,6 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
 		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
-
-		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
-		// TODO: This can be removed when RHODS-280 is completed
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
 
 		// Stop receiving alerts from customer namespace 'openshift-redhat-marketplace'
 		// TODO: Check again when 4.9 is out
