@@ -9,9 +9,12 @@ import (
 // PDRegexLP is the regular expression used in Pager Duty for any Layered Product namespaces.
 const PDRegexLP string = "^redhat-.*"
 
+// SAAPRegex is the regular expression used for Stakater Aap Agility Platform (SAAP) namespaces.
+const SAAPRegex string = "^stakater-.*"
+
 // PDRegex is the regular expression used in the Pager Duty receiver.
 // This is specific to our environment.
-const PDRegex string = "^kube.*|^openshift.*|" + PDRegexLP
+const PDRegex string = "^kube.*|^openshift.*|" + PDRegexLP + "|" + SAAPRegex
 
 // The following types are taken from the upstream Alertmanager types, and modified
 // to allow printing of Secrets so that we can generate valid configs from them.
