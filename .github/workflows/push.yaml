@@ -9,8 +9,6 @@ on:
 env:
   DOCKER_FILE_PATH: Dockerfile
   GOLANG_VERSION: 1.16
-  OPERATOR_SDK_VERSION: "1.7.2"
-  KUSTOMIZE_VERSION: "3.5.4"
 
 jobs:
   build:
@@ -25,12 +23,6 @@ jobs:
         persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
         fetch-depth: 0 # otherwise, you will fail to push refs to dest repo
 
-    - name: Configure git for private modules
-      env:
-        GITHUB_TOKEN: ${{ secrets.STAKATER_GITHUB_TOKEN }}
-      run: |
-        git config --global url."https://stakater-github-root:${GITHUB_TOKEN}@github.com/stakater-ab/managed-openshift-operator".insteadOf "https://github.com/stakater-ab/managed-openshift-operator"
-        git config --global user.name stakater-github-root
     - name: Set up Go
       id: go
       uses: actions/setup-go@v2
@@ -44,7 +36,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.STAKATER_GITHUB_TOKEN }}
         WITH_V: true
         DEFAULT_BUMP: patch
-        RELEASE_BRANCHES: main
+        RELEASE_BRANCHES: master
         DRY_RUN: true
     
     - name: Set up QEMU
@@ -77,16 +69,6 @@ jobs:
           org.opencontainers.image.source=${{ github.event.repository.clone_url }}
           org.opencontainers.image.created=${{ steps.prep.outputs.created }}
           org.opencontainers.image.revision=${{ github.sha }}
-
-    - name: Generate Operator Tag
-      id: generate_operator_tag
-      uses: anothrNick/github-tag-action@1.26.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.STAKATER_GITHUB_TOKEN }}
-        WITH_V: true
-        DEFAULT_BUMP: patch
-        RELEASE_BRANCHES: master
-        DRY_RUN: true
 
     - name: Push Latest Tag
       uses: anothrNick/github-tag-action@1.26.0
