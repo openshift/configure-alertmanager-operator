@@ -159,7 +159,7 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
 
 		//https://issues.redhat.com/browse/OSD-6559
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-stakater-workload-monitoring"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-stakater-workload-monitoring"}},
 
 		//https://issues.redhat.com/browse/OSD-6704
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteStorageFailures", "namespace": "openshift-monitoring"}},
