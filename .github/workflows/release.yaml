@@ -17,14 +17,9 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0 # See: https://goreleaser.com/ci/actions/
+          persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
+          fetch-depth: 0 # otherwise, you will fail to push refs to dest repo
 
-      - name: Configure git for private modules
-        env:
-          GITHUB_TOKEN: ${{ secrets.STAKATER_GITHUB_TOKEN }}
-        run: |
-          git config --global url."https://stakater-github-root:${GITHUB_TOKEN}@github.com/stakater-ab/managed-openshift-operator".insteadOf "https://github.com/stakater-ab/managed-openshift-operator"
-          git config --global user.name stakater-github-root
       - name: Set up Go 1.x
         uses: actions/setup-go@v2
         with:

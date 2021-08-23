@@ -15,16 +15,13 @@ jobs:
     runs-on: ubuntu-latest 
     name: Build
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
+    
     steps:
     - name: Check out code
       uses: actions/checkout@v2
-
-    - name: Configure git for private modules
-      env:
-        GITHUB_TOKEN: ${{ secrets.STAKATER_GITHUB_TOKEN }}
-      run: |
-        git config --global url."https://stakater-github-root:${GITHUB_TOKEN}@github.com/stakater-ab/managed-openshift-operator".insteadOf "https://github.com/stakater-ab/managed-openshift-operator"
-        git config --global user.name stakater-github-root
+      with:
+        persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
+        fetch-depth: 0 # otherwise, you will fail to push refs to dest repo
 
     - name: Set up Go
       id: go
@@ -69,6 +66,7 @@ jobs:
           org.opencontainers.image.source=${{ github.event.repository.clone_url }}
           org.opencontainers.image.created=${{ steps.prep.outputs.created }}
           org.opencontainers.image.revision=${{ github.sha }}
+
     - name: Comment on PR
       uses: mshick/add-pr-comment@v1
       env:
