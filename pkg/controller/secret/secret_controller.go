@@ -118,13 +118,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// This will be renamed in release 4.5
 		// https://issues.redhat.com/browse/OSD-4017
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaFullyUsed"}},
-		// TODO: Remove CPUThrottlingHigh entry after all OSD clusters upgrade to 4.6 and above version
-		// https://issues.redhat.com/browse/OSD-6351 based on https://bugzilla.redhat.com/show_bug.cgi?id=1843346
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh"}},
 		// https://issues.redhat.com/browse/OSD-3010
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"}},
-		// https://issues.redhat.com/browse/OSD-2611
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-customer-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-3569
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-operators"}},
 		// https://issues.redhat.com/browse/OSD-7631
@@ -164,7 +159,7 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
 
 		//https://issues.redhat.com/browse/OSD-6559
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-stakater-workload-monitoring"}},
 
 		//https://issues.redhat.com/browse/OSD-6704
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteStorageFailures", "namespace": "openshift-monitoring"}},
@@ -175,10 +170,6 @@ func createPagerdutyRoute() *alertmanager.Route {
 
 		//https://issues.redhat.com/browse/OSD-7671
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
-
-		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
-		// TODO: This can be removed when RHODS-280 is completed
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
@@ -206,8 +197,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-redhat-marketplace"}},
 
 		// https://issues.redhat.com/browse/OSD-6821
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-user-workload-monitoring"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-stakater-workload-monitoring"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-stakater-workload-monitoring"}},
 	}
 
 	return &alertmanager.Route{
