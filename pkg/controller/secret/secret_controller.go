@@ -179,6 +179,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
 		// TODO: This can be removed when RHODS-280 is completed
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
+		// https://issues.redhat.com/browse/OSD-8249
+		{Receiver: receiverNull, Match: map[string]string{"namespace": "redhat-rhoam-middleware-monitoring-operator"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
