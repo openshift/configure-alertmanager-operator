@@ -160,6 +160,12 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-6363
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
 
+		//https://issues.redhat.com/browse/OSD-8320
+		// Sometimes only CLusterOperatorDown is firing, meaning the suppression set below in this file does not work
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
+		//https://issues.redhat.com/browse/OSD-8320
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
+
 		// https://issues.redhat.com/browse/OSD-6327
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
 
