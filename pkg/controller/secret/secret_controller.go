@@ -32,11 +32,15 @@ const (
 
 	secretKeyDMS = "SNITCH_URL"
 
+	cmKeyManagedNamespaces = "managed_namespaces.yaml"
+
 	secretNamePD = "pd-secret"
 
 	secretNameDMS = "dms-secret"
 
 	secretNameAlertmanager = "alertmanager-main"
+
+	cmNameManagedNamespaces = "managed-namespaces"
 
 	// anything routed to "null" receiver does not get routed to PD
 	receiverNull = "null"
@@ -98,11 +102,16 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return err
 	}
+
+	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
-func createPagerdutyRoute() *alertmanager.Route {
+func createPagerdutyRoute(managedNamespaceList []string) *alertmanager.Route {
 	// order matters.
 	// these are sub-routes.  if any matches it will not continue processing.
 	// 1. route anything we want to silence to "null"
@@ -195,11 +204,6 @@ func createPagerdutyRoute() *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 
-		// https://issues.redhat.com/browse/OSD-3086
-		// https://issues.redhat.com/browse/OSD-5872
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"exported_namespace": alertmanager.PDRegex}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
-		// general: route anything in core namespaces to PD
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"namespace": alertmanager.PDRegex}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
@@ -223,6 +227,16 @@ func createPagerdutyRoute() *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-8689
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CsvAbnormalFailedOver2Min", "exported_namespace": "redhat-ods-operator"}},
+	}
+
+	for _, namespace := range managedNamespaceList {
+		pagerdutySubroutes = append(pagerdutySubroutes, []*alertmanager.Route{
+			// https://issues.redhat.com/browse/OSD-3086
+			// https://issues.redhat.com/browse/OSD-5872
+			{Receiver: receiverPagerduty, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
+			// general: route anything in core namespaces to PD
+			{Receiver: receiverPagerduty, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
+		}...,)
 	}
 
 	return &alertmanager.Route{
@@ -311,7 +325,7 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, clusterID string) *alertmanager.Config {
+func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, clusterID string, managedNamespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
@@ -321,7 +335,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, clusterID string
 	}
 
 	if pagerdutyRoutingKey != "" {
-		routes = append(routes, createPagerdutyRoute())
+		routes = append(routes, createPagerdutyRoute(managedNamespaceList))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID)...)
 	}
 
@@ -466,12 +480,13 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	reqLogger := log.WithValues("Request.Name", request.Name)
 	reqLogger.Info("Reconciling Secret")
 
-	// This operator is only interested in the 3 secrets listed below. Skip reconciling for all other secrets.
+	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
 	// TODO: Filter these with a predicate instead
 	switch request.Name {
 	case secretNamePD:
 	case secretNameDMS:
 	case secretNameAlertmanager:
+	case cmNameManagedNamespaces:
 	default:
 		reqLogger.Info("Skip reconcile: No changes detected to alertmanager secrets.")
 		return reconcile.Result{}, nil
@@ -498,6 +513,15 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	pagerDutySecretExists := secretInList(secretNamePD, secretList)
 	snitchSecretExists := secretInList(secretNameDMS, secretList)
 
+	cmList := &corev1.ConfigMapList{}
+	err = r.client.List(context.TODO(), cmList, opts...)
+	if err != nil {
+		log.Error(err, "Unable to list configMaps")
+	}
+
+	// Check for the presence of specific configMaps.
+	namespaceCMExists := cmInList(cmNameManagedNamespaces, cmList)
+
 	// Get the secret from the request.  If it's a secret we monitor, flag for reconcile.
 	instance := &corev1.Secret{}
 	err = r.client.Get(context.TODO(), request.NamespacedName, instance)
@@ -518,6 +542,8 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	// do the work! collect secret info for PD and DMS
 	pagerdutyRoutingKey := ""
 	watchdogURL := ""
+	managedNamespaceList := []string{alertmanager.PDRegexLP, alertmanager.PDRegexKube}
+
 	// If a secret exists, add the necessary configs to Alertmanager.
 	// But don't activate PagerDuty unless the cluster is "ready".
 	// This is to avoid alert noise while the cluster is still being installed and configured.
@@ -530,17 +556,42 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 			log.Info("INFO: Cluster is not ready; skipping Pager Duty configuration")
 		}
 	}
+
 	if snitchSecretExists {
 		log.Info("INFO: Dead Man's Snitch secret exists")
 		watchdogURL = readSecretKey(r, &request, secretNameDMS, secretKeyDMS)
 	}
+
+	if namespaceCMExists {
+		log.Info("INFO: Managed namespace configMap exists")
+		var managedNamespacesConfig alertmanager.ManagedNamespacesConfig
+		rawManagedNamespaces := readCMKey(r, &request, cmNameManagedNamespaces, cmKeyManagedNamespaces)
+
+		err := yaml.Unmarshal([]byte(rawManagedNamespaces), &managedNamespacesConfig)
+		// yaml.Unmarshal does not throw an error if managedNamespacesConfig does not match -> instead, check that namespace list is empty
+		if (err != nil) || (len(managedNamespacesConfig.Resources.Namespace) == 0) {
+			log.Info("DEBUG: Unable to unmarshal managed namespace config or no namespaces provided in config.")
+			managedNamespaceList = append(managedNamespaceList, alertmanager.PDRegexOS)
+			log.Info("DEBUG: Defaulted to alert on all openshift namespaces.", "Default regex", alertmanager.PDRegexOS)
+		} else {
+			for _, namespace := range managedNamespacesConfig.Resources.Namespace {
+				managedNamespaceList = append(managedNamespaceList, "^" + namespace.Name + "$")
+			}
+		}
+	} else {
+		log.Info("INFO: Managed namespace configMap does not exist.")
+		managedNamespaceList = append(managedNamespaceList, alertmanager.PDRegexOS)
+		log.Info("DEBUG: Defaulted to alert on all openshift namespaces.", "Default regex", alertmanager.PDRegexOS)
+	}
+
+	log.Info("DEBUG: Adding PagerDuty routes to the following", "Namespaces", managedNamespaceList)
 
 	// create the desired alertmanager Config
 	clusterID, err := r.getClusterID()
 	if err != nil {
 		log.Error(err, "Error reading cluster id.")
 	}
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, clusterID)
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, clusterID, managedNamespaceList)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)
@@ -574,6 +625,39 @@ func secretInList(name string, list *corev1.SecretList) bool {
 	return false
 }
 
+// cmInList takes the name of ConfigMap, and a list of ConfigMaps, and returns a Bool
+// indicating if the name is present in the list
+func cmInList(name string, list *corev1.ConfigMapList) bool {
+	for _, cm := range list.Items {
+		if name == cm.Name {
+			log.Info("DEBUG: ConfigMap named", cm.Name, "found")
+			return true
+		}
+	}
+	log.Info("DEBUG: ConfigMap", name, "not found")
+	return false
+}
+
+// readCMKey fetches the data from a ConfigMap, such as the managed namespace list
+func readCMKey(r *ReconcileSecret, request *reconcile.Request, cmname string, fieldname string) string {
+
+	configMap := &corev1.ConfigMap{}
+
+	// Define a new objectKey for fetching the secret key.
+	objectKey := client.ObjectKey{
+		Namespace: request.Namespace,
+		Name:      cmname,
+	}
+
+	// Fetch the key from the secret object.
+	// TODO: Check error from Get(). Right now secret.Data[fieldname] will panic.
+	err := r.client.Get(context.TODO(), objectKey, configMap)
+	if err != nil {
+		log.Error(err, "Error: Failed to retrieve configMap", "Name", cmname)
+	}
+	return string(configMap.Data[fieldname])
+}
+
 // readSecretKey fetches the data from a Secret, such as a PagerDuty API key.
 func readSecretKey(r *ReconcileSecret, request *reconcile.Request, secretname string, fieldname string) string {
 
@@ -588,9 +672,7 @@ func readSecretKey(r *ReconcileSecret, request *reconcile.Request, secretname st
 	// Fetch the key from the secret object.
 	// TODO: Check error from Get(). Right now secret.Data[fieldname] will panic.
 	_ = r.client.Get(context.TODO(), objectKey, secret)
-	secretkey := secret.Data[fieldname]
-
-	return string(secretkey)
+	return string(secret.Data[fieldname])
 }
 
 // writeAlertManagerConfig writes the updated alertmanager config to the `alertmanager-main` secret in namespace `openshift-monitoring`.

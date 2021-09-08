@@ -26,6 +26,42 @@ const (
 	exampleClusterId = "fake-cluster-id"
 )
 
+var defaultManagedNamespaces = []string{
+	alertmanager.PDRegexLP,
+	alertmanager.PDRegexKube,
+	alertmanager.PDRegexOS,
+}
+
+var exampleManagedNamespaces = []string{
+	"dedicated-admin",
+	"openshift-aqua",
+	"openshift-backplane",
+	"openshift-backplane-cee",
+	"openshift-backplane-managed-scripts",
+	"openshift-backplane-srep",
+	"openshift-build-test",
+	"openshift-cloud-ingress-operator",
+	"openshift-codeready-workspaces",
+	"openshift-compliance",
+	"openshift-container-security-operator",
+	"openshift-custom-domains-operator",
+	"openshift-customer-monitoring",
+	"openshift-logging",
+	"openshift-managed-upgrade-operator",
+	"openshift-must-gather-operator",
+	"openshift-operators-redhat",
+	"openshift-osd-metrics",
+	"openshift-rbac-permissions",
+	"openshift-route-monitor-operator",
+	"openshift-security",
+	"openshift-splunk-forwarder-operator",
+	"openshift-sre-pruning",
+	"openshift-sre-sshd",
+	"openshift-strimzi",
+	"openshift-validation-webhook",
+	"openshift-velero",
+}
+
 // readAlertManagerConfig fetches the AlertManager configuration from its default location.
 // This is equivalent to `oc get secrets -n openshift-monitoring alertmanager-main`.
 // It specifically extracts the .data "alertmanager.yaml" field, and loads it into a resource
@@ -99,7 +135,7 @@ func assertTrue(t *testing.T, status bool, message string) {
 }
 
 // utility class to test PD route creation
-func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
+func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route, expectedNamespaces []string) {
 	assertEquals(t, defaultReceiver, route.Receiver, "Receiver Name")
 	assertEquals(t, true, route.Continue, "Continue")
 	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
@@ -109,14 +145,19 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
 	hasNamespace := false
 	hasElasticsearch := false
 	hasFluentd := false
+	routeNamespaces := []string{}
 	for _, route := range route.Routes {
-		if route.MatchRE["namespace"] == alertmanager.PDRegex {
-			hasNamespace = true
+		if route.Receiver == receiverPagerduty && route.MatchRE["namespace"] != "" {
+			routeNamespaces = append(routeNamespaces, route.MatchRE["namespace"])
 		} else if route.Match["job"] == "fluentd" {
 			hasFluentd = true
 		} else if route.Match["cluster"] == "elasticsearch" {
 			hasElasticsearch = true
 		}
+	}
+
+	if reflect.DeepEqual(expectedNamespaces, routeNamespaces){
+		hasNamespace = true
 	}
 
 	assertTrue(t, hasNamespace, "No route for MatchRE on namespace")
@@ -345,9 +386,9 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 
 func Test_createPagerdutyRoute(t *testing.T) {
 	// test the structure of the Route is sane
-	route := createPagerdutyRoute()
+	route := createPagerdutyRoute(defaultManagedNamespaces)
 
-	verifyPagerdutyRoute(t, route)
+	verifyPagerdutyRoute(t, route, defaultManagedNamespaces)
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
@@ -385,7 +426,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -406,7 +447,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -420,7 +461,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 
 	verifyNullReceiver(t, config.Receivers)
 
-	verifyPagerdutyRoute(t, config.Route.Routes[0])
+	verifyPagerdutyRoute(t, config.Route.Routes[0], exampleManagedNamespaces)
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 
 	verifyInhibitRules(t, config.InhibitRules)
@@ -430,7 +471,7 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -444,7 +485,7 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 
 	verifyNullReceiver(t, config.Receivers)
 
-	verifyPagerdutyRoute(t, config.Route.Routes[1])
+	verifyPagerdutyRoute(t, config.Route.Routes[1], exampleManagedNamespaces)
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 
 	verifyWatchdogRoute(t, config.Route.Routes[0])
@@ -457,7 +498,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId)
+	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -536,7 +577,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultManagedNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -572,7 +613,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultManagedNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -712,7 +753,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", ""))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultManagedNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -726,7 +767,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId)
+		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultManagedNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -792,7 +833,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
 
-		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", ""))
+		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultManagedNamespaces))
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
@@ -810,7 +851,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		if !tt.expectPD {
 			pdKey = ""
 		}
-		configExpected := createAlertManagerConfig(pdKey, dmsURL, exampleClusterId)
+		configExpected := createAlertManagerConfig(pdKey, dmsURL, exampleClusterId, defaultManagedNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 

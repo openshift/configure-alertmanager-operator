@@ -9,9 +9,12 @@ import (
 // PDRegexLP is the regular expression used in Pager Duty for any Layered Product namespaces.
 const PDRegexLP string = "^redhat-.*"
 
-// PDRegex is the regular expression used in the Pager Duty receiver.
-// This is specific to our environment.
-const PDRegex string = "^kube.*|^openshift.*|" + PDRegexLP
+// PDRegexKube is the regular expression used in Pager Duty for any Kube-system namespaces.
+const PDRegexKube string = "^kube.*"
+
+// PDRegexOS is the regular expression used in Pager Duty for any managed OpenShift namespaces.
+// It is not used, unless the 'managed-namespaces' CM is improperly formatted or does not exist.
+const PDRegexOS string = "^openshift-.*"
 
 // The following types are taken from the upstream Alertmanager types, and modified
 // to allow printing of Secrets so that we can generate valid configs from them.
@@ -136,4 +139,16 @@ type PagerdutyConfig struct {
 	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
+}
+
+type ManagedNamespacesConfig struct {
+	Resources ManagedNamespaceList `yaml:"Resources,omitempty" json:"Resources,omitempty"`
+}
+
+type ManagedNamespaceList struct {
+	Namespace []ManagedNamespace `yaml:"Namespace,omitempty" json:"Namespace,omitempty"`
+}
+
+type ManagedNamespace struct {
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 }
