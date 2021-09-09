@@ -1,5 +1,4 @@
 package secret
-
 import (
 	"context"
 	"encoding/json"
@@ -26,40 +25,28 @@ const (
 	exampleClusterId = "fake-cluster-id"
 )
 
-var defaultManagedNamespaces = []string{
-	alertmanager.PDRegexLP,
-	alertmanager.PDRegexKube,
-	alertmanager.PDRegexOS,
-}
-
 var exampleManagedNamespaces = []string{
 	"dedicated-admin",
 	"openshift-aqua",
 	"openshift-backplane",
 	"openshift-backplane-cee",
 	"openshift-backplane-managed-scripts",
-	"openshift-backplane-srep",
-	"openshift-build-test",
-	"openshift-cloud-ingress-operator",
-	"openshift-codeready-workspaces",
-	"openshift-compliance",
-	"openshift-container-security-operator",
-	"openshift-custom-domains-operator",
-	"openshift-customer-monitoring",
+}
+
+var exampleOCPNamespaces = []string {
+	"openshift-apiserver-operator",
+	"openshift-authentication-operator",
+	"openshift-cloud-controller-manager",
+	"openshift-cloud-controller-manager-operator",
+	"openshift-cloud-credential-operator",
+}
+
+var exampleAddonsNamespaces = []string {
+	"acm",
+	"addon-dba-operator",
+	"codeready-workspaces-operator",
+	"codeready-workspaces-operator-qe",
 	"openshift-logging",
-	"openshift-managed-upgrade-operator",
-	"openshift-must-gather-operator",
-	"openshift-operators-redhat",
-	"openshift-osd-metrics",
-	"openshift-rbac-permissions",
-	"openshift-route-monitor-operator",
-	"openshift-security",
-	"openshift-splunk-forwarder-operator",
-	"openshift-sre-pruning",
-	"openshift-sre-sshd",
-	"openshift-strimzi",
-	"openshift-validation-webhook",
-	"openshift-velero",
 }
 
 // readAlertManagerConfig fetches the AlertManager configuration from its default location.
@@ -384,11 +371,335 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 	}
 }
 
+func Test_cmInList(t *testing.T) {
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+	createConfigMap(reconciler, cmNameManagedNamespaces, cmKeyManagedNamespaces, "test")
+
+	cmList := corev1.ConfigMapList{}
+	err := reconciler.client.List(context.TODO(), &cmList, &client.ListOptions{})
+	if err != nil {
+		t.Fatalf("Could not list ConfigMaps: %v", err)
+	}
+
+	assertTrue(t, cmInList(cmNameManagedNamespaces, &cmList), fmt.Sprintf("Expected ConfigMap to be present in list: %s", cmNameManagedNamespaces))
+	assertTrue(t, !cmInList("fake-configmap", &cmList), fmt.Sprintf("Did not expect ConfigMap to be present in list: %s", "fake-configmap"))
+}
+
+func Test_secretInList(t *testing.T) {
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNamePD, secretKeyPD, "")
+	createSecret(reconciler, secretNameDMS, secretKeyDMS, "")
+
+	secretList := corev1.SecretList{}
+	err := reconciler.client.List(context.TODO(), &secretList, &client.ListOptions{})
+	if err != nil {
+		t.Fatalf("Could not list Secrets: %v", err)
+	}
+
+	assertTrue(t, secretInList(secretNamePD, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNamePD))
+	assertTrue(t, secretInList(secretNameDMS, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNameDMS))
+	assertTrue(t, !secretInList("fake-secret", &secretList), fmt.Sprintf("Did not expect Secret to be present in list: %s", "fake-secret"))
+}
+
+// Test_parseSecrets tests the parseSecrets function under normal circumstances
+func Test_parseSecrets(t *testing.T) {
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+
+	pdKey  := "asdfjkl123"
+	dmsURL := "https://hjklasdf09876"
+
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
+
+	secretList := &corev1.SecretList{}
+	err := reconciler.client.List(context.TODO(), secretList, &client.ListOptions{})
+	if err != nil {
+		t.Fatalf("Could not list Secrets: %v", err)
+	}
+
+	request := createReconcileRequest(reconciler, secretNamePD)
+	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(secretList, request.Namespace, true)
+
+	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
+	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
+}
+
+// Test_parseSecrets tests the parseSecrets function when the DMS secret does not exist
+func Test_parseSecrets_MissingDMS(t *testing.T) {
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+
+	pdKey  := "asdfjkl123"
+
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+
+	secretList := &corev1.SecretList{}
+	err := reconciler.client.List(context.TODO(), secretList, &client.ListOptions{})
+	if err != nil {
+		t.Fatalf("Could not list Secrets: %v", err)
+	}
+
+	request := createReconcileRequest(reconciler, secretNamePD)
+	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(secretList, request.Namespace, true)
+
+	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
+	assertEquals(t, "", watchdogURL, "Expected DMS URLs to match")
+}
+
+// Tests the parseSecrets function when the PD secret does not exist
+func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+
+	dmsURL := "https://hjklasdf09876"
+
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
+
+	secretList := &corev1.SecretList{}
+	err := reconciler.client.List(context.TODO(), secretList, &client.ListOptions{})
+	if err != nil {
+		t.Fatalf("Could not list Secrets: %v", err)
+	}
+
+	request := createReconcileRequest(reconciler, secretNamePD)
+	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(secretList, request.Namespace, true)
+
+	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
+	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
+}
+
+// Test_parseConfigMaps tests the parseConfigMaps function under various circumstances
+func Test_parseConfigMaps(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Generate aggregate list of example namespaces
+	var validNamespaces []string
+	validNamespaces = append(validNamespaces, exampleManagedNamespaces...)
+	validNamespaces = append(validNamespaces, exampleOCPNamespaces...)
+	validNamespaces = append(validNamespaces, exampleAddonsNamespaces...)
+
+	// Convert to regex to match the result of parseConfigMaps()
+	for i, ns := range validNamespaces {
+		validNamespaces[i] = "^"+ns+"$"
+	}
+
+	type configMapTest struct {
+		invalid bool
+		missing bool
+	}
+
+	// Define tests
+	tests := []struct {
+		name string
+		expectedNamespaces []string
+		managedNamespace configMapTest
+		ocpNamespaces configMapTest
+		addonsNamespaces configMapTest
+	}{
+		{
+			name: "Valid configMaps",
+			expectedNamespaces: validNamespaces,
+			managedNamespace: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			ocpNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			addonsNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+		},
+		{
+			name: "Invalid managed-namespaces configMap",
+			expectedNamespaces: defaultNamespaces,
+			managedNamespace: configMapTest {
+				invalid: true,
+				missing: false,
+			},
+			ocpNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			addonsNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+		},
+		{
+			name: "Missing managed-namespaces configMap",
+			expectedNamespaces: defaultNamespaces,
+			managedNamespace: configMapTest {
+				invalid: false,
+				missing: true,
+			},
+			ocpNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			addonsNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+		},
+		{
+			name: "Invalid ocp-namespaces configMap",
+			expectedNamespaces: defaultNamespaces,
+			managedNamespace: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			ocpNamespaces: configMapTest {
+				invalid: true,
+				missing: false,
+			},
+			addonsNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+		},
+		{
+			name: "Missing ocp-namespaces configMap",
+			expectedNamespaces: defaultNamespaces,
+			managedNamespace: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			ocpNamespaces: configMapTest {
+				invalid: false,
+				missing: true,
+			},
+			addonsNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+		},
+		{
+			name: "Invalid addons-namespaces configMap",
+			expectedNamespaces: defaultNamespaces,
+			managedNamespace: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			ocpNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			addonsNamespaces: configMapTest {
+				invalid: true,
+				missing: false,
+			},
+		},
+		{
+			name: "Missing addons-namespaces configMap",
+			expectedNamespaces: defaultNamespaces,
+			managedNamespace: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			ocpNamespaces: configMapTest {
+				invalid: false,
+				missing: false,
+			},
+			addonsNamespaces: configMapTest {
+				invalid: false,
+				missing: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		mockReadiness := readiness.NewMockInterface(ctrl)
+		reconciler := createReconciler(t, mockReadiness)
+		createNamespace(reconciler, t)
+
+		// managed-namespaces configMap
+		if !tt.managedNamespace.missing {
+			var cmDataManagedNamespaces string
+			if tt.managedNamespace.invalid {
+				cmDataManagedNamespaces = "This is an invalid format for the managed-namespaces configmap!"
+			} else {
+				cmDataManagedNamespaces = "Resources:\n  Namespace:"
+				for _, ns := range exampleManagedNamespaces {
+					cmDataManagedNamespaces = cmDataManagedNamespaces + fmt.Sprintf("\n  - name: '%v'", ns)
+				}
+			}
+			createConfigMap(reconciler, cmNameManagedNamespaces, cmKeyManagedNamespaces, cmDataManagedNamespaces)
+		}
+
+		// ocp-namespaces configMap
+		if !tt.ocpNamespaces.missing {
+			var cmDataOcpNamespaces string
+			if !tt.ocpNamespaces.invalid {
+				cmDataOcpNamespaces = "Resources:\n  Namespace:"
+				for _, ns := range exampleOCPNamespaces {
+					cmDataOcpNamespaces = cmDataOcpNamespaces + fmt.Sprintf("\n  - name: '%v'", ns)
+				}
+			} else {
+				cmDataOcpNamespaces = "This is an invalid format for the managed-namespaces configmap!"
+			}
+			createConfigMap(reconciler, cmNameOCPNamespaces, cmKeyOCPNamespaces, cmDataOcpNamespaces)
+		}
+
+		// addons-namespaces configMap
+		if !tt.addonsNamespaces.missing {
+			var cmDataAddonsNamespaces string
+			if !tt.addonsNamespaces.invalid {
+				cmDataAddonsNamespaces = "Resources:\n  Namespace:"
+				for _, ns := range exampleAddonsNamespaces {
+					cmDataAddonsNamespaces = cmDataAddonsNamespaces + fmt.Sprintf("\n  - name: '%v'", ns)
+				}
+			} else {
+				cmDataAddonsNamespaces = "This is an invalid format for the managed-namespaces configmap!"
+			}
+			createConfigMap(reconciler, cmNameAddonsNamespaces, cmKeyAddonsNamespaces, cmDataAddonsNamespaces)
+		}
+
+		// Run and verify results
+		cmList := &corev1.ConfigMapList{}
+		err := reconciler.client.List(context.TODO(), cmList, &client.ListOptions{})
+		if err != nil {
+			t.Fatalf("Could not list ConfigMaps: %v", err)
+		}
+
+		request := createReconcileRequest(reconciler, cmNameManagedNamespaces)
+		namespaceList := reconciler.parseConfigMaps(cmList, request.Namespace)
+
+		assertEquals(t, tt.expectedNamespaces, namespaceList, "Expected namespace lists to match")
+	}
+}
+
 func Test_createPagerdutyRoute(t *testing.T) {
 	// test the structure of the Route is sane
-	route := createPagerdutyRoute(defaultManagedNamespaces)
+	route := createPagerdutyRoute(defaultNamespaces)
 
-	verifyPagerdutyRoute(t, route, defaultManagedNamespaces)
+	verifyPagerdutyRoute(t, route, defaultNamespaces)
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
@@ -517,6 +828,22 @@ func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
 	verifyInhibitRules(t, config.InhibitRules)
 }
 
+// createConfigMap creates a fake ConfigMap to use in testing.
+func createConfigMap(reconciler *ReconcileSecret, configMapName string, configMapKey string, configMapData string) {
+	newconfigmap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapName,
+			Namespace: config.OperatorNamespace,
+		},
+		Data: map[string]string{
+			configMapKey: configMapData,
+		},
+	}
+	if err := reconciler.client.Create(context.TODO(), newconfigmap); err != nil {
+		panic(err)
+	}
+}
+
 // createSecret creates a fake Secret to use in testing.
 func createSecret(reconciler *ReconcileSecret, secretname string, secretkey string, secretdata string) {
 	newsecret := &corev1.Secret{
@@ -577,7 +904,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultManagedNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -613,7 +940,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultManagedNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -753,7 +1080,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultManagedNamespaces))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -767,7 +1094,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 
-		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultManagedNamespaces)
+		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -833,7 +1160,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
 
-		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultManagedNamespaces))
+		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultNamespaces))
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
@@ -851,7 +1178,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		if !tt.expectPD {
 			pdKey = ""
 		}
-		configExpected := createAlertManagerConfig(pdKey, dmsURL, exampleClusterId, defaultManagedNamespaces)
+		configExpected := createAlertManagerConfig(pdKey, dmsURL, exampleClusterId, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
