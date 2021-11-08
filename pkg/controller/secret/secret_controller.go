@@ -113,6 +113,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 	// 2. route anything that should be a warning to "make-it-warning"
 	// 3. route anything we want to go to PD
 	pagerdutySubroutes := []*alertmanager.Route{
+		// https://issues.redhat.com/browse/OSD-8689
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CsvAbnormalFailedOver2min", "namespace": "redhat-ods-operator"}},
 		// https://issues.redhat.com/browse/OSD-1966
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaExceeded"}},
 		// This will be renamed in release 4.5
