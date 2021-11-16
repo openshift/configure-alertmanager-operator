@@ -50,6 +50,18 @@ var (
 		Name: "am_secret_contains_dms",
 		Help: "AlertManager Config contains configuration for Dead Man's Snitch",
 	}, []string{"name"})
+	metricManNSConfigMapExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "managed_namespaces_configmap_exists",
+		Help: "managed-namespaces configMap exists",
+	}, []string{"name"})
+	metricOcpNSConfigMapExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "ocp_namespaces_configmap_exists",
+		Help: "ocp-namespaces configMap exists",
+	}, []string{"name"})
+	metricAddonsNSConfigMapExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "addons_namespaces_configmap_exists",
+		Help: "addons-namespaces configMap exists",
+	}, []string{"name"})
 
 	metricsList = []prometheus.Collector{
 		metricPDSecretExists,
@@ -57,6 +69,9 @@ var (
 		metricAMSecretExists,
 		metricAMSecretContainsPD,
 		metricAMSecretContainsDMS,
+		metricManNSConfigMapExists,
+		metricOcpNSConfigMapExists,
+		metricAddonsNSConfigMapExists,
 	}
 )
 
@@ -150,5 +165,44 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 		metricAMSecretContainsDMS.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	} else {
 		metricAMSecretContainsDMS.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
+}
+
+// UpdateConfigMapMetrics updates all metrics related to the existence and contents of ConfigMaps
+// used by configure-alertmanager-operator.
+func UpdateConfigMapMetrics(list *corev1.ConfigMapList) {
+
+	// Default to false.
+	manNsConfigMapExists := false
+	ocpNsConfigMapExists := false
+	addonsNsConfigMapExists := false
+
+	// Update the metric if the configmap is found in the ConfigMapList.
+	for _, configMap := range list.Items {
+		switch configMap.Name {
+		case "managed-namespaces":
+			manNsConfigMapExists = true
+		case "ocp-namespaces":
+			ocpNsConfigMapExists = true
+		case "addons-namespaces":
+			addonsNsConfigMapExists = true
+		}
+	}
+
+	// Only set metrics once per run.
+	if manNsConfigMapExists {
+		metricManNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
+	} else {
+		metricManNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
+	if ocpNsConfigMapExists {
+		metricOcpNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
+	} else {
+		metricOcpNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
+	if addonsNsConfigMapExists {
+		metricAddonsNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
+	} else {
+		metricAddonsNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
 	}
 }
