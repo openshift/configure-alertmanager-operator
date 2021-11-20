@@ -272,11 +272,9 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string) *alertmanager.
 		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
 		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
 		Details: map[string]string{
-			"link":         `{{ if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
-			"link2":        `{{ if .CommonAnnotations.runbook }}{{ .CommonAnnotations.runbook }}{{ else }}{{ end }}`,
+			"alert_name":   `{{ .CommonLabels.alertname }}`,
+			"link":         `{{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
 			"ocm_link":     fmt.Sprintf("https://console.redhat.com/openshift/details/%s", clusterID),
-			"group":        `{{ .CommonLabels.alertname }}`,
-			"component":    `{{ .CommonLabels.alertname }}`,
 			"num_firing":   `{{ .Alerts.Firing | len }}`,
 			"num_resolved": `{{ .Alerts.Resolved | len }}`,
 			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
