@@ -215,6 +215,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-8249
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "redhat-rhoam-middleware-monitoring-operator"}},
 
+		// https://issues.redhat.com/browse/OSD-9061
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
+
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 
@@ -250,7 +253,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 			{Receiver: receiverPagerduty, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
 			// general: route anything in core namespaces to PD
 			{Receiver: receiverPagerduty, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
-		}...,)
+		}...)
 	}
 
 	return &alertmanager.Route{
@@ -492,8 +495,8 @@ func (r *ReconcileSecret) parseConfigMaps(cmList *corev1.ConfigMapList, cmNamesp
 
 	// Default to alerting on all ^openshift-.* namespaces if either list is empty, potentially indicating a problem parsing configMaps
 	if len(managedNamespaces) == 0 ||
-	   len(ocpNamespaces)     == 0 ||
-	   len(addonsNamespaces)  == 0 {
+		len(ocpNamespaces) == 0 ||
+		len(addonsNamespaces) == 0 {
 		log.Info("DEBUG: Could not retrieve namespaces from one or more configMaps. Using default namespaces", "list", defaultNamespaces)
 		return defaultNamespaces
 	}
@@ -526,7 +529,7 @@ func (r *ReconcileSecret) parseNamespaceConfigMap(cmName string, cmNamespace str
 	}
 
 	for _, ns := range namespaceConfig.Resources.Namespaces {
-		nsList = append(nsList, "^" + ns.Name + "$")
+		nsList = append(nsList, "^"+ns.Name+"$")
 	}
 	return nsList
 }
