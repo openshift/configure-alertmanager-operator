@@ -241,6 +241,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-8689
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CsvAbnormalFailedOver2Min", "exported_namespace": "redhat-ods-operator"}},
+
+		// https://issues.redhat.com/browse/OSD-9062
+		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
 	}
 
 	for _, namespace := range namespaceList {
