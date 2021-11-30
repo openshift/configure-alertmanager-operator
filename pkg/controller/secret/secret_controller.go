@@ -229,6 +229,10 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
 
+		// Ensure NodeClockNotSynchronising is routed to SRE
+		// https://issues.redhat.com/browse/OSD-8736
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
+
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
 		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
@@ -323,7 +327,7 @@ func createWatchdogRoute() *alertmanager.Route {
 	}
 }
 
-// createWatchdogReceivers creates an AlertManager Receiver for Watchdog (Dead Man's Sntich) in memory.
+// createWatchdogReceivers creates an AlertManager Receiver for Watchdog (Dead Man's Snitch) in memory.
 func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 	if watchdogURL == "" {
 		return []*alertmanager.Receiver{}
