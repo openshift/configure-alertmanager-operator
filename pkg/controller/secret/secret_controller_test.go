@@ -1,4 +1,5 @@
 package secret
+
 import (
 	"context"
 	"encoding/json"
@@ -33,7 +34,7 @@ var exampleManagedNamespaces = []string{
 	"openshift-backplane-managed-scripts",
 }
 
-var exampleOCPNamespaces = []string {
+var exampleOCPNamespaces = []string{
 	"openshift-apiserver-operator",
 	"openshift-authentication-operator",
 	"openshift-cloud-controller-manager",
@@ -41,7 +42,7 @@ var exampleOCPNamespaces = []string {
 	"openshift-cloud-credential-operator",
 }
 
-var exampleAddonsNamespaces = []string {
+var exampleAddonsNamespaces = []string{
 	"acm",
 	"addon-dba-operator",
 	"codeready-workspaces-operator",
@@ -143,7 +144,7 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route, expectedNames
 		}
 	}
 
-	if reflect.DeepEqual(expectedNamespaces, routeNamespaces){
+	if reflect.DeepEqual(expectedNamespaces, routeNamespaces) {
 		hasNamespace = true
 	}
 
@@ -171,6 +172,7 @@ func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanage
 	// verify structure of each
 	hasMakeItWarning := false
 	hasPagerduty := false
+	hasMakeItError := false
 	for _, receiver := range receivers {
 		switch receiver.Name {
 		case receiverMakeItWarning:
@@ -184,9 +186,16 @@ func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanage
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertTrue(t, receiver.PagerdutyConfigs[0].Severity != "", "Non empty Severity")
 			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
+		case receiverMakeItError:
+			hasMakeItError = true
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
+			assertEquals(t, "error", receiver.PagerdutyConfigs[0].Severity, "Severity")
+			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
 		}
 	}
 
+	assertTrue(t, hasMakeItError, fmt.Sprintf("No '%s' receiver", receiverMakeItError))
 	assertTrue(t, hasMakeItWarning, fmt.Sprintf("No '%s' receiver", receiverMakeItWarning))
 	assertTrue(t, hasPagerduty, fmt.Sprintf("No '%s' receiver", receiverPagerduty))
 }
@@ -419,7 +428,7 @@ func Test_parseSecrets(t *testing.T) {
 	mockReadiness := readiness.NewMockInterface(ctrl)
 	reconciler := createReconciler(t, mockReadiness)
 
-	pdKey  := "asdfjkl123"
+	pdKey := "asdfjkl123"
 	dmsURL := "https://hjklasdf09876"
 
 	createNamespace(reconciler, t)
@@ -447,7 +456,7 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	mockReadiness := readiness.NewMockInterface(ctrl)
 	reconciler := createReconciler(t, mockReadiness)
 
-	pdKey  := "asdfjkl123"
+	pdKey := "asdfjkl123"
 
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
@@ -504,7 +513,7 @@ func Test_parseConfigMaps(t *testing.T) {
 
 	// Convert to regex to match the result of parseConfigMaps()
 	for i, ns := range validNamespaces {
-		validNamespaces[i] = "^"+ns+"$"
+		validNamespaces[i] = "^" + ns + "$"
 	}
 
 	type configMapTest struct {
@@ -514,120 +523,120 @@ func Test_parseConfigMaps(t *testing.T) {
 
 	// Define tests
 	tests := []struct {
-		name string
+		name               string
 		expectedNamespaces []string
-		managedNamespace configMapTest
-		ocpNamespaces configMapTest
-		addonsNamespaces configMapTest
+		managedNamespace   configMapTest
+		ocpNamespaces      configMapTest
+		addonsNamespaces   configMapTest
 	}{
 		{
-			name: "Valid configMaps",
+			name:               "Valid configMaps",
 			expectedNamespaces: validNamespaces,
-			managedNamespace: configMapTest {
+			managedNamespace: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			ocpNamespaces: configMapTest {
+			ocpNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest {
+			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
 		},
 		{
-			name: "Invalid managed-namespaces configMap",
+			name:               "Invalid managed-namespaces configMap",
 			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest {
+			managedNamespace: configMapTest{
 				invalid: true,
 				missing: false,
 			},
-			ocpNamespaces: configMapTest {
+			ocpNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest {
+			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
 		},
 		{
-			name: "Missing managed-namespaces configMap",
+			name:               "Missing managed-namespaces configMap",
 			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest {
+			managedNamespace: configMapTest{
 				invalid: false,
 				missing: true,
 			},
-			ocpNamespaces: configMapTest {
+			ocpNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest {
+			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
 		},
 		{
-			name: "Invalid ocp-namespaces configMap",
+			name:               "Invalid ocp-namespaces configMap",
 			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest {
+			managedNamespace: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			ocpNamespaces: configMapTest {
+			ocpNamespaces: configMapTest{
 				invalid: true,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest {
+			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
 		},
 		{
-			name: "Missing ocp-namespaces configMap",
+			name:               "Missing ocp-namespaces configMap",
 			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest {
+			managedNamespace: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			ocpNamespaces: configMapTest {
+			ocpNamespaces: configMapTest{
 				invalid: false,
 				missing: true,
 			},
-			addonsNamespaces: configMapTest {
+			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
 		},
 		{
-			name: "Invalid addons-namespaces configMap",
+			name:               "Invalid addons-namespaces configMap",
 			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest {
+			managedNamespace: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			ocpNamespaces: configMapTest {
+			ocpNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest {
+			addonsNamespaces: configMapTest{
 				invalid: true,
 				missing: false,
 			},
 		},
 		{
-			name: "Missing addons-namespaces configMap",
+			name:               "Missing addons-namespaces configMap",
 			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest {
+			managedNamespace: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			ocpNamespaces: configMapTest {
+			ocpNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest {
+			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: true,
 			},
@@ -768,7 +777,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
 	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 3, len(config.Receivers), "Receivers")
+	assertEquals(t, 4, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
 
@@ -792,7 +801,7 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
 	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 4, len(config.Receivers), "Receivers")
+	assertEquals(t, 5, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
 
