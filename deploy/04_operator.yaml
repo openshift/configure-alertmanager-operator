@@ -43,3 +43,5 @@ spec:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: "configure-alertmanager-operator"
+            - name: FEDRAMP
+              value: "false"
