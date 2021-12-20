@@ -256,6 +256,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-9062
 		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
+
+		// https://issues.redhat.com/browse/OSD-9383
+		{Receiver: receiverNull, Match: map[string]string{"severity": "none"}},
 	}
 
 	for _, namespace := range namespaceList {
