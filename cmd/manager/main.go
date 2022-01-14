@@ -105,7 +105,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = operatorconfig.IsFedramp()
+	err = operatorconfig.SetIsFedramp()
 	if err != nil {
 		log.Error(err, "Failed to get fedramp value")
 		osd.Exit(1)
