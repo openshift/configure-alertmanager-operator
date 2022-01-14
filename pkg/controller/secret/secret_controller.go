@@ -135,7 +135,8 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 	// these are sub-routes.  if any matches it will not continue processing.
 	// 1. route anything we want to silence to "null"
 	// 2. route anything that should be a warning to "make-it-warning"
-	// 3. route anything we want to go to PD
+	// 3. route anything that should be an error to "make-it-error"
+	// 4. route anything we want to go to PD
 	pagerdutySubroutes := []*alertmanager.Route{
 		// https://issues.redhat.com/browse/OSD-1966
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaExceeded"}},
@@ -236,6 +237,8 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
+
+		//Add any alerts below to override their severity to Error
 
 		// Ensure NodeClockNotSynchronising is routed to PD as a high alert
 		// https://issues.redhat.com/browse/OSD-8736
