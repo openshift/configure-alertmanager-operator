@@ -606,11 +606,14 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	if fedrampVar, ok := os.LookupEnv("FEDRAMP"); ok {
 		fedramp, err := strconv.ParseBool(fedrampVar)
 		if err != nil {
-			reqLogger.Info("Unable to parse FEDRAMP environment variable, defaulting to %t.", fedramp)
+			reqLogger.Info("FedRAMP environment variable unable to be parsed", "fedramp", fedramp)
 		}
-		reqLogger.Info("FedRAMP environment: %t", fedramp)
+
+		if fedramp {
+			reqLogger.Info("FedRAMP environment", "fedramp", fedramp)
+		}
 	} else {
-		reqLogger.Info("FedRAMP environment variable unset, defaulting to %t", fedramp)
+		reqLogger.Info("FedRAMP environment variable unset", "fedramp", fedramp)
 	}
 
 	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
