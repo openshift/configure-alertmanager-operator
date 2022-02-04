@@ -14,7 +14,36 @@
 
 package config
 
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
 const (
 	OperatorName      string = "configure-alertmanager-operator"
 	OperatorNamespace string = "openshift-monitoring"
 )
+
+var isFedramp = false
+
+// SetIsFedramp gets the value of fedramp
+func SetIsFedramp() error {
+	fedramp, ok := os.LookupEnv("FEDRAMP")
+	if !ok {
+		fedramp = "false"
+	}
+
+	fedrampBool, err := strconv.ParseBool(fedramp)
+	if err != nil {
+		return fmt.Errorf("Invalid value for FedRAMP environment variable. %w", err)
+	}
+
+	isFedramp = fedrampBool
+	return nil
+}
+
+// IsFedramp returns value of isFedramp var
+func IsFedramp() bool {
+	return isFedramp
+}

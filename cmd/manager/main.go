@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/configure-alertmanager-operator/pkg/apis"
 	"github.com/openshift/configure-alertmanager-operator/pkg/controller"
 	operatormetrics "github.com/openshift/configure-alertmanager-operator/pkg/metrics"
+	operatorconfig "github.com/openshift/configure-alertmanager-operator/config"
 
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
@@ -104,6 +105,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	err = operatorconfig.IsFedramp()
+	if err != nil {
+		log.Error(err, "Failed to get fedramp value")
+		osd.Exit(1)
+	}
+	if operatorconfig.IsFedramp() {
+		log.Info("Running in fedramp environment")
+	}
 	// Setup all Controllers
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "")
