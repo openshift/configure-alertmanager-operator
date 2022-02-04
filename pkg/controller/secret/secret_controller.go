@@ -3,8 +3,6 @@ package secret
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -599,19 +597,6 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 
 	reqLogger := log.WithValues("Request.Name", request.Name)
 	reqLogger.Info("Reconciling Object")
-
-	// FEDRAMP environment check
-	// TODO: Add cluster info anonymization if FEDRAMP is true
-	fedramp := false
-	if fedrampVar, ok := os.LookupEnv("FEDRAMP"); ok {
-		fedramp, err := strconv.ParseBool(fedrampVar)
-		if err != nil {
-			reqLogger.Info("Unable to parse FEDRAMP environment variable, defaulting to %t.", fedramp)
-		}
-		reqLogger.Info("FedRAMP environment: %t", fedramp)
-	} else {
-		reqLogger.Info("FedRAMP environment variable unset, defaulting to %t", fedramp)
-	}
 
 	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
 	// TODO: Filter these with a predicate instead
