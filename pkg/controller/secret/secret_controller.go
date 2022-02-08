@@ -151,16 +151,12 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-customer-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-3569
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-operators"}},
-		// https://issues.redhat.com/browse/OSD-7631
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-pipelines"}},
 		// https://issues.redhat.com/browse/OSD-8337
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-storage"}},
 		// https://issues.redhat.com/browse/OSD-8702
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-compliance"}},
 		// https://issues.redhat.com/browse/OSD-8349
 		{Receiver: receiverNull, Match: map[string]string{"exported_namespace": "openshift-storage"}},
-		// https://issues.redhat.com/browse/OSD-7747
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-cnv"}},
 		// https://issues.redhat.com/browse/OSD-6505
 		{Receiver: receiverNull, Match: map[string]string{"exported_namespace": "openshift-operators"}},
 		// https://issues.redhat.com/browse/OSD-7653
@@ -207,18 +203,10 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteDesiredShards", "namespace": "openshift-monitoring"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteBehind", "namespace": "openshift-monitoring"}},
 
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-gitops"}},
-
 		//https://issues.redhat.com/browse/OSD-7671
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
 		//https://issues.redhat.com/browse/OSD-8403, https://issues.redhat.com/browse/OSD-8576
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthIncreasing", "namespace": "openshift-logging"}},
-
-		// Suppress these alerts while sd-cssre moves the RHODS addon to non-"redhat*-" namespace
-		// TODO: This can be removed when RHODS-280 is completed
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeUsageCriticalLayeredProduct", "namespace": "redhat-ods-applications"}},
-		// https://issues.redhat.com/browse/OSD-8249
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "redhat-rhoam-middleware-monitoring-operator"}},
 
 		// https://issues.redhat.com/browse/OSD-9061
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
@@ -245,20 +233,12 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-8006
 		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
 
-		// Stop receiving alerts from customer namespace 'openshift-redhat-marketplace'
-		// TODO: Check again when 4.9 is out
-		// https://issues.redhat.com/browse/OSD-6951
-		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-redhat-marketplace"}},
-
 		// https://issues.redhat.com/browse/OSD-6821
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-user-workload-monitoring"}},
 
 		// https://issues.redhat.com/browse/OSD-9426
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusTargetSyncFailure", "namespace": "openshift-user-workload-monitoring"}},
-
-		// https://issues.redhat.com/browse/OSD-8689
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CsvAbnormalFailedOver2Min", "exported_namespace": "redhat-ods-operator"}},
 	}
 
 	for _, namespace := range namespaceList {
