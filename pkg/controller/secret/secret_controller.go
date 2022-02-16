@@ -199,11 +199,6 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		//https://issues.redhat.com/browse/OSD-6559
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
 
-		//https://issues.redhat.com/browse/OSD-6704
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteStorageFailures", "namespace": "openshift-monitoring"}},
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteDesiredShards", "namespace": "openshift-monitoring"}},
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteBehind", "namespace": "openshift-monitoring"}},
-
 		//https://issues.redhat.com/browse/OSD-7671
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
 		//https://issues.redhat.com/browse/OSD-8403, https://issues.redhat.com/browse/OSD-8576
