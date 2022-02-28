@@ -122,6 +122,13 @@ func assertTrue(t *testing.T, status bool, message string) {
 	t.Fatal(message)
 }
 
+func assertFalse(t *testing.T, status bool, message string) {
+	if !status {
+		return
+	}
+	t.Fatal(message)
+}
+
 // utility class to test PD route creation
 func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route, expectedNamespaces []string) {
 	assertEquals(t, defaultReceiver, route.Receiver, "Receiver Name")
@@ -223,6 +230,31 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 	}
 
 	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
+}
+
+// utility function to verify watchdog route
+func verifyOCMAgentRoute(t *testing.T, route *alertmanager.Route) {
+	assertEquals(t, receiverOCMAgent, route.Receiver, "Receiver Name")
+	assertFalse(t, route.Continue, "Continue")
+	assertEquals(t, "true", route.Match[managedNotificationLabel], "Alert Label")
+}
+
+// utility to test watchdog receivers
+func verifyOCMAgentReceiver(t *testing.T, url string, receivers []*alertmanager.Receiver) {
+	// there is 1 receiver
+	assertGte(t, 1, len(receivers), "Number of Receivers")
+
+	// verify structure of each
+	hasOCMAgent := false
+	for _, receiver := range receivers {
+		if receiver.Name == receiverOCMAgent {
+			hasOCMAgent = true
+			assertTrue(t, receiver.WebhookConfigs[0].VSendResolved, "VSendResolved")
+			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
+		}
+	}
+
+	assertTrue(t, hasOCMAgent, fmt.Sprintf("No '%s' receiver", receiverOCMAgent))
 }
 
 func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) {
@@ -705,6 +737,79 @@ func Test_parseConfigMaps(t *testing.T) {
 	}
 }
 
+// Test_parseConfigMaps tests the parseConfigMaps function under various circumstances
+func Test_readOCMAgentServiceURLFromConfig(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	type configMapTest struct {
+		invalid bool
+		missing bool
+	}
+
+	testValidURL := "http://a-valid.url.svc.cluster.local:9999/test"
+	// Define tests
+	tests := []struct {
+		name               string
+		expectedServiceURL string
+		oaConfigMap        configMapTest
+	}{
+		{
+			name:               "Valid configMap",
+			expectedServiceURL: testValidURL,
+			oaConfigMap: configMapTest{
+				invalid: false,
+				missing: false,
+			},
+		},
+		{
+			name:               "Invalid configMap",
+			expectedServiceURL: "",
+			oaConfigMap: configMapTest{
+				invalid: true,
+				missing: false,
+			},
+		},
+		{
+			name:               "Missing configMap",
+			expectedServiceURL: "",
+			oaConfigMap: configMapTest{
+				invalid: false,
+				missing: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		mockReadiness := readiness.NewMockInterface(ctrl)
+		reconciler := createReconciler(t, mockReadiness)
+		createNamespace(reconciler, t)
+
+		// managed-namespaces configMap
+		if !tt.oaConfigMap.missing {
+			var cmDataOCMAgentServiceURL string
+			if tt.oaConfigMap.invalid {
+				cmDataOCMAgentServiceURL = "This is an invalid URL"
+			} else {
+				cmDataOCMAgentServiceURL = testValidURL
+			}
+			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, cmDataOCMAgentServiceURL)
+		}
+
+		// Run and verify results
+		cmList := &corev1.ConfigMapList{}
+		err := reconciler.client.List(context.TODO(), cmList, &client.ListOptions{})
+		if err != nil {
+			t.Fatalf("Could not list ConfigMaps: %v", err)
+		}
+
+		request := createReconcileRequest(reconciler, cmNameOcmAgent)
+		oaService := reconciler.readOCMAgentServiceURLFromConfig(cmList, request.Namespace)
+
+		assertEquals(t, tt.expectedServiceURL, oaService, "Expected OCM Agent service URLs to match")
+	}
+}
+
 func Test_createPagerdutyRoute(t *testing.T) {
 	// test the structure of the Route is sane
 	route := createPagerdutyRoute(defaultNamespaces)
@@ -746,8 +851,9 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
+	oaURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -767,8 +873,9 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
+	oaURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -788,11 +895,11 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	verifyInhibitRules(t, config.InhibitRules)
 }
 
-func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
+func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
-
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
+	oaURL := "http://dummy-oa-url"
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -801,25 +908,29 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
-	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 5, len(config.Receivers), "Receivers")
+	assertEquals(t, 3, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 6, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
 
-	verifyPagerdutyRoute(t, config.Route.Routes[1], exampleManagedNamespaces)
+	verifyPagerdutyRoute(t, config.Route.Routes[2], exampleManagedNamespaces)
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 
 	verifyWatchdogRoute(t, config.Route.Routes[0])
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
 
+	verifyOCMAgentRoute(t, config.Route.Routes[1])
+	verifyOCMAgentReceiver(t, oaURL, config.Receivers)
+
 	verifyInhibitRules(t, config.InhibitRules)
 }
 
-func Test_createAlertManagerConfig_WithoutKey_WithURL(t *testing.T) {
+func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) {
 	pdKey := ""
 	wdURL := "http://theinterwebs"
+	oaURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -909,12 +1020,13 @@ func createReconcileRequest(reconciler *ReconcileSecret, secretname string) *rec
 	}
 }
 
-// Test_updateAlertManagerConfig tests writing to the Alertmanager config.
+// Test_createPagerdutySecret_Create tests writing to the Alertmanager config.
 func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -928,6 +1040,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
+	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 
 	// reconcile (one event should config everything)
@@ -946,11 +1059,12 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
 
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -963,6 +1077,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 
 	// reconcile (one event should config everything)
@@ -1011,6 +1126,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 		dmsExists   bool
 		pdExists    bool
 		amExists    bool
+		oaExists    bool
 		otherExists bool
 	}{
 		{
@@ -1018,6 +1134,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   false,
 			pdExists:    false,
 			amExists:    false,
+			oaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1025,6 +1142,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   true,
 			pdExists:    false,
 			amExists:    false,
+			oaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1032,6 +1150,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   false,
 			pdExists:    true,
 			amExists:    false,
+			oaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1039,6 +1158,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   false,
 			pdExists:    false,
 			amExists:    true,
+			oaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1046,6 +1166,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   false,
 			pdExists:    false,
 			amExists:    false,
+			oaExists:    false,
 			otherExists: true,
 		},
 		{
@@ -1053,6 +1174,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   true,
 			pdExists:    true,
 			amExists:    false,
+			oaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1060,6 +1182,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   false,
 			pdExists:    true,
 			amExists:    true,
+			oaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1067,6 +1190,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   true,
 			pdExists:    false,
 			amExists:    true,
+			oaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1074,6 +1198,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 			dmsExists:   true,
 			pdExists:    true,
 			amExists:    true,
+			oaExists:    false,
 			otherExists: false,
 		},
 	}
@@ -1087,10 +1212,11 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		pdKey := ""
 		wdURL := ""
+		oaURL := ""
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultNamespaces))
+			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", "", defaultNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1103,8 +1229,11 @@ func Test_ReconcileSecrets(t *testing.T) {
 			pdKey = "asdfjkl123"
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
-
-		configExpected := createAlertManagerConfig(pdKey, wdURL, exampleClusterId, defaultNamespaces)
+		if tt.oaExists {
+			oaURL = fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
+			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
+		}
+		configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1132,13 +1261,15 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		readyErr  bool
 		expectDMS bool
 		expectPD  bool
+		expectOA  bool
 	}{
 		{
-			name:      "Cluster not ready: don't configure PD.",
+			name:      "Cluster not ready: don't configure PD or OA.",
 			ready:     false,
 			readyErr:  false,
 			expectDMS: true,
 			expectPD:  false,
+			expectOA:  false,
 		},
 		{
 			// This is covered by other test cases, but for completeness...
@@ -1147,6 +1278,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 			readyErr:  false,
 			expectDMS: true,
 			expectPD:  true,
+			expectOA:  true,
 		},
 		{
 			name:      "Readiness check errors: don't configure anything.",
@@ -1154,6 +1286,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 			readyErr:  true,
 			expectDMS: false,
 			expectPD:  false,
+			expectOA:  false,
 		},
 	}
 	for _, tt := range tests {
@@ -1170,10 +1303,11 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
 
-		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", defaultNamespaces))
+		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", "", defaultNamespaces))
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
+		oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
 
 		// Create the secrets for this specific test.
 		// We're testing that Reconcile parlays the PD/DMS secrets into the AM config as
@@ -1188,7 +1322,12 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		if !tt.expectPD {
 			pdKey = ""
 		}
-		configExpected := createAlertManagerConfig(pdKey, dmsURL, exampleClusterId, defaultNamespaces)
+		if tt.expectOA {
+			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
+		} else {
+			oaURL = ""
+		}
+		configExpected := createAlertManagerConfig(pdKey, dmsURL, oaURL, exampleClusterId, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
