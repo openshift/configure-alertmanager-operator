@@ -3,6 +3,7 @@ package secret
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 
@@ -72,6 +73,25 @@ const (
 
 	// global config for PagerdutyURL
 	pagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
+
+	// anything routed to "ocmagent" will not alert/notify SREP and will be handled by OCM Agent
+	receiverOCMAgent = "ocmagent"
+
+	// alert label used for identifying OCM Agent-bound alerts
+	managedNotificationLabel = "send_managed_notification"
+
+	// service name for the OCM Agent service
+	ocmAgentService = "ocm-agent"
+	// namespace for the OCM Agent service
+	ocmAgentNamespace = "openshift-ocm-agent-operator"
+	// path for the OCM Agent alertmanager receiver webhook
+	ocmAgentWebhookPath = "/alertmanager-receiver"
+
+	// configmap name for OCM agent configuration
+	cmNameOcmAgent = "ocm-agent"
+
+	// OCM Agent configmap key for service URL
+	cmKeyOCMAgent = "serviceURL"
 )
 
 var defaultNamespaces = []string{
@@ -138,6 +158,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 	// 3. route anything that should be an error to "make-it-error"
 	// 4. route anything we want to go to PD
 	pagerdutySubroutes := []*alertmanager.Route{
+		// Silence anything intended for OCM Agent
+		// https://issues.redhat.com/browse/SDE-1315
+		{Receiver: receiverNull, Match: map[string]string{managedNotificationLabel: "true"}},
 		// https://issues.redhat.com/browse/OSD-1966
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeQuotaExceeded"}},
 		// This will be renamed in release 4.5
@@ -263,6 +286,35 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 	}
 }
 
+// createOCMAgentRoute creates an AlertManager Route for OcmAgent in memory.
+func createOCMAgentRoute() *alertmanager.Route {
+	return &alertmanager.Route{
+		Receiver: receiverOCMAgent,
+		Continue: false,
+		Match:    map[string]string{managedNotificationLabel: "true"},
+		RepeatInterval: "10m",
+	}
+}
+
+// createOCMAgentReceiver creates an AlertManager Receiver for OCM Agent in memory.
+func createOCMAgentReceiver(ocmAgentURL string) []*alertmanager.Receiver {
+	if ocmAgentURL == "" {
+		return []*alertmanager.Receiver{}
+	}
+
+	ocmAgentConfig := &alertmanager.WebhookConfig{
+		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
+		URL:            ocmAgentURL,
+	}
+
+	return []*alertmanager.Receiver{
+		{
+			Name:           receiverOCMAgent,
+			WebhookConfigs: []*alertmanager.WebhookConfig{ocmAgentConfig},
+		},
+	}
+}
+
 // createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
 func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string) *alertmanager.PagerdutyConfig {
 	return &alertmanager.PagerdutyConfig{
@@ -344,13 +396,18 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, clusterID string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
 	if watchdogURL != "" {
 		routes = append(routes, createWatchdogRoute())
 		receivers = append(receivers, createWatchdogReceivers(watchdogURL)...)
+	}
+
+	if ocmAgentURL != "" {
+		routes = append(routes, createOCMAgentRoute())
+		receivers = append(receivers, createOCMAgentReceiver(ocmAgentURL)...)
 	}
 
 	if pagerdutyRoutingKey != "" {
@@ -537,6 +594,24 @@ func (r *ReconcileSecret) parseNamespaceConfigMap(cmName string, cmNamespace str
 	return nsList
 }
 
+// readOCMAgentServiceURLFromConfig returns the OCM Agent service URL from the OCM Agent configmap
+func (r *ReconcileSecret) readOCMAgentServiceURLFromConfig(cmList *corev1.ConfigMapList, cmNamespace string) string {
+	cmExists := cmInList(cmNameOcmAgent, cmList)
+	if !cmExists {
+		log.Info("INFO: ConfigMap does not exist", "ConfigMap", cmNameOcmAgent)
+		return ""
+	}
+
+	// Unmarshal configMap, fail on error or if no namespaces are present in decoded config
+	serviceURL := readCMKey(r, cmNameOcmAgent, cmNamespace, cmKeyOCMAgent)
+	if _, err := url.ParseRequestURI(serviceURL); err != nil {
+		log.Error(err, "Invalid OCM Agent Service URL")
+		return ""
+	}
+
+	return serviceURL
+}
+
 func (r *ReconcileSecret) parseSecrets(secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string) {
 	// Check for the presence of specific secrets.
 	pagerDutySecretExists := secretInList(secretNamePD, secretList)
@@ -604,6 +679,7 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	case secretNamePD:
 	case secretNameDMS:
 	case secretNameAlertmanager:
+	case cmNameOcmAgent:
 	case cmNameManagedNamespaces:
 	case cmNameOCPNamespaces:
 	case cmNameAddonsNamespaces:
@@ -641,12 +717,14 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	osdNamespaces := r.parseConfigMaps(cmList, request.Namespace)
 	log.Info("DEBUG: Adding PagerDuty routes to the following", "Namespaces", osdNamespaces)
 
+	ocmAgentURL := r.readOCMAgentServiceURLFromConfig(cmList, request.Namespace)
+
 	// create the desired alertmanager Config
 	clusterID, err := r.getClusterID()
 	if err != nil {
 		log.Error(err, "Error reading cluster id.")
 	}
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, clusterID, osdNamespaces)
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, osdNamespaces)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, alertmanagerconfig)
