@@ -8,10 +8,10 @@ import (
 	"runtime"
 
 	configv1 "github.com/openshift/api/config/v1"
+	operatorconfig "github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/apis"
 	"github.com/openshift/configure-alertmanager-operator/pkg/controller"
 	operatormetrics "github.com/openshift/configure-alertmanager-operator/pkg/metrics"
-
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 
@@ -137,6 +137,18 @@ func main() {
 	if err := operatormetrics.StartMetrics(); err != nil {
 		log.Error(err, "Failed to start metrics service")
 		os.Exit(1)
+	}
+
+	log.Info("Checking if cluster is fedramp")
+
+	// Check for fedramp clusters
+	err = operatorconfig.SetIsFedramp()
+	if err != nil {
+		log.Error(err, "Failed to get fedramp value")
+		os.Exit(1)
+	}
+	if operatorconfig.IsFedramp() {
+		log.Info("Running in fedramp environment.")
 	}
 
 	log.Info("Starting the Cmd.")

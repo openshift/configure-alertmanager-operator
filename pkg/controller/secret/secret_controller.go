@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
-	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -289,9 +287,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 // createOCMAgentRoute creates an AlertManager Route for OcmAgent in memory.
 func createOCMAgentRoute() *alertmanager.Route {
 	return &alertmanager.Route{
-		Receiver: receiverOCMAgent,
-		Continue: false,
-		Match:    map[string]string{managedNotificationLabel: "true"},
+		Receiver:       receiverOCMAgent,
+		Continue:       false,
+		Match:          map[string]string{managedNotificationLabel: "true"},
 		RepeatInterval: "10m",
 	}
 }
@@ -317,20 +315,30 @@ func createOCMAgentReceiver(ocmAgentURL string) []*alertmanager.Receiver {
 
 // createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
 func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string) *alertmanager.PagerdutyConfig {
+	detailsMap := map[string]string{
+		"alert_name":   `{{ .CommonLabels.alertname }}`,
+		"link":         `{{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
+		"ocm_link":     fmt.Sprintf("https://console.redhat.com/openshift/details/%s", clusterID),
+		"num_firing":   `{{ .Alerts.Firing | len }}`,
+		"num_resolved": `{{ .Alerts.Resolved | len }}`,
+		"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+		"cluster_id":   clusterID,
+	}
+
+	if config.IsFedramp() {
+		detailsMap["ocm_link"] = ``
+		detailsMap["resolved"] = ``
+		detailsMap["cluster_id"] = ``
+		detailsMap["firing"] = ``
+		detailsMap["link"] = ``
+	}
+
 	return &alertmanager.PagerdutyConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
 		RoutingKey:     pagerdutyRoutingKey,
 		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
 		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
-		Details: map[string]string{
-			"alert_name":   `{{ .CommonLabels.alertname }}`,
-			"link":         `{{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
-			"ocm_link":     fmt.Sprintf("https://console.redhat.com/openshift/details/%s", clusterID),
-			"num_firing":   `{{ .Alerts.Firing | len }}`,
-			"num_resolved": `{{ .Alerts.Resolved | len }}`,
-			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
-			"cluster_id":   clusterID,
-		},
+		Details:        detailsMap,
 	}
 
 }
@@ -656,22 +664,6 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 
 	reqLogger := log.WithValues("Request.Name", request.Name)
 	reqLogger.Info("Reconciling Object")
-
-	// FEDRAMP environment check
-	// TODO: Add cluster info anonymization if FEDRAMP is true
-	fedramp := false
-	if fedrampVar, ok := os.LookupEnv("FEDRAMP"); ok {
-		fedramp, err := strconv.ParseBool(fedrampVar)
-		if err != nil {
-			reqLogger.Info("FedRAMP environment variable unable to be parsed", "fedramp", fedramp)
-		}
-
-		if fedramp {
-			reqLogger.Info("FedRAMP environment", "fedramp", fedramp)
-		}
-	} else {
-		reqLogger.Info("FedRAMP environment variable unset", "fedramp", fedramp)
-	}
 
 	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
 	// TODO: Filter these with a predicate instead
