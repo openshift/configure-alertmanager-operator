@@ -5,6 +5,7 @@ go 1.13
 require (
 	cloud.google.com/go v0.47.0 // indirect
 	github.com/coreos/prometheus-operator v0.34.0
+	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.5-0.20191022081736-744796356cda // indirect
 	github.com/golang/mock v1.3.1
 	github.com/json-iterator/go v1.1.8 // indirect

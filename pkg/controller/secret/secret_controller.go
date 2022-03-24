@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/go-logr/logr"
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
@@ -550,17 +551,17 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clu
 }
 
 // Retrieves data from all relevant configMaps. Returns a list of namespaces, represented as regular expressions, to monitor
-func (r *ReconcileSecret) parseConfigMaps(cmList *corev1.ConfigMapList, cmNamespace string) (namespaceList []string) {
+func (r *ReconcileSecret) parseConfigMaps(reqLogger logr.Logger, cmList *corev1.ConfigMapList, cmNamespace string) (namespaceList []string) {
 	// Retrieve namespaces from their respective configMaps, if the configMaps exist
-	managedNamespaces := r.parseNamespaceConfigMap(cmNameManagedNamespaces, cmNamespace, cmKeyManagedNamespaces, cmList)
-	ocpNamespaces := r.parseNamespaceConfigMap(cmNameOCPNamespaces, cmNamespace, cmKeyOCPNamespaces, cmList)
-	addonsNamespaces := r.parseNamespaceConfigMap(cmNameAddonsNamespaces, cmNamespace, cmKeyAddonsNamespaces, cmList)
+	managedNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameManagedNamespaces, cmNamespace, cmKeyManagedNamespaces, cmList)
+	ocpNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameOCPNamespaces, cmNamespace, cmKeyOCPNamespaces, cmList)
+	addonsNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameAddonsNamespaces, cmNamespace, cmKeyAddonsNamespaces, cmList)
 
 	// Default to alerting on all ^openshift-.* namespaces if either list is empty, potentially indicating a problem parsing configMaps
 	if len(managedNamespaces) == 0 ||
-		len(ocpNamespaces) == 0 ||
-		len(addonsNamespaces) == 0 {
-		log.Info("DEBUG: Could not retrieve namespaces from one or more configMaps. Using default namespaces", "list", defaultNamespaces)
+	   len(ocpNamespaces)     == 0 ||
+	   len(addonsNamespaces)  == 0 {
+		reqLogger.Info("DEBUG: Could not retrieve namespaces from one or more configMaps. Using default namespaces", "Default namespaces", defaultNamespaces)
 		return defaultNamespaces
 	}
 
@@ -572,22 +573,22 @@ func (r *ReconcileSecret) parseConfigMaps(cmList *corev1.ConfigMapList, cmNamesp
 }
 
 // Returns the namespaces from a *-namespaces configMap as a list of regular expressions
-func (r *ReconcileSecret) parseNamespaceConfigMap(cmName string, cmNamespace string, cmKey string, cmList *corev1.ConfigMapList) (nsList []string) {
-	cmExists := cmInList(cmName, cmList)
+func (r *ReconcileSecret) parseNamespaceConfigMap(reqLogger logr.Logger, cmName string, cmNamespace string, cmKey string, cmList *corev1.ConfigMapList) (nsList []string) {
+	cmExists := cmInList(reqLogger, cmName, cmList)
 	if !cmExists {
-		log.Info("INFO: ConfigMap does not exist", "ConfigMap", cmNameManagedNamespaces)
+		reqLogger.Info("INFO: ConfigMap does not exist", "ConfigMap", cmNameManagedNamespaces)
 		return []string{}
 	}
 
 	// Unmarshal configMap, fail on error or if no namespaces are present in decoded config
 	var namespaceConfig alertmanager.NamespaceConfig
-	rawNamespaces := readCMKey(r, cmName, cmNamespace, cmKey)
+	rawNamespaces := readCMKey(r, reqLogger, cmName, cmNamespace, cmKey)
 	err := yaml.Unmarshal([]byte(rawNamespaces), &namespaceConfig)
 	if err != nil {
-		log.Info("DEBUG: Unable to unmarshal from configMap", "ConfigMap", fmt.Sprintf("%s/%s", cmNamespace, cmName), "Error", err)
+		reqLogger.Info("DEBUG: Unable to unmarshal from configMap", "ConfigMap", fmt.Sprintf("%s/%s", cmNamespace, cmName), "Error", err)
 		return []string{}
 	} else if len(namespaceConfig.Resources.Namespaces) == 0 {
-		log.Info("DEBUG: No namespaces found in configMap", "ConfigMap", fmt.Sprintf("%s/%s", cmNamespace, cmName))
+		reqLogger.Info("DEBUG: No namespaces found in configMap", "ConfigMap", fmt.Sprintf("%s/%s", cmNamespace, cmName))
 		return []string{}
 	}
 
@@ -598,15 +599,15 @@ func (r *ReconcileSecret) parseNamespaceConfigMap(cmName string, cmNamespace str
 }
 
 // readOCMAgentServiceURLFromConfig returns the OCM Agent service URL from the OCM Agent configmap
-func (r *ReconcileSecret) readOCMAgentServiceURLFromConfig(cmList *corev1.ConfigMapList, cmNamespace string) string {
-	cmExists := cmInList(cmNameOcmAgent, cmList)
+func (r *ReconcileSecret) readOCMAgentServiceURLFromConfig(reqLogger logr.Logger, cmList *corev1.ConfigMapList, cmNamespace string) string {
+	cmExists := cmInList(reqLogger, cmNameOcmAgent, cmList)
 	if !cmExists {
 		log.Info("INFO: ConfigMap does not exist", "ConfigMap", cmNameOcmAgent)
 		return ""
 	}
 
 	// Unmarshal configMap, fail on error or if no namespaces are present in decoded config
-	serviceURL := readCMKey(r, cmNameOcmAgent, cmNamespace, cmKeyOCMAgent)
+	serviceURL := readCMKey(r, reqLogger, cmNameOcmAgent, cmNamespace, cmKeyOCMAgent)
 	if _, err := url.ParseRequestURI(serviceURL); err != nil {
 		log.Error(err, "Invalid OCM Agent Service URL")
 		return ""
@@ -615,10 +616,10 @@ func (r *ReconcileSecret) readOCMAgentServiceURLFromConfig(cmList *corev1.Config
 	return serviceURL
 }
 
-func (r *ReconcileSecret) parseSecrets(secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string) {
+func (r *ReconcileSecret) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string) {
 	// Check for the presence of specific secrets.
-	pagerDutySecretExists := secretInList(secretNamePD, secretList)
-	snitchSecretExists := secretInList(secretNameDMS, secretList)
+	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
+	snitchSecretExists := secretInList(reqLogger, secretNameDMS, secretList)
 
 	// do the work! collect secret info for PD and DMS
 	pagerdutyRoutingKey = ""
@@ -628,22 +629,22 @@ func (r *ReconcileSecret) parseSecrets(secretList *corev1.SecretList, namespace 
 	// But don't activate PagerDuty unless the cluster is "ready".
 	// This is to avoid alert noise while the cluster is still being installed and configured.
 	if pagerDutySecretExists {
-		log.Info("INFO: Pager Duty secret exists")
+		reqLogger.Info("INFO: Pager Duty secret exists")
 		if clusterReady {
-			log.Info("INFO: Cluster is ready; configuring Pager Duty")
+			reqLogger.Info("INFO: Cluster is ready; configuring Pager Duty")
 			pagerdutyRoutingKey = readSecretKey(r, secretNamePD, namespace, secretKeyPD)
 		} else {
-			log.Info("INFO: Cluster is not ready; skipping Pager Duty configuration")
+			reqLogger.Info("INFO: Cluster is not ready; skipping Pager Duty configuration")
 		}
 	} else {
-		log.Info("INFO: Pager Duty secret does not exist")
+		reqLogger.Info("INFO: Pager Duty secret does not exist")
 	}
 
 	if snitchSecretExists {
-		log.Info("INFO: Dead Man's Snitch secret exists")
+		reqLogger.Info("INFO: Dead Man's Snitch secret exists")
 		watchdogURL = readSecretKey(r, secretNameDMS, namespace, secretKeyDMS)
 	} else {
-		log.Info("INFO: Dead Man's Snitch secret does not exist")
+		reqLogger.Info("INFO: Dead Man's Snitch secret does not exist")
 	}
 
 	return pagerdutyRoutingKey, watchdogURL
@@ -690,11 +691,11 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 		reqLogger.Info("Skip reconcile: No changes detected to alertmanager secrets.")
 		return reconcile.Result{}, nil
 	}
-	log.Info("DEBUG: Started reconcile loop")
+	reqLogger.Info("DEBUG: Started reconcile loop")
 
 	clusterReady, err := r.readiness.IsReady()
 	if err != nil {
-		log.Error(err, "Error determining cluster readiness.")
+		reqLogger.Error(err, "Error determining cluster readiness.")
 		return r.readiness.Result(), err
 	}
 
@@ -707,30 +708,30 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	secretList := &corev1.SecretList{}
 	err = r.client.List(context.TODO(), secretList, opts...)
 	if err != nil {
-		log.Error(err, "Unable to list secrets")
+		reqLogger.Error(err, "Unable to list secrets")
 	}
 
 	cmList := &corev1.ConfigMapList{}
 	err = r.client.List(context.TODO(), cmList, opts...)
 	if err != nil {
-		log.Error(err, "Unable to list configMaps")
+		reqLogger.Error(err, "Unable to list configMaps")
 	}
 
-	pagerdutyRoutingKey, watchdogURL := r.parseSecrets(secretList, request.Namespace, clusterReady)
-	osdNamespaces := r.parseConfigMaps(cmList, request.Namespace)
-	log.Info("DEBUG: Adding PagerDuty routes to the following", "Namespaces", osdNamespaces)
+	pagerdutyRoutingKey, watchdogURL := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
+	osdNamespaces := r.parseConfigMaps(reqLogger, cmList, request.Namespace)
+	reqLogger.Info("DEBUG: Adding PagerDuty routes for the following namespaces", "Namespaces", osdNamespaces)
 
-	ocmAgentURL := r.readOCMAgentServiceURLFromConfig(cmList, request.Namespace)
+	ocmAgentURL := r.readOCMAgentServiceURLFromConfig(reqLogger, cmList, request.Namespace)
 
 	// create the desired alertmanager Config
 	clusterID, err := r.getClusterID()
 	if err != nil {
-		log.Error(err, "Error reading cluster id.")
+		reqLogger.Error(err, "Error reading cluster id.")
 	}
 	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, osdNamespaces)
 
 	// write the alertmanager Config
-	writeAlertManagerConfig(r, alertmanagerconfig)
+	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
 
 	// Update metrics after all reconcile operations are complete.
 	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
@@ -752,32 +753,32 @@ func (r *ReconcileSecret) getClusterID() (string, error) {
 
 // secretInList takes the name of Secret, and a list of Secrets, and returns a Bool
 // indicating if the name is present in the list
-func secretInList(name string, list *corev1.SecretList) bool {
+func secretInList(reqLogger logr.Logger, name string, list *corev1.SecretList) bool {
 	for _, secret := range list.Items {
 		if name == secret.Name {
-			log.Info("DEBUG: Secret named", secret.Name, "found")
+			reqLogger.Info(fmt.Sprintf("DEBUG: Secret named '%s' found", secret.Name))
 			return true
 		}
 	}
-	log.Info("DEBUG: Secret", name, "not found")
+	reqLogger.Info(fmt.Sprintf("DEBUG: Secret named '%s' not found", name))
 	return false
 }
 
 // cmInList takes the name of ConfigMap, and a list of ConfigMaps, and returns a Bool
 // indicating if the name is present in the list
-func cmInList(name string, list *corev1.ConfigMapList) bool {
+func cmInList(reqLogger logr.Logger, name string, list *corev1.ConfigMapList) bool {
 	for _, cm := range list.Items {
 		if name == cm.Name {
-			log.Info("DEBUG: ConfigMap named", cm.Name, "found")
+			reqLogger.Info(fmt.Sprintf("DEBUG: ConfigMap named '%s' found", cm.Name))
 			return true
 		}
 	}
-	log.Info("DEBUG: ConfigMap", name, "not found")
+	reqLogger.Info(fmt.Sprintf("DEBUG: ConfigMap named '%s' found", name))
 	return false
 }
 
 // readCMKey fetches the data from a ConfigMap, such as the managed namespace list
-func readCMKey(r *ReconcileSecret, cmName string, cmNamespace string, fieldName string) string {
+func readCMKey(r *ReconcileSecret, reqLogger logr.Logger, cmName string, cmNamespace string, fieldName string) string {
 
 	configMap := &corev1.ConfigMap{}
 
@@ -791,7 +792,7 @@ func readCMKey(r *ReconcileSecret, cmName string, cmNamespace string, fieldName 
 	// TODO: Check error from Get(). Right now secret.Data[fieldname] will panic.
 	err := r.client.Get(context.TODO(), objectKey, configMap)
 	if err != nil {
-		log.Error(err, "Error: Failed to retrieve configMap", "Name", cmName)
+		reqLogger.Error(err, "Error: Failed to retrieve configMap", "Name", cmName)
 	}
 	return string(configMap.Data[fieldName])
 }
@@ -814,13 +815,13 @@ func readSecretKey(r *ReconcileSecret, secretName string, secretNamespace string
 }
 
 // writeAlertManagerConfig writes the updated alertmanager config to the `alertmanager-main` secret in namespace `openshift-monitoring`.
-func writeAlertManagerConfig(r *ReconcileSecret, amconfig *alertmanager.Config) {
+func writeAlertManagerConfig(r *ReconcileSecret, reqLogger logr.Logger, amconfig *alertmanager.Config) {
 	amconfigbyte, marshalerr := yaml.Marshal(amconfig)
 	if marshalerr != nil {
-		log.Error(marshalerr, "ERROR: failed to marshal Alertmanager config")
+		reqLogger.Error(marshalerr, "ERROR: failed to marshal Alertmanager config")
 	}
 	// This is commented out because it prints secrets, but it might be useful for debugging when running locally.
-	//log.Info("DEBUG: Marshalled Alertmanager config:", string(amconfigbyte))
+	//reqLogger.Info("DEBUG: Marshalled Alertmanager config:", string(amconfigbyte))
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -843,8 +844,8 @@ func writeAlertManagerConfig(r *ReconcileSecret, amconfig *alertmanager.Config) 
 	}
 
 	if err != nil {
-		log.Error(err, "ERROR: Could not write secret alertmanger-main", "namespace", secret.Namespace)
+		reqLogger.Error(err, "ERROR: Could not write secret alertmanger-main", "namespace", secret.Namespace)
 		return
 	}
-	log.Info("INFO: Secret alertmanager-main successfully updated")
+	reqLogger.Info("INFO: Secret alertmanager-main successfully updated")
 }

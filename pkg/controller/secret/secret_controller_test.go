@@ -19,12 +19,15 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
 	exampleClusterId = "fake-cluster-id"
 )
+
+var reqLogger = logf.Log.WithName("secret_controller")
 
 var exampleManagedNamespaces = []string{
 	"dedicated-admin",
@@ -428,8 +431,8 @@ func Test_cmInList(t *testing.T) {
 		t.Fatalf("Could not list ConfigMaps: %v", err)
 	}
 
-	assertTrue(t, cmInList(cmNameManagedNamespaces, &cmList), fmt.Sprintf("Expected ConfigMap to be present in list: %s", cmNameManagedNamespaces))
-	assertTrue(t, !cmInList("fake-configmap", &cmList), fmt.Sprintf("Did not expect ConfigMap to be present in list: %s", "fake-configmap"))
+	assertTrue(t, cmInList(reqLogger, cmNameManagedNamespaces, &cmList), fmt.Sprintf("Expected ConfigMap to be present in list: %s", cmNameManagedNamespaces))
+	assertTrue(t, !cmInList(reqLogger, "fake-configmap", &cmList), fmt.Sprintf("Did not expect ConfigMap to be present in list: %s", "fake-configmap"))
 }
 
 func Test_secretInList(t *testing.T) {
@@ -448,9 +451,9 @@ func Test_secretInList(t *testing.T) {
 		t.Fatalf("Could not list Secrets: %v", err)
 	}
 
-	assertTrue(t, secretInList(secretNamePD, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNamePD))
-	assertTrue(t, secretInList(secretNameDMS, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNameDMS))
-	assertTrue(t, !secretInList("fake-secret", &secretList), fmt.Sprintf("Did not expect Secret to be present in list: %s", "fake-secret"))
+	assertTrue(t, secretInList(reqLogger, secretNamePD, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNamePD))
+	assertTrue(t, secretInList(reqLogger, secretNameDMS, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNameDMS))
+	assertTrue(t, !secretInList(reqLogger, "fake-secret", &secretList), fmt.Sprintf("Did not expect Secret to be present in list: %s", "fake-secret"))
 }
 
 // Test_parseSecrets tests the parseSecrets function under normal circumstances
@@ -475,7 +478,7 @@ func Test_parseSecrets(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(secretList, request.Namespace, true)
+	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
@@ -501,7 +504,7 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(secretList, request.Namespace, true)
+	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", watchdogURL, "Expected DMS URLs to match")
@@ -527,7 +530,7 @@ func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(secretList, request.Namespace, true)
+	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
@@ -731,7 +734,7 @@ func Test_parseConfigMaps(t *testing.T) {
 		}
 
 		request := createReconcileRequest(reconciler, cmNameManagedNamespaces)
-		namespaceList := reconciler.parseConfigMaps(cmList, request.Namespace)
+		namespaceList := reconciler.parseConfigMaps(reqLogger, cmList, request.Namespace)
 
 		assertEquals(t, tt.expectedNamespaces, namespaceList, "Expected namespace lists to match")
 	}
@@ -804,7 +807,7 @@ func Test_readOCMAgentServiceURLFromConfig(t *testing.T) {
 		}
 
 		request := createReconcileRequest(reconciler, cmNameOcmAgent)
-		oaService := reconciler.readOCMAgentServiceURLFromConfig(cmList, request.Namespace)
+		oaService := reconciler.readOCMAgentServiceURLFromConfig(reqLogger, cmList, request.Namespace)
 
 		assertEquals(t, tt.expectedServiceURL, oaService, "Expected OCM Agent service URLs to match")
 	}
@@ -1216,7 +1219,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", "", defaultNamespaces))
+			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", defaultNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1303,7 +1306,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
 
-		writeAlertManagerConfig(reconciler, createAlertManagerConfig("", "", "", "", defaultNamespaces))
+		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", defaultNamespaces))
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
