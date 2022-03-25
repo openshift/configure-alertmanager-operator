@@ -267,6 +267,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-10473
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
+
+		// https://issues.redhat.com/browse/OSD-10485
+		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
 	}
 
 	for _, namespace := range namespaceList {
