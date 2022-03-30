@@ -291,14 +291,14 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, consoleUrl strin
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
-	if pagerdutyRoutingKey != "" {
-		routes = append(routes, createPagerdutyRoute())
-		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl, clusterID)...)
-	}
-
 	if watchdogURL != "" {
 		routes = append(routes, createWatchdogRoute())
 		receivers = append(receivers, createWatchdogReceivers(watchdogURL)...)
+	}
+
+	if pagerdutyRoutingKey != "" {
+		routes = append(routes, createPagerdutyRoute())
+		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, consoleUrl, clusterID)...)
 	}
 
 	// always have the "null" receiver

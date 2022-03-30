@@ -445,10 +445,10 @@ func Test_createAlertManagerConfig_WithKey_WithURL(t *testing.T) {
 
 	verifyNullReceiver(t, config.Receivers)
 
-	verifyPagerdutyRoute(t, config.Route.Routes[0])
+	verifyPagerdutyRoute(t, config.Route.Routes[1])
 	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
 
-	verifyWatchdogRoute(t, config.Route.Routes[1])
+	verifyWatchdogRoute(t, config.Route.Routes[0])
 	verifyWatchdogReceiver(t, wdURL, config.Receivers)
 
 	verifyInhibitRules(t, config.InhibitRules)
