@@ -25,6 +25,7 @@ import (
 
 const (
 	exampleClusterId = "fake-cluster-id"
+	exampleProxy     = "https://fakeproxy.here"
 )
 
 var reqLogger = logf.Log.WithName("secret_controller")
@@ -175,7 +176,7 @@ func verifyNullReceiver(t *testing.T, receivers []*alertmanager.Receiver) {
 }
 
 // utility function to verify Pagerduty Receivers
-func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanager.Receiver) {
+func verifyPagerdutyReceivers(t *testing.T, key string, proxy string, receivers []*alertmanager.Receiver) {
 	// there are at least 3 receivers: namespace, elasticsearch, and fluentd
 	assertGte(t, 2, len(receivers), "Number of Receivers")
 
@@ -190,18 +191,21 @@ func verifyPagerdutyReceivers(t *testing.T, key string, receivers []*alertmanage
 			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
+			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		case receiverPagerduty:
 			hasPagerduty = true
 			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertTrue(t, receiver.PagerdutyConfigs[0].Severity != "", "Non empty Severity")
 			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
+			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		case receiverMakeItError:
 			hasMakeItError = true
 			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertEquals(t, "error", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
+			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		}
 	}
 
@@ -218,7 +222,7 @@ func verifyWatchdogRoute(t *testing.T, route *alertmanager.Route) {
 }
 
 // utility to test watchdog receivers
-func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.Receiver) {
+func verifyWatchdogReceiver(t *testing.T, url string, proxy string, receivers []*alertmanager.Receiver) {
 	// there is 1 receiver
 	assertGte(t, 1, len(receivers), "Number of Receivers")
 
@@ -229,6 +233,7 @@ func verifyWatchdogReceiver(t *testing.T, url string, receivers []*alertmanager.
 			hasWatchdog = true
 			assertTrue(t, receiver.WebhookConfigs[0].VSendResolved, "VSendResolved")
 			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
+			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		}
 	}
 
@@ -821,15 +826,15 @@ func Test_createPagerdutyRoute(t *testing.T) {
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
-	assertEquals(t, 0, len(createPagerdutyReceivers("", "")), "Number of Receivers")
+	assertEquals(t, 0, len(createPagerdutyReceivers("", "", "")), "Number of Receivers")
 }
 
 func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 	key := "abcdefg1234567890"
 
-	receivers := createPagerdutyReceivers(key, exampleClusterId)
+	receivers := createPagerdutyReceivers(key, exampleClusterId, exampleProxy)
 
-	verifyPagerdutyReceivers(t, key, receivers)
+	verifyPagerdutyReceivers(t, key, exampleProxy, receivers)
 }
 
 func Test_createWatchdogRoute(t *testing.T) {
@@ -840,15 +845,15 @@ func Test_createWatchdogRoute(t *testing.T) {
 }
 
 func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
-	assertEquals(t, 0, len(createWatchdogReceivers("")), "Number of Receivers")
+	assertEquals(t, 0, len(createWatchdogReceivers("", "")), "Number of Receivers")
 }
 
 func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 	url := "http://whatever/something"
 
-	receivers := createWatchdogReceivers(url)
+	receivers := createWatchdogReceivers(url, exampleProxy)
 
-	verifyWatchdogReceiver(t, url, receivers)
+	verifyWatchdogReceiver(t, url, exampleProxy, receivers)
 }
 
 func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
@@ -856,7 +861,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	wdURL := ""
 	oaURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -878,7 +883,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	wdURL := ""
 	oaURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -893,7 +898,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	verifyNullReceiver(t, config.Receivers)
 
 	verifyPagerdutyRoute(t, config.Route.Routes[0], exampleManagedNamespaces)
-	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
+	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
 
 	verifyInhibitRules(t, config.InhibitRules)
 }
@@ -902,7 +907,7 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 	oaURL := "http://dummy-oa-url"
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -917,10 +922,10 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	verifyNullReceiver(t, config.Receivers)
 
 	verifyPagerdutyRoute(t, config.Route.Routes[2], exampleManagedNamespaces)
-	verifyPagerdutyReceivers(t, pdKey, config.Receivers)
+	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
 
 	verifyWatchdogRoute(t, config.Route.Routes[0])
-	verifyWatchdogReceiver(t, wdURL, config.Receivers)
+	verifyWatchdogReceiver(t, wdURL, exampleProxy, config.Receivers)
 
 	verifyOCMAgentRoute(t, config.Route.Routes[1])
 	verifyOCMAgentReceiver(t, oaURL, config.Receivers)
@@ -933,7 +938,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 	wdURL := "http://theinterwebs"
 	oaURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -947,7 +952,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 
 	verifyNullReceiver(t, config.Receivers)
 	verifyWatchdogRoute(t, config.Route.Routes[0])
-	verifyWatchdogReceiver(t, wdURL, config.Receivers)
+	verifyWatchdogReceiver(t, wdURL, exampleProxy, config.Receivers)
 
 	verifyInhibitRules(t, config.InhibitRules)
 }
@@ -1027,9 +1032,9 @@ func createReconcileRequest(reconciler *ReconcileSecret, secretname string) *rec
 func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
-	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, defaultNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1045,6 +1050,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
+	createClusterProxy(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, "pd-secret")
@@ -1062,12 +1068,12 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
-	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, defaultNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1082,6 +1088,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
+	createClusterProxy(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, secretNamePD)
@@ -1104,6 +1111,23 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	configActual = readAlertManagerConfig(reconciler, req)
 
 	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
+}
+
+func createClusterProxy(reconciler *ReconcileSecret) {
+	clusterProxy := &configv1.Proxy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Spec: configv1.ProxySpec{
+			HTTPSProxy: exampleProxy,
+		},
+		Status: configv1.ProxyStatus{
+			HTTPSProxy: exampleProxy,
+		},
+	}
+	if err := reconciler.client.Create(context.TODO(), clusterProxy); err != nil {
+		panic(err)
+	}
 }
 
 func createClusterVersion(reconciler *ReconcileSecret) {
@@ -1212,6 +1236,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 		reconciler := createReconciler(t, mockReadiness)
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
+		createClusterProxy(reconciler)
 
 		pdKey := ""
 		wdURL := ""
@@ -1219,7 +1244,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", defaultNamespaces))
+			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", defaultNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1233,10 +1258,10 @@ func Test_ReconcileSecrets(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 		if tt.oaExists {
-			oaURL = fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
+			oaURL = fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 		}
-		configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, defaultNamespaces)
+		configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1305,12 +1330,13 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		reconciler := createReconciler(t, mockReadiness)
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
+		createClusterProxy(reconciler)
 
-		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", defaultNamespaces))
+		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", defaultNamespaces))
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
-		oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s",ocmAgentService,ocmAgentNamespace,9999,ocmAgentWebhookPath)
+		oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 
 		// Create the secrets for this specific test.
 		// We're testing that Reconcile parlays the PD/DMS secrets into the AM config as
@@ -1330,7 +1356,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		} else {
 			oaURL = ""
 		}
-		configExpected := createAlertManagerConfig(pdKey, dmsURL, oaURL, exampleClusterId, defaultNamespaces)
+		configExpected := createAlertManagerConfig(pdKey, dmsURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 

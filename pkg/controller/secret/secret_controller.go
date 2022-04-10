@@ -321,7 +321,7 @@ func createOCMAgentReceiver(ocmAgentURL string) []*alertmanager.Receiver {
 }
 
 // createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
-func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string) *alertmanager.PagerdutyConfig {
+func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy string) *alertmanager.PagerdutyConfig {
 	detailsMap := map[string]string{
 		"alert_name":   `{{ .CommonLabels.alertname }}`,
 		"link":         `{{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
@@ -346,12 +346,13 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string) *alertmanager.
 		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
 		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
 		Details:        detailsMap,
+		HttpConfig:     createHttpConfig(clusterProxy),
 	}
 
 }
 
 // createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
-func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string) []*alertmanager.Receiver {
+func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -359,12 +360,12 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string) []*alertman
 	receivers := []*alertmanager.Receiver{
 		{
 			Name:             receiverPagerduty,
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID)},
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)},
 		},
 	}
 
 	// make-it-warning overrides the severity
-	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID)
+	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)
 	pdconfig.Severity = "warning"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItWarning,
@@ -372,7 +373,7 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string) []*alertman
 	})
 
 	// make-it-error overrides the severity
-	highpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID)
+	highpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)
 	highpdconfig.Severity = "error"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItError,
@@ -392,7 +393,7 @@ func createWatchdogRoute() *alertmanager.Route {
 }
 
 // createWatchdogReceivers creates an AlertManager Receiver for Watchdog (Dead Man's Snitch) in memory.
-func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
+func createWatchdogReceivers(watchdogURL string, clusterProxy string) []*alertmanager.Receiver {
 	if watchdogURL == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -400,6 +401,7 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 	snitchconfig := &alertmanager.WebhookConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
 		URL:            watchdogURL,
+		HttpConfig:     createHttpConfig(clusterProxy),
 	}
 
 	return []*alertmanager.Receiver{
@@ -410,14 +412,25 @@ func createWatchdogReceivers(watchdogURL string) []*alertmanager.Receiver {
 	}
 }
 
+// createHttpConfig creates a HttpConfig used for receivers that can accept that configuration
+func createHttpConfig(clusterProxy string) alertmanager.HttpConfig {
+	if clusterProxy == "" {
+		return alertmanager.HttpConfig{}
+	}
+	return alertmanager.HttpConfig{
+		ProxyURL:  clusterProxy,
+		TLSConfig: alertmanager.TLSConfig{},
+	}
+}
+
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
 	if watchdogURL != "" {
 		routes = append(routes, createWatchdogRoute())
-		receivers = append(receivers, createWatchdogReceivers(watchdogURL)...)
+		receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
 	}
 
 	if ocmAgentURL != "" {
@@ -427,7 +440,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clu
 
 	if pagerdutyRoutingKey != "" {
 		routes = append(routes, createPagerdutyRoute(namespaceList))
-		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID)...)
+		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
 	}
 
 	// always have the "null" receiver
@@ -570,8 +583,8 @@ func (r *ReconcileSecret) parseConfigMaps(reqLogger logr.Logger, cmList *corev1.
 
 	// Default to alerting on all ^openshift-.* namespaces if either list is empty, potentially indicating a problem parsing configMaps
 	if len(managedNamespaces) == 0 ||
-	   len(ocpNamespaces)     == 0 ||
-	   len(addonsNamespaces)  == 0 {
+		len(ocpNamespaces) == 0 ||
+		len(addonsNamespaces) == 0 {
 		reqLogger.Info("DEBUG: Could not retrieve namespaces from one or more configMaps. Using default namespaces", "Default namespaces", defaultNamespaces)
 		return defaultNamespaces
 	}
@@ -718,12 +731,17 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 
 	ocmAgentURL := r.readOCMAgentServiceURLFromConfig(reqLogger, cmList, request.Namespace)
 
+	clusterProxy, err := r.getClusterProxy()
+	if err != nil {
+		reqLogger.Error(err, "Unable to get cluster proxy")
+	}
+
 	// create the desired alertmanager Config
 	clusterID, err := r.getClusterID()
 	if err != nil {
 		reqLogger.Error(err, "Error reading cluster id.")
 	}
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, osdNamespaces)
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
@@ -744,6 +762,19 @@ func (r *ReconcileSecret) getClusterID() (string, error) {
 		return "", err
 	}
 	return string(version.Spec.ClusterID), nil
+}
+
+func (r *ReconcileSecret) getClusterProxy() (string, error) {
+	var proxy configv1.Proxy
+	err := r.client.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, &proxy)
+	if err != nil {
+		return "", err
+	}
+	// Only care about HTTPS proxy, as PD and DMS comms will be HTTPS
+	if proxy.Status.HTTPSProxy != "" {
+		return proxy.Status.HTTPSProxy, nil
+	}
+	return "", nil
 }
 
 // secretInList takes the name of Secret, and a list of Secrets, and returns a Bool

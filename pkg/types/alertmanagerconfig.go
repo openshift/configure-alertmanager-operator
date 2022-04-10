@@ -110,6 +110,18 @@ type Route struct {
 	RepeatInterval string `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
 }
 
+type HttpConfig struct {
+	ProxyURL  string    `yaml:"proxy_url,omitempty" json:"proxy_url,omitempty"`
+	TLSConfig TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+}
+
+type TLSConfig struct {
+	CAFile             string `yaml:"ca_file,omitempty" json:"ca_file,omitempty"`
+	KeyFile            string `yaml:"key_file,omitempty" json:"key_file,omitempty"`
+	ServerName         string `yaml:"server_name,omitempty" json:"server_name,omitempty"`
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify,omitempty"`
+}
+
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
@@ -124,6 +136,8 @@ type WebhookConfig struct {
 
 	// URL to send POST request to.
 	URL string `yaml:"url" json:"url"`
+
+	HttpConfig HttpConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 }
 
 type PagerdutyConfig struct {
@@ -139,6 +153,7 @@ type PagerdutyConfig struct {
 	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
+	HttpConfig  HttpConfig        `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 }
 
 type NamespaceConfig struct {
