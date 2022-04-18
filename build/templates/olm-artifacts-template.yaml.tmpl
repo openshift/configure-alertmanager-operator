@@ -64,10 +64,10 @@ objects:
         name: configure-alertmanager-operator
         source: configure-alertmanager-operator-registry
         sourceNamespace: openshift-monitoring
-      config:
-        env:
-        - name: FEDRAMP
-          value: "${FEDRAMP}"
+        config:
+          env:
+          - name: FEDRAMP
+            value: "${FEDRAMP}"
     - apiVersion: rbac.authorization.k8s.io/v1
       kind: ClusterRoleBinding
       metadata:
