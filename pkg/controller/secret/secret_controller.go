@@ -156,6 +156,8 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 	// 2. route anything that should be a warning to "make-it-warning"
 	// 3. route anything that should be an error to "make-it-error"
 	// 4. route anything we want to go to PD
+	//
+	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
 	pagerdutySubroutes := []*alertmanager.Route{
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
@@ -190,8 +192,6 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ImagePruningDisabled"}},
 		// https://issues.redhat.com/browse/OSD-3794
 		{Receiver: receiverNull, Match: map[string]string{"severity": "info"}},
-		// https://issues.redhat.com/browse/OSD-8665
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "severity": "warning", "namespace": "openshift-logging"}},
 		// https://issues.redhat.com/browse/OSD-3973
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetLimit"}},
 		// https://issues.redhat.com/browse/OSD-3973
@@ -200,6 +200,32 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
 		// https://issues.redhat.com/browse/OSD-5544
 		{Receiver: receiverNull, MatchRE: map[string]string{"job_name": "^elasticsearch.*"}, Match: map[string]string{"alertname": "KubeJobFailed", "namespace": "openshift-logging"}},
+		// https://issues.redhat.com/browse/OSD-11273 - silence all elasricsearch alerts so we can handle only the ones that have extended logging support
+		// the list of alerts is pulled via
+		// ```
+		//  yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/fluentd_openshift-logging_collector.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
+		// # for elasticsearch
+		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
+		// ```
+		// pass all of the alerts that are SRE related to PD
+		{Receiver: receiverPagerduty, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
+		// fluentd alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDVeryHighErrorRate", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdNodeDown", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthIncreasing", "namespace": "openshift-logging"}}, //https://issues.redhat.com/browse/OSD-8403, https://issues.redhat.com/browse/OSD-8576
+		// elasricseacrch alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "AggregatedLoggingSystemCPUHigh", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchClusterNotHealthy", "namespace": "openshift-logging"}},   // this has happened last week
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchDiskSpaceRunningLow", "namespace": "openshift-logging"}}, // this has happened last week
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchHighFileDescriptorUsage", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchJVMHeapUseHigh", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchNodeDiskWatermarkReached", "namespace": "openshift-logging"}}, // this has happened last week
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchOperatorCSVNotSuccessful", "namespace": "openshift-logging"}}, // this has happened last week
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchProcessCPUHigh", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchWriteRequestsRejectionJumps", "namespace": "openshift-logging"}},
+		// END of https://issues.redhat.com/browse/OSD-11273
+
 		// Suppress the alerts and use HAProxyReloadFailSRE instead (openshift/managed-cluster-config#600)
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyReloadFail", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OHSS-2163
@@ -222,9 +248,8 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
 
 		//https://issues.redhat.com/browse/OSD-7671
+		// might also be removed by https://issues.redhat.com/browse/OSD-11273
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
-		//https://issues.redhat.com/browse/OSD-8403, https://issues.redhat.com/browse/OSD-8576
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthIncreasing", "namespace": "openshift-logging"}},
 
 		// https://issues.redhat.com/browse/OSD-9061
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
@@ -251,7 +276,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k7s"}},
 
 		// https://issues.redhat.com/browse/OSD-6821
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
@@ -570,8 +595,8 @@ func (r *ReconcileSecret) parseConfigMaps(reqLogger logr.Logger, cmList *corev1.
 
 	// Default to alerting on all ^openshift-.* namespaces if either list is empty, potentially indicating a problem parsing configMaps
 	if len(managedNamespaces) == 0 ||
-	   len(ocpNamespaces)     == 0 ||
-	   len(addonsNamespaces)  == 0 {
+		len(ocpNamespaces) == 0 ||
+		len(addonsNamespaces) == 0 {
 		reqLogger.Info("DEBUG: Could not retrieve namespaces from one or more configMaps. Using default namespaces", "Default namespaces", defaultNamespaces)
 		return defaultNamespaces
 	}
