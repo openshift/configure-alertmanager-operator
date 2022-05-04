@@ -184,6 +184,7 @@ func verifyPagerdutyReceivers(t *testing.T, key string, proxy string, receivers 
 	hasMakeItWarning := false
 	hasPagerduty := false
 	hasMakeItError := false
+	hasMakeItCritical := false
 	for _, receiver := range receivers {
 		switch receiver.Name {
 		case receiverMakeItWarning:
@@ -206,9 +207,16 @@ func verifyPagerdutyReceivers(t *testing.T, key string, proxy string, receivers 
 			assertEquals(t, "error", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
+		case receiverMakeItCritical:
+			hasMakeItCritical = true
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
+			assertEquals(t, "critical", receiver.PagerdutyConfigs[0].Severity, "Severity")
+			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		}
 	}
 
+	assertTrue(t, hasMakeItCritical, fmt.Sprintf("No '%s' receiver", receiverMakeItCritical))
 	assertTrue(t, hasMakeItError, fmt.Sprintf("No '%s' receiver", receiverMakeItError))
 	assertTrue(t, hasMakeItWarning, fmt.Sprintf("No '%s' receiver", receiverMakeItWarning))
 	assertTrue(t, hasPagerduty, fmt.Sprintf("No '%s' receiver", receiverPagerduty))
@@ -893,7 +901,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
 	assertEquals(t, 1, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 4, len(config.Receivers), "Receivers")
+	assertEquals(t, 5, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
 
@@ -917,7 +925,7 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
 	assertEquals(t, 3, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 6, len(config.Receivers), "Receivers")
+	assertEquals(t, 7, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
 

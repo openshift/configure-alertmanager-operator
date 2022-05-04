@@ -61,6 +61,9 @@ const (
 	// anything routed to "make-it-error" receiver has severity=error
 	receiverMakeItError = "make-it-error"
 
+	// anything routed to "make-it-critical" receiver has severity=critical
+	receiverMakeItCritical = "make-it-critical"
+
 	// anything routed to "pagerduty" will alert/notify SREP
 	receiverPagerduty = "pagerduty"
 
@@ -268,6 +271,10 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-10485
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
+
+		// https://issues.redhat.com/browse/OSD-11298
+		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": ".*master.*"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
+		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": ".*master.*"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
 	}
 
 	for _, namespace := range namespaceList {
@@ -378,6 +385,14 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItError,
 		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{highpdconfig},
+	})
+
+	// make-it-error overrides the severity
+	criticalpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)
+	criticalpdconfig.Severity = "critical"
+	receivers = append(receivers, &alertmanager.Receiver{
+		Name:             receiverMakeItCritical,
+		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{criticalpdconfig},
 	})
 
 	return receivers
