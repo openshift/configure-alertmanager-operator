@@ -387,7 +387,7 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{highpdconfig},
 	})
 
-	// make-it-error overrides the severity
+	// make-it-critical overrides the severity
 	criticalpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)
 	criticalpdconfig.Severity = "critical"
 	receivers = append(receivers, &alertmanager.Receiver{
