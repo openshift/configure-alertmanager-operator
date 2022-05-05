@@ -155,11 +155,19 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 	// order matters.
 	// these are sub-routes.  if any matches it will not continue processing.
-	// 1. route anything we want to silence to "null"
-	// 2. route anything that should be a warning to "make-it-warning"
-	// 3. route anything that should be an error to "make-it-error"
-	// 4. route anything we want to go to PD
+	// 1. route anything we consider critical to "make-it-critical"
+	// 2. route anything we want to silence to "null"
+	// 3. route anything that should be a warning to "make-it-warning"
+	// 4. route anything that should be an error to "make-it-error"
+	// 5. route anything we want to go to PD
 	pagerdutySubroutes := []*alertmanager.Route{
+
+		// https://issues.redhat.com/browse/OSD-11298
+		// indications that master nodes have been terminated should be critical
+		// regex tests: https://regex101.com/r/Rn6F5A/1
+		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
+		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
+
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
 		{Receiver: receiverNull, Match: map[string]string{managedNotificationLabel: "true"}},
@@ -271,10 +279,6 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-10485
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
-
-		// https://issues.redhat.com/browse/OSD-11298
-		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": ".*master.*"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
-		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": ".*master.*"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
 	}
 
 	for _, namespace := range namespaceList {
