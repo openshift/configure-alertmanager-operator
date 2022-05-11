@@ -271,6 +271,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-9426
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusTargetSyncFailure", "namespace": "openshift-user-workload-monitoring"}},
 
+		// https://issues.redhat.com/browse/OSD-11478
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusOperatorRejectedResources", "namespace": "openshift-user-workload-monitoring"}},
+
 		// https://issues.redhat.com/browse/OSD-8983
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
 
