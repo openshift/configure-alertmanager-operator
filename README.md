@@ -78,7 +78,7 @@ oc scale deploy/cluster-version-operator --replicas=1 -n openshift-cluster-versi
 ```
 
 #### Replace the Image
-Edit the operator's deployment (`oc edit deployment configure-alertmanager-operator -n openshift-monitoring`), replacing the `image:` with the URI of the image you built [above](#building). The deployment will automatically delete and replace the running pod.
+Edit the operator's deployment (`oc set image deployment configure-alertmanager-operator -n openshift-monitoring *=<IMAGE>`), replacing the `image:` with the URI of the image you built [above](#building). The deployment will automatically delete and replace the running pod.
 
 **NOTE:** If you are testing coordination with the osd-cluster-ready job, you may need to set the `MAX_CLUSTER_AGE_MINUTES` environment variable in the deployment's `configure-alertmanager-operator` container definition.
 For example, to ensure the osd-cluster-ready Job is checked in a cluster less than 1048576 minutes (~two years) old:
