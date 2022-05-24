@@ -38,8 +38,6 @@ const (
 
 	cmKeyOCPNamespaces = "managed_namespaces.yaml"
 
-	cmKeyAddonsNamespaces = "managed_namespaces.yaml"
-
 	secretNamePD = "pd-secret"
 
 	secretNameDMS = "dms-secret"
@@ -49,8 +47,6 @@ const (
 	cmNameManagedNamespaces = "managed-namespaces"
 
 	cmNameOCPNamespaces = "ocp-namespaces"
-
-	cmNameAddonsNamespaces = "addons-namespaces"
 
 	// anything routed to "null" receiver does not get routed to PD
 	receiverNull = "null"
@@ -598,19 +594,16 @@ func (r *ReconcileSecret) parseConfigMaps(reqLogger logr.Logger, cmList *corev1.
 	// Retrieve namespaces from their respective configMaps, if the configMaps exist
 	managedNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameManagedNamespaces, cmNamespace, cmKeyManagedNamespaces, cmList)
 	ocpNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameOCPNamespaces, cmNamespace, cmKeyOCPNamespaces, cmList)
-	addonsNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameAddonsNamespaces, cmNamespace, cmKeyAddonsNamespaces, cmList)
 
 	// Default to alerting on all ^openshift-.* namespaces if either list is empty, potentially indicating a problem parsing configMaps
 	if len(managedNamespaces) == 0 ||
-		len(ocpNamespaces) == 0 ||
-		len(addonsNamespaces) == 0 {
+		len(ocpNamespaces) == 0 {
 		reqLogger.Info("DEBUG: Could not retrieve namespaces from one or more configMaps. Using default namespaces", "Default namespaces", defaultNamespaces)
 		return defaultNamespaces
 	}
 
 	namespaceList = append(namespaceList, managedNamespaces...)
 	namespaceList = append(namespaceList, ocpNamespaces...)
-	namespaceList = append(namespaceList, addonsNamespaces...)
 
 	return namespaceList
 }
@@ -713,7 +706,6 @@ func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result
 	case cmNameOcmAgent:
 	case cmNameManagedNamespaces:
 	case cmNameOCPNamespaces:
-	case cmNameAddonsNamespaces:
 	default:
 		reqLogger.Info("Skip reconcile: No changes detected to alertmanager secrets.")
 		return reconcile.Result{}, nil

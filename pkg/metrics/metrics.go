@@ -58,10 +58,6 @@ var (
 		Name: "ocp_namespaces_configmap_exists",
 		Help: "ocp-namespaces configMap exists",
 	}, []string{"name"})
-	metricAddonsNSConfigMapExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "addons_namespaces_configmap_exists",
-		Help: "addons-namespaces configMap exists",
-	}, []string{"name"})
 
 	metricsList = []prometheus.Collector{
 		metricPDSecretExists,
@@ -71,7 +67,6 @@ var (
 		metricAMSecretContainsDMS,
 		metricManNSConfigMapExists,
 		metricOcpNSConfigMapExists,
-		metricAddonsNSConfigMapExists,
 	}
 )
 
@@ -175,7 +170,6 @@ func UpdateConfigMapMetrics(list *corev1.ConfigMapList) {
 	// Default to false.
 	manNsConfigMapExists := false
 	ocpNsConfigMapExists := false
-	addonsNsConfigMapExists := false
 
 	// Update the metric if the configmap is found in the ConfigMapList.
 	for _, configMap := range list.Items {
@@ -184,8 +178,6 @@ func UpdateConfigMapMetrics(list *corev1.ConfigMapList) {
 			manNsConfigMapExists = true
 		case "ocp-namespaces":
 			ocpNsConfigMapExists = true
-		case "addons-namespaces":
-			addonsNsConfigMapExists = true
 		}
 	}
 
@@ -199,10 +191,5 @@ func UpdateConfigMapMetrics(list *corev1.ConfigMapList) {
 		metricOcpNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	} else {
 		metricOcpNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
-	}
-	if addonsNsConfigMapExists {
-		metricAddonsNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
-	} else {
-		metricAddonsNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
 	}
 }

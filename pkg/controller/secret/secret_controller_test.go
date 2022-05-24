@@ -46,14 +46,6 @@ var exampleOCPNamespaces = []string{
 	"openshift-cloud-credential-operator",
 }
 
-var exampleAddonsNamespaces = []string{
-	"acm",
-	"addon-dba-operator",
-	"codeready-workspaces-operator",
-	"codeready-workspaces-operator-qe",
-	"openshift-logging",
-}
-
 // readAlertManagerConfig fetches the AlertManager configuration from its default location.
 // This is equivalent to `oc get secrets -n openshift-monitoring alertmanager-main`.
 // It specifically extracts the .data "alertmanager.yaml" field, and loads it into a resource
@@ -558,7 +550,6 @@ func Test_parseConfigMaps(t *testing.T) {
 	var validNamespaces []string
 	validNamespaces = append(validNamespaces, exampleManagedNamespaces...)
 	validNamespaces = append(validNamespaces, exampleOCPNamespaces...)
-	validNamespaces = append(validNamespaces, exampleAddonsNamespaces...)
 
 	// Convert to regex to match the result of parseConfigMaps()
 	for i, ns := range validNamespaces {
@@ -576,7 +567,6 @@ func Test_parseConfigMaps(t *testing.T) {
 		expectedNamespaces []string
 		managedNamespace   configMapTest
 		ocpNamespaces      configMapTest
-		addonsNamespaces   configMapTest
 	}{
 		{
 			name:               "Valid configMaps",
@@ -586,10 +576,6 @@ func Test_parseConfigMaps(t *testing.T) {
 				missing: false,
 			},
 			ocpNamespaces: configMapTest{
-				invalid: false,
-				missing: false,
-			},
-			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
@@ -605,10 +591,6 @@ func Test_parseConfigMaps(t *testing.T) {
 				invalid: false,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest{
-				invalid: false,
-				missing: false,
-			},
 		},
 		{
 			name:               "Missing managed-namespaces configMap",
@@ -618,10 +600,6 @@ func Test_parseConfigMaps(t *testing.T) {
 				missing: true,
 			},
 			ocpNamespaces: configMapTest{
-				invalid: false,
-				missing: false,
-			},
-			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: false,
 			},
@@ -637,10 +615,6 @@ func Test_parseConfigMaps(t *testing.T) {
 				invalid: true,
 				missing: false,
 			},
-			addonsNamespaces: configMapTest{
-				invalid: false,
-				missing: false,
-			},
 		},
 		{
 			name:               "Missing ocp-namespaces configMap",
@@ -650,42 +624,6 @@ func Test_parseConfigMaps(t *testing.T) {
 				missing: false,
 			},
 			ocpNamespaces: configMapTest{
-				invalid: false,
-				missing: true,
-			},
-			addonsNamespaces: configMapTest{
-				invalid: false,
-				missing: false,
-			},
-		},
-		{
-			name:               "Invalid addons-namespaces configMap",
-			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest{
-				invalid: false,
-				missing: false,
-			},
-			ocpNamespaces: configMapTest{
-				invalid: false,
-				missing: false,
-			},
-			addonsNamespaces: configMapTest{
-				invalid: true,
-				missing: false,
-			},
-		},
-		{
-			name:               "Missing addons-namespaces configMap",
-			expectedNamespaces: defaultNamespaces,
-			managedNamespace: configMapTest{
-				invalid: false,
-				missing: false,
-			},
-			ocpNamespaces: configMapTest{
-				invalid: false,
-				missing: false,
-			},
-			addonsNamespaces: configMapTest{
 				invalid: false,
 				missing: true,
 			},
@@ -723,20 +661,6 @@ func Test_parseConfigMaps(t *testing.T) {
 				cmDataOcpNamespaces = "This is an invalid format for the managed-namespaces configmap!"
 			}
 			createConfigMap(reconciler, cmNameOCPNamespaces, cmKeyOCPNamespaces, cmDataOcpNamespaces)
-		}
-
-		// addons-namespaces configMap
-		if !tt.addonsNamespaces.missing {
-			var cmDataAddonsNamespaces string
-			if !tt.addonsNamespaces.invalid {
-				cmDataAddonsNamespaces = "Resources:\n  Namespace:"
-				for _, ns := range exampleAddonsNamespaces {
-					cmDataAddonsNamespaces = cmDataAddonsNamespaces + fmt.Sprintf("\n  - name: '%v'", ns)
-				}
-			} else {
-				cmDataAddonsNamespaces = "This is an invalid format for the managed-namespaces configmap!"
-			}
-			createConfigMap(reconciler, cmNameAddonsNamespaces, cmKeyAddonsNamespaces, cmDataAddonsNamespaces)
 		}
 
 		// Run and verify results
