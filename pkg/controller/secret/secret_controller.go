@@ -30,7 +30,7 @@ import (
 var log = logf.Log.WithName("secret_controller")
 
 const (
-	secretKeyPD = "PAGERDUTY_KEY"
+	secretKeyPD = "PAGERDUTY_KEY"  // #nosec G101 
 
 	secretKeyDMS = "SNITCH_URL"
 

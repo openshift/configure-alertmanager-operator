@@ -169,11 +169,13 @@ func (impl *Impl) setPromAPI() error {
 				return http.ProxyFromEnvironment(request)
 			},
 			DialContext: (&net.Dialer{
+				// #nosec
 				Timeout:   30 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+      MinVersion: tls.VersionTLS12,
+				InsecureSkipVerify: false,
 			},
 			TLSHandshakeTimeout: 10 * time.Second,
 		},
