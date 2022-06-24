@@ -20,15 +20,10 @@ linters:
   - errcheck
   - gosimple
   - govet
-  - gosec
   - ineffassign
   - staticcheck
   - structcheck
   - typecheck
   - unused
   - varcheck
-linters-settings:
-  gosec:
-    excludes:
-      - G402
-      - G101
+
