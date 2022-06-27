@@ -173,7 +173,8 @@ func (impl *Impl) setPromAPI() error {
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+				InsecureSkipVerify: false, // #nosec G402
 			},
 			TLSHandshakeTimeout: 10 * time.Second,
 		},
