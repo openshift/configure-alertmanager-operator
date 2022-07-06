@@ -30,7 +30,7 @@ import (
 var log = logf.Log.WithName("secret_controller")
 
 const (
-	secretKeyPD = "PAGERDUTY_KEY"  // #nosec G101 
+	secretKeyPD = "PAGERDUTY_KEY" // #nosec G101
 
 	secretKeyDMS = "SNITCH_URL"
 
@@ -222,6 +222,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDVeryHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdNodeDown", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdNodeDown", "prometheus": "openshift-monitoring/k8s"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthIncreasing", "namespace": "openshift-logging"}}, //https://issues.redhat.com/browse/OSD-8403, https://issues.redhat.com/browse/OSD-8576
 		// elasticsearch alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "AggregatedLoggingSystemCPUHigh", "namespace": "openshift-logging"}},
@@ -271,7 +272,6 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "FluentdNodeDown", "prometheus": "openshift-monitoring/k8s"}},
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
