@@ -30,7 +30,7 @@ import (
 var log = logf.Log.WithName("secret_controller")
 
 const (
-	secretKeyPD = "PAGERDUTY_KEY"  // #nosec G101 
+	secretKeyPD = "PAGERDUTY_KEY" // #nosec G101
 
 	secretKeyDMS = "SNITCH_URL"
 
@@ -271,7 +271,6 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "FluentdNodeDown", "prometheus": "openshift-monitoring/k8s"}},
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
