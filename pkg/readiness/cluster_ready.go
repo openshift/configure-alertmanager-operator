@@ -174,7 +174,7 @@ func (impl *Impl) setPromAPI() error {
 			}).DialContext,
 			TLSClientConfig: &tls.Config{
 				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: false, // #nosec G402
+				InsecureSkipVerify: true, // #nosec G402
 			},
 			TLSHandshakeTimeout: 10 * time.Second,
 		},
