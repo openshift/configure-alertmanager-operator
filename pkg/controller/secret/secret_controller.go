@@ -373,7 +373,6 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy s
 		detailsMap["resolved"] = ``
 		detailsMap["cluster_id"] = ``
 		detailsMap["firing"] = ``
-		detailsMap["link"] = ``
 	}
 
 	return &alertmanager.PagerdutyConfig{
