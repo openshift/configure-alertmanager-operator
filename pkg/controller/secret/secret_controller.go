@@ -367,23 +367,28 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy s
 		"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 		"cluster_id":   clusterID,
 	}
+	clientURL := `{{ template "pagerduty.default.clientURL" . }}`
 
 	if config.IsFedramp() {
 		detailsMap["ocm_link"] = ``
 		detailsMap["resolved"] = ``
 		detailsMap["cluster_id"] = ``
 		detailsMap["firing"] = ``
+
+		// The default value contains the cluster name which is considered sensitive
+		// information for FedRAMP, so setting it to "ROSA"
+		clientURL = "ROSA"
 	}
 
 	return &alertmanager.PagerdutyConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
 		RoutingKey:     pagerdutyRoutingKey,
 		Severity:       `{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}critical{{ end }}`,
+		ClientURL:      clientURL,
 		Description:    `{{ .CommonLabels.alertname }} {{ .CommonLabels.severity | toUpper }} ({{ len .Alerts }})`,
 		Details:        detailsMap,
 		HttpConfig:     createHttpConfig(clusterProxy),
 	}
-
 }
 
 // createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.

@@ -140,6 +140,8 @@ type WebhookConfig struct {
 	HttpConfig HttpConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 }
 
+// PagerdutyConfig defines the integration point between AlertManager and PagerDuty
+// https://prometheus.io/docs/alerting/latest/configuration/#pagerduty_config
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
