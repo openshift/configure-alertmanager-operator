@@ -15,8 +15,8 @@
 package metrics
 
 import (
-	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
+	"github.com/openshift/configure-alertmanager-operator/config"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -24,14 +24,9 @@ import (
 
 // GenerateService returns the static service which exposes specified port.
 func GenerateService(port int32, portName string) (*v1.Service, error) {
-	operatorName, err := k8sutil.GetOperatorName()
-	if err != nil {
-		return nil, err
-	}
-	namespace, err := k8sutil.GetOperatorNamespace()
-	if err != nil {
-		return nil, err
-	}
+	operatorName := config.OperatorName
+	namespace := config.OperatorNamespace
+
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operatorName,
