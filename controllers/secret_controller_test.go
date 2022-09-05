@@ -12,11 +12,13 @@ import (
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubectl/pkg/scheme"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -924,18 +926,22 @@ func createSecret(reconciler *SecretReconciler, secretname string, secretkey str
 // createReconciler creates a fake SecretReconciler for testing.
 // If ready is nil, a real readiness Impl is constructed.
 func createReconciler(t *testing.T, ready readiness.Interface) *SecretReconciler {
-	scheme := scheme.Scheme
+	// scheme := scheme.Scheme
+	fakeScheme := k8sruntime.NewScheme()
+	utilruntime.Must(configv1.AddToScheme(fakeScheme))
+	utilruntime.Must(corev1.AddToScheme(fakeScheme))
+	utilruntime.Must(monitoringv1.AddToScheme(fakeScheme))
 
-	if err := configv1.AddToScheme(scheme); err != nil {
-		t.Fatalf("Unable to add route scheme: (%v)", err)
-	}
+	// if err := configv1.AddToScheme(scheme); err != nil {
+	// 	t.Fatalf("Unable to add route scheme: (%v)", err)
+	// }
 	if ready == nil {
 		ready = &readiness.Impl{}
 	}
 
 	return &SecretReconciler{
-		Client:    fake.NewFakeClientWithScheme(scheme),
-		Scheme:    scheme,
+		Client:    fake.NewClientBuilder().WithScheme(fakeScheme).Build(),
+		Scheme:    fakeScheme,
 		Readiness: ready,
 	}
 }
