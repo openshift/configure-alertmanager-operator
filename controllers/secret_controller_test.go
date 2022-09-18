@@ -1,4 +1,4 @@
-package secret
+package controllers
 
 import (
 	"context"
@@ -12,11 +12,13 @@ import (
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubectl/pkg/scheme"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -50,7 +52,7 @@ var exampleOCPNamespaces = []string{
 // This is equivalent to `oc get secrets -n openshift-monitoring alertmanager-main`.
 // It specifically extracts the .data "alertmanager.yaml" field, and loads it into a resource
 // of type Config, enabling it to be marshalled and unmarshalled as needed.
-func readAlertManagerConfig(r *ReconcileSecret, request *reconcile.Request) *alertmanager.Config {
+func readAlertManagerConfig(r *SecretReconciler, request *reconcile.Request) *alertmanager.Config {
 	amconfig := &alertmanager.Config{}
 
 	secret := &corev1.Secret{}
@@ -62,7 +64,7 @@ func readAlertManagerConfig(r *ReconcileSecret, request *reconcile.Request) *ale
 	}
 
 	// Fetch the alertmanager config and load it into an alertmanager.Config struct.
-	if err := r.client.Get(context.TODO(), objectKey, secret); err != nil {
+	if err := r.Client.Get(context.TODO(), objectKey, secret); err != nil {
 		panic(err)
 	}
 	secretdata := secret.Data["alertmanager.yaml"]
@@ -431,7 +433,7 @@ func Test_cmInList(t *testing.T) {
 	createConfigMap(reconciler, cmNameManagedNamespaces, cmKeyManagedNamespaces, "test")
 
 	cmList := corev1.ConfigMapList{}
-	err := reconciler.client.List(context.TODO(), &cmList, &client.ListOptions{})
+	err := reconciler.Client.List(context.TODO(), &cmList, &client.ListOptions{})
 	if err != nil {
 		t.Fatalf("Could not list ConfigMaps: %v", err)
 	}
@@ -451,7 +453,7 @@ func Test_secretInList(t *testing.T) {
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, "")
 
 	secretList := corev1.SecretList{}
-	err := reconciler.client.List(context.TODO(), &secretList, &client.ListOptions{})
+	err := reconciler.Client.List(context.TODO(), &secretList, &client.ListOptions{})
 	if err != nil {
 		t.Fatalf("Could not list Secrets: %v", err)
 	}
@@ -477,7 +479,7 @@ func Test_parseSecrets(t *testing.T) {
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
 
 	secretList := &corev1.SecretList{}
-	err := reconciler.client.List(context.TODO(), secretList, &client.ListOptions{})
+	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
 	if err != nil {
 		t.Fatalf("Could not list Secrets: %v", err)
 	}
@@ -503,7 +505,7 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 
 	secretList := &corev1.SecretList{}
-	err := reconciler.client.List(context.TODO(), secretList, &client.ListOptions{})
+	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
 	if err != nil {
 		t.Fatalf("Could not list Secrets: %v", err)
 	}
@@ -529,7 +531,7 @@ func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
 
 	secretList := &corev1.SecretList{}
-	err := reconciler.client.List(context.TODO(), secretList, &client.ListOptions{})
+	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
 	if err != nil {
 		t.Fatalf("Could not list Secrets: %v", err)
 	}
@@ -665,7 +667,7 @@ func Test_parseConfigMaps(t *testing.T) {
 
 		// Run and verify results
 		cmList := &corev1.ConfigMapList{}
-		err := reconciler.client.List(context.TODO(), cmList, &client.ListOptions{})
+		err := reconciler.Client.List(context.TODO(), cmList, &client.ListOptions{})
 		if err != nil {
 			t.Fatalf("Could not list ConfigMaps: %v", err)
 		}
@@ -738,7 +740,7 @@ func Test_readOCMAgentServiceURLFromConfig(t *testing.T) {
 
 		// Run and verify results
 		cmList := &corev1.ConfigMapList{}
-		err := reconciler.client.List(context.TODO(), cmList, &client.ListOptions{})
+		err := reconciler.Client.List(context.TODO(), cmList, &client.ListOptions{})
 		if err != nil {
 			t.Fatalf("Could not list ConfigMaps: %v", err)
 		}
@@ -890,7 +892,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 }
 
 // createConfigMap creates a fake ConfigMap to use in testing.
-func createConfigMap(reconciler *ReconcileSecret, configMapName string, configMapKey string, configMapData string) {
+func createConfigMap(reconciler *SecretReconciler, configMapName string, configMapKey string, configMapData string) {
 	newconfigmap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
@@ -900,13 +902,13 @@ func createConfigMap(reconciler *ReconcileSecret, configMapName string, configMa
 			configMapKey: configMapData,
 		},
 	}
-	if err := reconciler.client.Create(context.TODO(), newconfigmap); err != nil {
+	if err := reconciler.Client.Create(context.TODO(), newconfigmap); err != nil {
 		panic(err)
 	}
 }
 
 // createSecret creates a fake Secret to use in testing.
-func createSecret(reconciler *ReconcileSecret, secretname string, secretkey string, secretdata string) {
+func createSecret(reconciler *SecretReconciler, secretname string, secretkey string, secretdata string) {
 	newsecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretname,
@@ -916,33 +918,37 @@ func createSecret(reconciler *ReconcileSecret, secretname string, secretkey stri
 			secretkey: []byte(secretdata),
 		},
 	}
-	if err := reconciler.client.Create(context.TODO(), newsecret); err != nil {
+	if err := reconciler.Client.Create(context.TODO(), newsecret); err != nil {
 		panic(err)
 	}
 }
 
-// createReconciler creates a fake ReconcileSecret for testing.
+// createReconciler creates a fake SecretReconciler for testing.
 // If ready is nil, a real readiness Impl is constructed.
-func createReconciler(t *testing.T, ready readiness.Interface) *ReconcileSecret {
-	scheme := scheme.Scheme
+func createReconciler(t *testing.T, ready readiness.Interface) *SecretReconciler {
+	// scheme := scheme.Scheme
+	fakeScheme := k8sruntime.NewScheme()
+	utilruntime.Must(configv1.AddToScheme(fakeScheme))
+	utilruntime.Must(corev1.AddToScheme(fakeScheme))
+	utilruntime.Must(monitoringv1.AddToScheme(fakeScheme))
 
-	if err := configv1.AddToScheme(scheme); err != nil {
-		t.Fatalf("Unable to add route scheme: (%v)", err)
-	}
+	// if err := configv1.AddToScheme(scheme); err != nil {
+	// 	t.Fatalf("Unable to add route scheme: (%v)", err)
+	// }
 	if ready == nil {
 		ready = &readiness.Impl{}
 	}
 
-	return &ReconcileSecret{
-		client:    fake.NewFakeClientWithScheme(scheme),
-		scheme:    scheme,
-		readiness: ready,
+	return &SecretReconciler{
+		Client:    fake.NewClientBuilder().WithScheme(fakeScheme).Build(),
+		Scheme:    fakeScheme,
+		Readiness: ready,
 	}
 }
 
 // createNamespace creates a fake `openshift-monitoring` namespace for testing.
-func createNamespace(reconciler *ReconcileSecret, t *testing.T) {
-	err := reconciler.client.Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: config.OperatorNamespace}})
+func createNamespace(reconciler *SecretReconciler, t *testing.T) {
+	err := reconciler.Client.Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: config.OperatorNamespace}})
 	if err != nil {
 		// exit the test if we can't create the namespace. Every test depends on this.
 		t.Errorf("Couldn't create the required namespace for the test. Encountered error: %s", err)
@@ -951,7 +957,7 @@ func createNamespace(reconciler *ReconcileSecret, t *testing.T) {
 }
 
 // Create the reconcile request for the specified secret.
-func createReconcileRequest(reconciler *ReconcileSecret, secretname string) *reconcile.Request {
+func createReconcileRequest(reconciler *SecretReconciler, secretname string) *reconcile.Request {
 	return &reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      secretname,
@@ -986,7 +992,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, "pd-secret")
-	ret, err := reconciler.Reconcile(*req)
+	ret, err := reconciler.Reconcile(context.TODO(), *req)
 	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
 	assertEquals(t, nil, err, "Unexpected err")
 
@@ -1024,7 +1030,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, secretNamePD)
-	ret, err = reconciler.Reconcile(*req)
+	ret, err = reconciler.Reconcile(context.TODO(), *req)
 	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
 	assertEquals(t, nil, err, "Unexpected err")
 
@@ -1035,7 +1041,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	// update environment
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
 	req = createReconcileRequest(reconciler, secretNameDMS)
-	ret, err = reconciler.Reconcile(*req)
+	ret, err = reconciler.Reconcile(context.TODO(), *req)
 	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
 	assertEquals(t, nil, err, "Unexpected err")
 
@@ -1045,7 +1051,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
 }
 
-func createClusterProxy(reconciler *ReconcileSecret) {
+func createClusterProxy(reconciler *SecretReconciler) {
 	clusterProxy := &configv1.Proxy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster",
@@ -1057,12 +1063,12 @@ func createClusterProxy(reconciler *ReconcileSecret) {
 			HTTPSProxy: exampleProxy,
 		},
 	}
-	if err := reconciler.client.Create(context.TODO(), clusterProxy); err != nil {
+	if err := reconciler.Client.Create(context.TODO(), clusterProxy); err != nil {
 		panic(err)
 	}
 }
 
-func createClusterVersion(reconciler *ReconcileSecret) {
+func createClusterVersion(reconciler *SecretReconciler) {
 	clusterVersion := &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "version",
@@ -1071,12 +1077,12 @@ func createClusterVersion(reconciler *ReconcileSecret) {
 			ClusterID: exampleClusterId,
 		},
 	}
-	if err := reconciler.client.Create(context.TODO(), clusterVersion); err != nil {
+	if err := reconciler.Client.Create(context.TODO(), clusterVersion); err != nil {
 		panic(err)
 	}
 }
 
-func Test_ReconcileSecrets(t *testing.T) {
+func Test_SecretReconciler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1198,7 +1204,7 @@ func Test_ReconcileSecrets(t *testing.T) {
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
-		ret, err := reconciler.Reconcile(*req)
+		ret, err := reconciler.Reconcile(context.TODO(), *req)
 		assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
 		assertEquals(t, nil, err, "Unexpected err")
 
@@ -1210,9 +1216,9 @@ func Test_ReconcileSecrets(t *testing.T) {
 	}
 }
 
-// Test_ReconcileSecrets_Readiness tests the Reconcile loop for different results of the
+// Test_SecretReconciler_Readiness tests the Reconcile loop for different results of the
 // cluster readiness check.
-func Test_ReconcileSecrets_Readiness(t *testing.T) {
+func Test_SecretReconciler_Readiness(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	tests := []struct {
@@ -1293,7 +1299,7 @@ func Test_ReconcileSecrets_Readiness(t *testing.T) {
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
 		req := createReconcileRequest(reconciler, secretNameAlertmanager)
-		ret, err := reconciler.Reconcile(*req)
+		ret, err := reconciler.Reconcile(context.TODO(), *req)
 		assertEquals(t, expectResult, ret, "Unexpected result")
 		assertEquals(t, expectErr, err, "Unexpected err")
 

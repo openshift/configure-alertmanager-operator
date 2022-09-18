@@ -1,30 +1,44 @@
-package secret
+/*
+Copyright 2022.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controllers
 
 import (
 	"context"
 	"fmt"
 	"net/url"
 
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
-
-	configv1 "github.com/openshift/api/config/v1"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var log = logf.Log.WithName("secret_controller")
@@ -98,53 +112,112 @@ var defaultNamespaces = []string{
 	alertmanager.PDRegexKube,
 }
 
-var _ reconcile.Reconciler = &ReconcileSecret{}
-
-// ReconcileSecret reconciles a Secret object
-type ReconcileSecret struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client    client.Client
-	scheme    *runtime.Scheme
-	readiness readiness.Interface
+// SecretReconciler reconciles a Secret object
+type SecretReconciler struct {
+	Client    client.Client
+	Scheme    *runtime.Scheme
+	Readiness readiness.Interface
 }
 
-// Add creates a new Secret Controller and adds it to the Manager. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=secrets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=secrets/finalizers,verbs=update
+
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+// TODO(user): Modify the Reconcile function to compare the state specified by
+// the Secret object against the actual cluster state, and then
+// perform operations to make the cluster state reflect the state specified by
+// the user.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
+func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
+	if request.Namespace != config.OperatorNamespace {
+		return reconcile.Result{}, nil
+	}
+	reqLogger := log.WithValues("Request.Name", request.Name)
+	reqLogger.Info("Reconciling Object")
+
+	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
+	// TODO: Filter these with a predicate instead
+	switch request.Name {
+	case secretNamePD:
+	case secretNameDMS:
+	case secretNameAlertmanager:
+	case cmNameOcmAgent:
+	case cmNameManagedNamespaces:
+	case cmNameOCPNamespaces:
+	default:
+		reqLogger.Info("Skip reconcile: No changes detected to alertmanager secrets.")
+		return reconcile.Result{}, nil
+	}
+	reqLogger.Info("DEBUG: Started reconcile loop")
+
+	clusterReady, err := r.Readiness.IsReady()
+	if err != nil {
+		reqLogger.Error(err, "Error determining cluster readiness.")
+		return r.Readiness.Result(), err
+	}
+
+	// Get a list of all relevant objects in the `openshift-monitoring` namespace.
+	// This is used for determining which secrets and configMaps are present so that the necessary
+	// Alertmanager config changes can happen later.
+	opts := []client.ListOption{
+		client.InNamespace(request.Namespace),
+	}
+	secretList := &corev1.SecretList{}
+	err = r.Client.List(context.TODO(), secretList, opts...)
+	if err != nil {
+		reqLogger.Error(err, "Unable to list secrets")
+	}
+
+	cmList := &corev1.ConfigMapList{}
+	err = r.Client.List(context.TODO(), cmList, opts...)
+	if err != nil {
+		reqLogger.Error(err, "Unable to list configMaps")
+	}
+
+	pagerdutyRoutingKey, watchdogURL := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
+	osdNamespaces := r.parseConfigMaps(reqLogger, cmList, request.Namespace)
+	reqLogger.Info("DEBUG: Adding PagerDuty routes for the following namespaces", "Namespaces", osdNamespaces)
+
+	ocmAgentURL := r.readOCMAgentServiceURLFromConfig(reqLogger, cmList, request.Namespace)
+
+	clusterProxy, err := r.getClusterProxy()
+	if err != nil {
+		reqLogger.Error(err, "Unable to get cluster proxy")
+	}
+
+	// create the desired alertmanager Config
+	clusterID, err := r.getClusterID()
+	if err != nil {
+		reqLogger.Error(err, "Error reading cluster id.")
+	}
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
+
+	// write the alertmanager Config
+	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
+
+	// Update metrics after all reconcile operations are complete.
+	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
+	metrics.UpdateConfigMapMetrics(cmList)
+	reqLogger.Info("Finished reconcile for secret.")
+
+	// The readiness Result decides whether we should requeue, effectively "polling" the readiness logic.
+	return r.Readiness.Result(), nil
 }
 
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
+// SetupWithManager sets up the controller with the Manager.
+func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	client := mgr.GetClient()
-	return &ReconcileSecret{
-		client:    client,
-		scheme:    mgr.GetScheme(),
-		readiness: &readiness.Impl{Client: client},
-	}
-}
 
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
-	// Create a new controller
-	c, err := controller.New("secret-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
+	r.Readiness = &readiness.Impl{Client: client}
 
-	// Watch for changes to primary resource (type "Secret").
-	// For each Add/Update/Delete event, the reconcile loop will be sent a reconcile Request.
-	err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-	return nil
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&corev1.Secret{}).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForObject{}).
+		Complete(r)
 }
 
 // createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
@@ -623,7 +696,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clu
 }
 
 // Retrieves data from all relevant configMaps. Returns a list of namespaces, represented as regular expressions, to monitor
-func (r *ReconcileSecret) parseConfigMaps(reqLogger logr.Logger, cmList *corev1.ConfigMapList, cmNamespace string) (namespaceList []string) {
+func (r *SecretReconciler) parseConfigMaps(reqLogger logr.Logger, cmList *corev1.ConfigMapList, cmNamespace string) (namespaceList []string) {
 	// Retrieve namespaces from their respective configMaps, if the configMaps exist
 	managedNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameManagedNamespaces, cmNamespace, cmKeyManagedNamespaces, cmList)
 	ocpNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameOCPNamespaces, cmNamespace, cmKeyOCPNamespaces, cmList)
@@ -642,7 +715,7 @@ func (r *ReconcileSecret) parseConfigMaps(reqLogger logr.Logger, cmList *corev1.
 }
 
 // Returns the namespaces from a *-namespaces configMap as a list of regular expressions
-func (r *ReconcileSecret) parseNamespaceConfigMap(reqLogger logr.Logger, cmName string, cmNamespace string, cmKey string, cmList *corev1.ConfigMapList) (nsList []string) {
+func (r *SecretReconciler) parseNamespaceConfigMap(reqLogger logr.Logger, cmName string, cmNamespace string, cmKey string, cmList *corev1.ConfigMapList) (nsList []string) {
 	cmExists := cmInList(reqLogger, cmName, cmList)
 	if !cmExists {
 		reqLogger.Info("INFO: ConfigMap does not exist", "ConfigMap", cmNameManagedNamespaces)
@@ -668,7 +741,7 @@ func (r *ReconcileSecret) parseNamespaceConfigMap(reqLogger logr.Logger, cmName 
 }
 
 // readOCMAgentServiceURLFromConfig returns the OCM Agent service URL from the OCM Agent configmap
-func (r *ReconcileSecret) readOCMAgentServiceURLFromConfig(reqLogger logr.Logger, cmList *corev1.ConfigMapList, cmNamespace string) string {
+func (r *SecretReconciler) readOCMAgentServiceURLFromConfig(reqLogger logr.Logger, cmList *corev1.ConfigMapList, cmNamespace string) string {
 	cmExists := cmInList(reqLogger, cmNameOcmAgent, cmList)
 	if !cmExists {
 		log.Info("INFO: ConfigMap does not exist", "ConfigMap", cmNameOcmAgent)
@@ -685,7 +758,7 @@ func (r *ReconcileSecret) readOCMAgentServiceURLFromConfig(reqLogger logr.Logger
 	return serviceURL
 }
 
-func (r *ReconcileSecret) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string) {
+func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string) {
 	// Check for the presence of specific secrets.
 	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
 	snitchSecretExists := secretInList(reqLogger, secretNameDMS, secretList)
@@ -719,98 +792,18 @@ func (r *ReconcileSecret) parseSecrets(reqLogger logr.Logger, secretList *corev1
 	return pagerdutyRoutingKey, watchdogURL
 }
 
-// Reconcile reads that state of the cluster for a Secret object and makes changes based on the state read.
-// The Controller will requeue the Request to be processed again if the returned error is non-nil or
-// Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
-func (r *ReconcileSecret) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	if request.Namespace != config.OperatorNamespace {
-		return reconcile.Result{}, nil
-	}
-
-	reqLogger := log.WithValues("Request.Name", request.Name)
-	reqLogger.Info("Reconciling Object")
-
-	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
-	// TODO: Filter these with a predicate instead
-	switch request.Name {
-	case secretNamePD:
-	case secretNameDMS:
-	case secretNameAlertmanager:
-	case cmNameOcmAgent:
-	case cmNameManagedNamespaces:
-	case cmNameOCPNamespaces:
-	default:
-		reqLogger.Info("Skip reconcile: No changes detected to alertmanager secrets.")
-		return reconcile.Result{}, nil
-	}
-	reqLogger.Info("DEBUG: Started reconcile loop")
-
-	clusterReady, err := r.readiness.IsReady()
-	if err != nil {
-		reqLogger.Error(err, "Error determining cluster readiness.")
-		return r.readiness.Result(), err
-	}
-
-	// Get a list of all relevant objects in the `openshift-monitoring` namespace.
-	// This is used for determining which secrets and configMaps are present so that the necessary
-	// Alertmanager config changes can happen later.
-	opts := []client.ListOption{
-		client.InNamespace(request.Namespace),
-	}
-	secretList := &corev1.SecretList{}
-	err = r.client.List(context.TODO(), secretList, opts...)
-	if err != nil {
-		reqLogger.Error(err, "Unable to list secrets")
-	}
-
-	cmList := &corev1.ConfigMapList{}
-	err = r.client.List(context.TODO(), cmList, opts...)
-	if err != nil {
-		reqLogger.Error(err, "Unable to list configMaps")
-	}
-
-	pagerdutyRoutingKey, watchdogURL := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
-	osdNamespaces := r.parseConfigMaps(reqLogger, cmList, request.Namespace)
-	reqLogger.Info("DEBUG: Adding PagerDuty routes for the following namespaces", "Namespaces", osdNamespaces)
-
-	ocmAgentURL := r.readOCMAgentServiceURLFromConfig(reqLogger, cmList, request.Namespace)
-
-	clusterProxy, err := r.getClusterProxy()
-	if err != nil {
-		reqLogger.Error(err, "Unable to get cluster proxy")
-	}
-
-	// create the desired alertmanager Config
-	clusterID, err := r.getClusterID()
-	if err != nil {
-		reqLogger.Error(err, "Error reading cluster id.")
-	}
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
-
-	// write the alertmanager Config
-	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
-
-	// Update metrics after all reconcile operations are complete.
-	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
-	metrics.UpdateConfigMapMetrics(cmList)
-	reqLogger.Info("Finished reconcile for secret.")
-
-	// The readiness Result decides whether we should requeue, effectively "polling" the readiness logic.
-	return r.readiness.Result(), nil
-}
-
-func (r *ReconcileSecret) getClusterID() (string, error) {
+func (r *SecretReconciler) getClusterID() (string, error) {
 	var version configv1.ClusterVersion
-	err := r.client.Get(context.TODO(), client.ObjectKey{Name: "version"}, &version)
+	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: "version"}, &version)
 	if err != nil {
 		return "", err
 	}
 	return string(version.Spec.ClusterID), nil
 }
 
-func (r *ReconcileSecret) getClusterProxy() (string, error) {
+func (r *SecretReconciler) getClusterProxy() (string, error) {
 	var proxy configv1.Proxy
-	err := r.client.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, &proxy)
+	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, &proxy)
 	if err != nil {
 		return "", err
 	}
@@ -848,7 +841,7 @@ func cmInList(reqLogger logr.Logger, name string, list *corev1.ConfigMapList) bo
 }
 
 // readCMKey fetches the data from a ConfigMap, such as the managed namespace list
-func readCMKey(r *ReconcileSecret, reqLogger logr.Logger, cmName string, cmNamespace string, fieldName string) string {
+func readCMKey(r *SecretReconciler, reqLogger logr.Logger, cmName string, cmNamespace string, fieldName string) string {
 
 	configMap := &corev1.ConfigMap{}
 
@@ -860,7 +853,7 @@ func readCMKey(r *ReconcileSecret, reqLogger logr.Logger, cmName string, cmNames
 
 	// Fetch the key from the secret object.
 	// TODO: Check error from Get(). Right now secret.Data[fieldname] will panic.
-	err := r.client.Get(context.TODO(), objectKey, configMap)
+	err := r.Client.Get(context.TODO(), objectKey, configMap)
 	if err != nil {
 		reqLogger.Error(err, "Error: Failed to retrieve configMap", "Name", cmName)
 	}
@@ -868,7 +861,7 @@ func readCMKey(r *ReconcileSecret, reqLogger logr.Logger, cmName string, cmNames
 }
 
 // readSecretKey fetches the data from a Secret, such as a PagerDuty API key.
-func readSecretKey(r *ReconcileSecret, secretName string, secretNamespace string, fieldName string) string {
+func readSecretKey(r *SecretReconciler, secretName string, secretNamespace string, fieldName string) string {
 
 	secret := &corev1.Secret{}
 
@@ -880,12 +873,12 @@ func readSecretKey(r *ReconcileSecret, secretName string, secretNamespace string
 
 	// Fetch the key from the secret object.
 	// TODO: Check error from Get(). Right now secret.Data[fieldname] will panic.
-	_ = r.client.Get(context.TODO(), objectKey, secret)
+	_ = r.Client.Get(context.TODO(), objectKey, secret)
 	return string(secret.Data[fieldName])
 }
 
 // writeAlertManagerConfig writes the updated alertmanager config to the `alertmanager-main` secret in namespace `openshift-monitoring`.
-func writeAlertManagerConfig(r *ReconcileSecret, reqLogger logr.Logger, amconfig *alertmanager.Config) {
+func writeAlertManagerConfig(r *SecretReconciler, reqLogger logr.Logger, amconfig *alertmanager.Config) {
 	amconfigbyte, marshalerr := yaml.Marshal(amconfig)
 	if marshalerr != nil {
 		reqLogger.Error(marshalerr, "ERROR: failed to marshal Alertmanager config")
@@ -904,12 +897,12 @@ func writeAlertManagerConfig(r *ReconcileSecret, reqLogger logr.Logger, amconfig
 	}
 
 	// Write the alertmanager config into the alertmanager secret.
-	err := r.client.Update(context.TODO(), secret)
+	err := r.Client.Update(context.TODO(), secret)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// couldn't update because it didn't exist.
 			// create it instead.
-			err = r.client.Create(context.TODO(), secret)
+			err = r.Client.Create(context.TODO(), secret)
 		}
 	}
 

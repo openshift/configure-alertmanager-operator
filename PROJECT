@@ -1,0 +1,9 @@
+domain: managed.openshift.io
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: configure-alertmanager-operator
+repo: github.com/openshift/configure-alertmanager-operator
+version: "3"
