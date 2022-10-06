@@ -165,6 +165,8 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteStorageFailures", "namespace": "openshift-monitoring"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteDesiredShards", "namespace": "openshift-monitoring"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteWriteBehind", "namespace": "openshift-monitoring"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRuleEvaluationSlow", "namespace": "openshift-monitoring"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusMissingRuleEvaluations", "namespace": "openshift-monitoring"}},
 
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-gitops"}},
 
