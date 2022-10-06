@@ -159,7 +159,7 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
 
 		//https://issues.redhat.com/browse/OSD-6559
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-stakater-workload-monitoring"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "stakater-workload-monitoring"}},
 
 		//https://issues.redhat.com/browse/OSD-6704
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusRemoteStorageFailures", "namespace": "openshift-monitoring"}},
@@ -197,8 +197,9 @@ func createPagerdutyRoute() *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-redhat-marketplace"}},
 
 		// https://issues.redhat.com/browse/OSD-6821
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-stakater-workload-monitoring"}},
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-stakater-workload-monitoring"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "stakater-workload-monitoring"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "stakater-workload-monitoring"}},
+		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "stakater-workload-monitoring"}},
 	}
 
 	return &alertmanager.Route{
