@@ -33,6 +33,7 @@ import (
 	operatormetrics "github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -138,7 +139,7 @@ func main() {
 
 	sm := operatormetrics.GenerateServiceMonitor(s)
 	err = mgr.GetClient().Create(context.TODO(), s)
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		log.Error(err, "error creating metrics Service")
 	} else {
 		log.Info("Created Service")
