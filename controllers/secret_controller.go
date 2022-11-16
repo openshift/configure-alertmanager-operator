@@ -388,7 +388,6 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		pagerdutySubroutes = append(pagerdutySubroutes,
 			[]*alertmanager.Route{
 				{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
-				{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "insights"}},
 			}...,
 		)
 	}
