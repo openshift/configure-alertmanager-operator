@@ -382,6 +382,17 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
 	}
 
+	// Silence insights in FedRAMP until its made available in the environment
+	// https://issues.redhat.com/browse/OSD-13685
+	if config.IsFedramp() {
+		pagerdutySubroutes = append(pagerdutySubroutes,
+			[]*alertmanager.Route{
+				{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
+				{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "insights"}},
+			}...,
+		)
+	}
+
 	for _, namespace := range namespaceList {
 		pagerdutySubroutes = append(pagerdutySubroutes, []*alertmanager.Route{
 			// https://issues.redhat.com/browse/OSD-3086
