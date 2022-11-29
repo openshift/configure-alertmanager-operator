@@ -389,6 +389,18 @@ func verifyInhibitRules(t *testing.T, inhibitRules []*alertmanager.InhibitRule) 
 			},
 			Expected: true,
 		},
+		{
+			SourceMatch: map[string]string{
+				"alertname": "KubeAPIErrorBudgetBurn",
+			},
+			TargetMatchRE: map[string]string{
+				"alertname": "api-ErrorBudgetBurn",
+			},
+			Equal: []string{
+				"severity",
+			},
+			Expected: true,
+		},
 	}
 
 	// keep track of which inhibition rules were affirmatively tested

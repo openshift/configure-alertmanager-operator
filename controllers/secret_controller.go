@@ -692,6 +692,18 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clu
 					"alertname": "ElasticsearchClusterNotHealthy",
 				},
 			},
+			// https://issues.redhat.com/browse/OSD-13721
+			{
+				Equal: []string{
+					"severity",
+				},
+				SourceMatch: map[string]string{
+					"alertname": "KubeAPIErrorBudgetBurn",
+				},
+				TargetMatchRE: map[string]string{
+					"alertname": "api-ErrorBudgetBurn",
+				},
+			},
 		},
 	}
 
