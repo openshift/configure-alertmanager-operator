@@ -380,6 +380,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/DVO-54
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
+
+		// https://issues.redhat.com/browse/OSD-14071
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
 	}
 
 	for _, namespace := range namespaceList {
