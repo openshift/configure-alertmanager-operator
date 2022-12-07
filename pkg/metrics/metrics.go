@@ -79,6 +79,7 @@ func StartMetrics() error {
 	}
 	http.Handle("/metrics", promhttp.Handler())
 	// TODO: Check errors from ListenAndServe()
+	//#nosec G114 -- We don't need timeouts for an internal metrics endpoint
 	go func() { _ = http.ListenAndServe(MetricsEndpoint, nil) }()
 	return nil
 }
