@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -66,16 +65,16 @@ const (
 
 // IsReady deals with the osd-cluster-ready Job.
 // Sets:
-// - impl.Ready:
-//   true if:
+//   - impl.Ready:
+//     true if:
 //   - a previous check has already succeeded (a cluster can't become un-ready once it's ready);
 //   - an osd-cluster-ready Job has completed; or
 //   - the cluster is older than maxClusterAgeMinutes
-//   false otherwise.
-// - impl.Result: If the caller's reconcile is otherwise successful, it
-//   should return the given Result.
-// - impl.clusterCreationTime: If it is necessary to check the age of the cluster, this is set so
-//   we only have to query prometheus once.
+//     false otherwise.
+//   - impl.Result: If the caller's reconcile is otherwise successful, it
+//     should return the given Result.
+//   - impl.clusterCreationTime: If it is necessary to check the age of the cluster, this is set so
+//     we only have to query prometheus once.
 func (impl *Impl) IsReady() (bool, error) {
 	if impl.ready {
 		log.Info("DEBUG: Using cached positive cluster readiness.")
@@ -156,7 +155,7 @@ func (impl *Impl) Result() reconcile.Result {
 }
 
 func (impl *Impl) setPromAPI() error {
-	rawToken, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	rawToken, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
 	if err != nil {
 		return fmt.Errorf("couldn't read token file: %w", err)
 	}
