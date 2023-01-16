@@ -490,6 +490,15 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy s
 	}
 }
 
+func createGoalertConfig(goalertRoutingKey, clusterProxy string) *alertmanager.WebhookConfig {
+
+	return &alertmanager.WebhookConfig{
+		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
+		URL:            goalertRoutingKey,
+		HttpConfig:     createHttpConfig(clusterProxy),
+	}
+}
+
 // createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
 func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
@@ -526,6 +535,22 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 		Name:             receiverMakeItCritical,
 		PagerdutyConfigs: []*alertmanager.PagerdutyConfig{criticalpdconfig},
 	})
+
+	return receivers
+}
+
+// createGoalertReceivers creates an AlertManager Receiver for Goalert in memory.
+func createGoalertReceivers(goalertRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
+	if goalertRoutingKey == "" {
+		return []*alertmanager.Receiver{}
+	}
+
+	receivers := []*alertmanager.Receiver{
+		{
+			Name:           clusterID,
+			WebhookConfigs: []*alertmanager.WebhookConfig{createGoalertConfig(goalertRoutingKey, clusterProxy)},
+		},
+	}
 
 	return receivers
 }
