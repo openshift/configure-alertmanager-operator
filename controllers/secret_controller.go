@@ -687,7 +687,7 @@ func createGoalertConfig(goalertRoutingKey, clusterProxy string) *alertmanager.W
 
 	return &alertmanager.WebhookConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
-		URL:            goalertRoutingKey,
+		URL:            goalertURL + goalertRoutingKey,
 		HttpConfig:     createHttpConfig(clusterProxy),
 	}
 }
