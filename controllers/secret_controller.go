@@ -733,7 +733,7 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 }
 
 // createGoalertReceivers creates an AlertManager Receiver for Goalert in memory.
-func createGoalertReceivers(goalertRoutingKey, clusterProxy string) []*alertmanager.Receiver {
+func createGoalertReceivers(goalertRoutingKey, clusterID, clusterProxy string) []*alertmanager.Receiver {
 	if goalertRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
