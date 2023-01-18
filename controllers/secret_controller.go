@@ -84,6 +84,9 @@ const (
 	// anything going to Dead Man's Snitch (watchdog)
 	receiverWatchdog = "watchdog"
 
+	// anything going to Goalert
+	receiverGoalert = "goalert"
+
 	// the default receiver used by the route used for pagerduty
 	defaultReceiver = receiverNull
 
@@ -202,7 +205,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	if err != nil {
 		reqLogger.Error(err, "Error reading cluster id.")
 	}
-	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, goalertRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
@@ -424,6 +427,25 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 
+	goalertSubroutes := []*alertmanager.Route{}
+
+	for _, namespace := range namespaceList {
+		goalertSubroutes = []*alertmanager.Route{
+			{Receiver: receiverGoalert, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
+			// general: route anything in core namespaces to Goalert
+			{Receiver: receiverGoalert, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
+		}
+	}
+
+	return &alertmanager.Route{
+		Receiver: receiverGoalert,
+		GroupByStr: []string{
+			"alertname",
+			"severity",
+		},
+		Continue: true,
+		Routes:   goalertSubroutes,
+	}
 }
 
 // createOCMAgentRoute creates an AlertManager Route for OcmAgent in memory.
@@ -540,14 +562,14 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 }
 
 // createGoalertReceivers creates an AlertManager Receiver for Goalert in memory.
-func createGoalertReceivers(goalertRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
+func createGoalertReceivers(goalertRoutingKey, clusterProxy string) []*alertmanager.Receiver {
 	if goalertRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
 
 	receivers := []*alertmanager.Receiver{
 		{
-			Name:           clusterID,
+			Name:           receiverGoalert,
 			WebhookConfigs: []*alertmanager.WebhookConfig{createGoalertConfig(goalertRoutingKey, clusterProxy)},
 		},
 	}
