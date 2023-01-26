@@ -776,7 +776,7 @@ func createGoalertReceivers(goalertURLlow, goalertURLhigh, clusterProxy string) 
 }
 
 // creatHeartbeatRoute creates an AlertManager Route for GoAlert Heartbeat in memory.
-func creatHeartbeatRoute() *alertmanager.Route {
+func createHeartbeatRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverGoAlertHeartbeat,
 		RepeatInterval: "5m",
@@ -865,8 +865,8 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 
 	if config.IsFedramp() {
 		if goalertURLheartbeat != "" {
-			routes = append(routes, createWatchdogRoute())
-			receivers = append(receivers, createWatchdogReceivers(goalertURLheartbeat, clusterProxy)...)
+			routes = append(routes, createHeartbeatRoute())
+			receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
 		}
 
 		if goalertURLlow != "" && goalertURLhigh != "" {
