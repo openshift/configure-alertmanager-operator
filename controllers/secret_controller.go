@@ -201,7 +201,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		reqLogger.Error(err, "Unable to list configMaps")
 	}
 
-	pagerdutyRoutingKey, watchdogURL := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
+	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
 	osdNamespaces := r.parseConfigMaps(reqLogger, cmList, request.Namespace)
 	reqLogger.Info("DEBUG: Adding PagerDuty routes for the following namespaces", "Namespaces", osdNamespaces)
 
@@ -1069,17 +1069,21 @@ func (r *SecretReconciler) readOCMAgentServiceURLFromConfig(reqLogger logr.Logge
 	return serviceURL
 }
 
-func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string) {
+func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string, goalertURLlow string, goalertURLhigh string, goalertURLheartbeat string) {
 	// Check for the presence of specific secrets.
+	goalertSecretExists := secretInList(reqLogger, secretNameGoalert, secretList)
 	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
 	snitchSecretExists := secretInList(reqLogger, secretNameDMS, secretList)
 
-	// do the work! collect secret info for PD and DMS
+	// do the work! collect secret info for PD, DMS, and GoAlert
+	goalertURLlow = ""
+	goalertURLhigh = ""
+	goalertURLheartbeat = ""
 	pagerdutyRoutingKey = ""
 	watchdogURL = ""
 
 	// If a secret exists, add the necessary configs to Alertmanager.
-	// But don't activate PagerDuty unless the cluster is "ready".
+	// But don't activate PagerDuty/Goalert unless the cluster is "ready".
 	// This is to avoid alert noise while the cluster is still being installed and configured.
 	if pagerDutySecretExists {
 		reqLogger.Info("INFO: Pager Duty secret exists")
@@ -1100,7 +1104,22 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: Dead Man's Snitch secret does not exist")
 	}
 
-	return pagerdutyRoutingKey, watchdogURL
+	// Pulls the values needed from the goalert secret
+	if goalertSecretExists {
+		reqLogger.Info("INFO: Goalert secret exists")
+		if clusterReady {
+			reqLogger.Info("INFO: Cluster is ready; configuring Goalert")
+			goalertURLlow = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertLow)
+			goalertURLhigh = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertHigh)
+			goalertURLheartbeat = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertHeartbeat)
+		} else {
+			reqLogger.Info("INFO: Cluster is not ready; skipping Goalert configuration")
+		}
+	} else {
+		reqLogger.Info("INFO: Goalert secret does not exist")
+	}
+
+	return pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat
 }
 
 func (r *SecretReconciler) getClusterID() (string, error) {
