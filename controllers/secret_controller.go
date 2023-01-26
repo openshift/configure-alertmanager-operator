@@ -844,7 +844,7 @@ func createHttpConfig(clusterProxy string) alertmanager.HttpConfig {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
@@ -861,6 +861,18 @@ func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clu
 	if pagerdutyRoutingKey != "" {
 		routes = append(routes, createPagerdutyRoute(namespaceList))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
+	}
+
+	if config.IsFedramp() {
+		if goalertURLheartbeat != "" {
+			routes = append(routes, createWatchdogRoute())
+			receivers = append(receivers, createWatchdogReceivers(goalertURLheartbeat, clusterProxy)...)
+		}
+
+		if goalertURLlow != "" && goalertURLhigh != "" {
+			routes = append(routes, createGoalertRoute(namespaceList))
+			receivers = append(receivers, createGoalertReceivers(goalertURLhigh, goalertURLlow, clusterProxy)...)
+		}
 	}
 
 	// always have the "null" receiver
