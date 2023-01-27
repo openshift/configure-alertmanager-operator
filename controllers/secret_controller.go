@@ -44,7 +44,6 @@ import (
 var log = logf.Log.WithName("secret_controller")
 
 const (
-
 	secretKeyGoalertLow = "GOALERT_URL_LOW"
 
 	secretKeyGoalertHigh = "GOALERT_URL_HIGH"
@@ -603,7 +602,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
 	}
 
-		// Silence insights in FedRAMP until its made available in the environment
+	// Silence insights in FedRAMP until its made available in the environment
 	// https://issues.redhat.com/browse/OSD-13685
 	if config.IsFedramp() {
 		goalertSubroutes = append(goalertSubroutes,
@@ -759,10 +758,10 @@ func createGoalertReceivers(goalertURLlow, goalertURLhigh, clusterProxy string) 
 	}
 
 	// Low alerts
-	goalertconfig := createGoalertConfig(goalertURLlow, clusterProxy)
+	goalertlowconfig := createGoalertConfig(goalertURLlow, clusterProxy)
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:           receiverGoAlertLow,
-		WebhookConfigs: []*alertmanager.WebhookConfig{goalertconfig},
+		WebhookConfigs: []*alertmanager.WebhookConfig{goalertlowconfig},
 	})
 
 	// High alerts
