@@ -621,7 +621,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 	}
 
 	return &alertmanager.Route{
-		Receiver: defaultReceiver,
+		Receiver: receiverGoalert,
 		GroupByStr: []string{
 			"alertname",
 			"severity",
