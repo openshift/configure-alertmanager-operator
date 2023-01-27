@@ -1110,8 +1110,8 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 	}
 
 	if snitchSecretExists {
-		// reqLogger.Info("INFO: Dead Man's Snitch secret exists")
-		// watchdogURL = readSecretKey(r, secretNameDMS, namespace, secretKeyDMS)
+		reqLogger.Info("INFO: Dead Man's Snitch secret exists")
+		watchdogURL = readSecretKey(r, secretNameDMS, namespace, secretKeyDMS)
 	} else {
 		reqLogger.Info("INFO: Dead Man's Snitch secret does not exist")
 	}
