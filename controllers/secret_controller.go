@@ -849,8 +849,8 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 	receivers := []*alertmanager.Receiver{}
 
 	if watchdogURL != "" {
-		routes = append(routes, createWatchdogRoute())
-		receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
+		// routes = append(routes, createWatchdogRoute())
+		// receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
 	}
 
 	if ocmAgentURL != "" {
