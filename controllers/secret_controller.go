@@ -788,7 +788,7 @@ func createWatchdogRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverWatchdog,
 		RepeatInterval: "5m",
-		Match:          map[string]string{"alertname": "Watchdog"},
+		Matchers:          map[string]string{"alertname": "Watchdog"},
 	}
 }
 
