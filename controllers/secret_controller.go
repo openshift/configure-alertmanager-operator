@@ -1108,12 +1108,12 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: Pager Duty secret does not exist")
 	}
 
-	if snitchSecretExists {
-		reqLogger.Info("INFO: Dead Man's Snitch secret exists")
-		watchdogURL = readSecretKey(r, secretNameDMS, namespace, secretKeyDMS)
-	} else {
-		reqLogger.Info("INFO: Dead Man's Snitch secret does not exist")
-	}
+	// if snitchSecretExists {
+	// 	reqLogger.Info("INFO: Dead Man's Snitch secret exists")
+	// 	watchdogURL = readSecretKey(r, secretNameDMS, namespace, secretKeyDMS)
+	// } else {
+	// 	reqLogger.Info("INFO: Dead Man's Snitch secret does not exist")
+	// }
 
 	// Pulls the values needed from the goalert secret
 	if goalertSecretExists {
