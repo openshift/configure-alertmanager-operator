@@ -779,7 +779,7 @@ func createHeartbeatRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverGoAlertHeartbeat,
 		RepeatInterval: "5m",
-		MatchRE:          map[string]string{"alertname": "WatchdogAlert"},
+		MatchRE:          map[string]string{"alertname": "Watchdog"},
 	}
 }
 
