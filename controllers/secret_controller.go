@@ -778,9 +778,9 @@ func createGoalertReceivers(goalertURLlow, goalertURLhigh, clusterProxy string) 
 func createHeartbeatRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverGoAlertHeartbeat,
-		RepeatInterval: "10m",
+		RepeatInterval: "5m",
 		Matchers:       map[string]string{"alertname": "Watchdog"},
-		Continue: true,
+		Continue:       true,
 	}
 }
 
@@ -790,7 +790,7 @@ func createWatchdogRoute() *alertmanager.Route {
 		Receiver:       receiverWatchdog,
 		RepeatInterval: "5m",
 		Match:          map[string]string{"alertname": "Watchdog"},
-		Continue: true,
+		Continue:       true,
 	}
 }
 
@@ -812,7 +812,6 @@ func createHeartbeatReceivers(heartbeatURL string, clusterProxy string) []*alert
 		},
 	}
 }
-
 
 // createWatchdogReceivers creates an AlertManager Receiver for Watchdog (Dead Man's Snitch) in memory.
 func createWatchdogReceivers(watchdogURL string, clusterProxy string) []*alertmanager.Receiver {
