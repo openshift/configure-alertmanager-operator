@@ -865,8 +865,8 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 
 	if config.IsFedramp() {
 		if goalertURLheartbeat != "" {
-			// routes = append(routes, createHeartbeatRoute())
-			// receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
+			routes = append(routes, createHeartbeatRoute())
+			receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
 		}
 
 		if goalertURLlow != "" && goalertURLhigh != "" {
