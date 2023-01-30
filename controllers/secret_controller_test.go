@@ -216,11 +216,104 @@ func verifyPagerdutyReceivers(t *testing.T, key string, proxy string, receivers 
 	assertTrue(t, hasPagerduty, fmt.Sprintf("No '%s' receiver", receiverPagerduty))
 }
 
+// utility class to test Goalert route creation
+func verifyGoalertRoute(t *testing.T, route *alertmanager.Route, expectedNamespaces []string) {
+	assertEquals(t, defaultReceiver, route.Receiver, "Receiver Name")
+	assertEquals(t, true, route.Continue, "Continue")
+	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
+	assertGte(t, 1, len(route.Routes), "Number of Routes")
+
+	// verify we have the core routes for namespace, ES, and fluentd
+	hasNamespace := false
+	hasElasticsearch := false
+	hasFluentd := false
+	routeNamespaces := []string{}
+	for _, route := range route.Routes {
+		if route.Receiver == receiverPagerduty && route.MatchRE["namespace"] != "" {
+			routeNamespaces = append(routeNamespaces, route.MatchRE["namespace"])
+		} else if route.Match["job"] == "fluentd" {
+			hasFluentd = true
+		} else if route.Match["cluster"] == "elasticsearch" {
+			hasElasticsearch = true
+		}
+	}
+
+	if reflect.DeepEqual(expectedNamespaces, routeNamespaces) {
+		hasNamespace = true
+	}
+
+	assertTrue(t, hasNamespace, "No route for MatchRE on namespace")
+	assertTrue(t, hasElasticsearch, "No route for Match on cluster=elasticsearch")
+	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
+}
+
+// utility function to verify Goalert Receivers
+func verifyGoalertReceivers(t *testing.T, key string, proxy string, receivers []*alertmanager.Receiver) {
+	// there are at least 3 receivers: namespace, elasticsearch, and fluentd
+	assertGte(t, 2, len(receivers), "Number of Receivers")
+
+	// verify structure of each
+	hasGoalertLow := false
+	hasGoalert := false
+	hasGoalertHigh := false
+	for _, receiver := range receivers {
+		switch receiver.Name {
+		case receiverGoAlertLow:
+			hasGoalertLow = true
+			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, key, receiver.WebhookConfigs[0].URL, "URL")
+			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
+		case receiverGoalert:
+			hasGoalert = true
+			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, key, receiver.WebhookConfigs[0].URL, "URL")
+			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
+		case receiverGoAlertHigh:
+			hasGoalertHigh = true
+			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, key, receiver.WebhookConfigs[0].URL, "URL")
+			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
+		}
+	}
+
+	assertTrue(t, hasGoalertHigh, fmt.Sprintf("No '%s' receiver", receiverGoAlertHigh))
+	assertTrue(t, hasGoalertLow, fmt.Sprintf("No '%s' receiver", receiverGoAlertLow))
+	assertTrue(t, hasGoalert, fmt.Sprintf("No '%s' receiver", receiverGoalert))
+}
+
+// utility function to verify Goalert Heartbeat
+func verifyHeartbeatRoute(t *testing.T, route *alertmanager.Route) {
+	assertEquals(t, receiverGoAlertHeartbeat, route.Receiver, "Receiver Name")
+	assertEquals(t, "5m", route.RepeatInterval, "Repeat Interval")
+	assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
+	assertEquals(t, true, route.Continue, "Continue")
+}
+
+// utility to test Goalert heartbeat receivers
+func verifyHeartbeatReceiver(t *testing.T, url string, proxy string, receivers []*alertmanager.Receiver) {
+	// there is 1 receiver
+	assertGte(t, 1, len(receivers), "Number of Receivers")
+
+	// verify structure of each
+	hasWatchdog := false
+	for _, receiver := range receivers {
+		if receiver.Name == receiverGoAlertHeartbeat {
+			hasWatchdog = true
+			assertTrue(t, receiver.WebhookConfigs[0].VSendResolved, "VSendResolved")
+			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
+			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
+		}
+	}
+
+	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
+}
+
 // utility function to verify watchdog route
 func verifyWatchdogRoute(t *testing.T, route *alertmanager.Route) {
 	assertEquals(t, receiverWatchdog, route.Receiver, "Receiver Name")
 	assertEquals(t, "5m", route.RepeatInterval, "Repeat Interval")
 	assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
+	assertEquals(t, true, route.Continue, "Continue")
 }
 
 // utility to test watchdog receivers
@@ -485,10 +578,16 @@ func Test_parseSecrets(t *testing.T) {
 
 	pdKey := "asdfjkl123"
 	dmsURL := "https://hjklasdf09876"
+	goalertHeartbeat := "https://9lkdjfdlsk"
+	goalertHighURL := "https://jkhbf480"
+	goalertLowURL := "https://kjhbwedkj7834"
 
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, goalertHeartbeat)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, goalertHighURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, goalertLowURL)
 
 	secretList := &corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
@@ -497,10 +596,13 @@ func Test_parseSecrets(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
+	assertEquals(t, goalertLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
+	assertEquals(t, goalertHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
+	assertEquals(t, goalertHeartbeat, goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
 }
 
 // Test_parseSecrets tests the parseSecrets function when the DMS secret does not exist
@@ -523,10 +625,13 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", watchdogURL, "Expected DMS URLs to match")
+	assertEquals(t, "", goalertURLlow, "Expected GoAlert Low URLs to match")
+	assertEquals(t, "", goalertURLhigh, "Expected GoAlert High URLs to match")
+	assertEquals(t, "", goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
 }
 
 // Tests the parseSecrets function when the PD secret does not exist
@@ -549,10 +654,46 @@ func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, watchdogURL := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
+	assertEquals(t, "", goalertURLlow, "Expected GoAlert Low URLs to match")
+	assertEquals(t, "", goalertURLhigh, "Expected GoAlert High URLs to match")
+	assertEquals(t, "", goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
+}
+
+// Tests the parseSecrets function when the GoAlert secrets do not exist
+func Test_parseSecrets_MissingGoAlert(t *testing.T) {
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+
+	goalertHeartbeat := "https://9lkdjfdlsk"
+	goalertHighURL := "https://jkhbf480"
+	goalertLowURL := "https://kjhbwedkj7834"
+
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, goalertHeartbeat)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, goalertHighURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, goalertLowURL)
+
+	secretList := &corev1.SecretList{}
+	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
+	if err != nil {
+		t.Fatalf("Could not list Secrets: %v", err)
+	}
+
+	request := createReconcileRequest(reconciler, secretNamePD)
+	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+
+	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
+	assertEquals(t, "", watchdogURL, "Expected DMS URLs to match")
+	assertEquals(t, goalertLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
+	assertEquals(t, goalertHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
+	assertEquals(t, goalertHeartbeat, goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
 }
 
 // Test_parseConfigMaps tests the parseConfigMaps function under various circumstances
