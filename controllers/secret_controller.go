@@ -778,7 +778,7 @@ func createGoalertReceivers(goalertURLlow, goalertURLhigh, clusterProxy string) 
 func createHeartbeatRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverGoAlertHeartbeat,
-		RepeatInterval: "5m",
+		RepeatInterval: "10m",
 		Matchers:       map[string]string{"alertname": "Watchdog"},
 	}
 }
@@ -788,7 +788,7 @@ func createWatchdogRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverWatchdog,
 		RepeatInterval: "5m",
-		Matchers:          map[string]string{"alertname": "Watchdog"},
+		Matchers:       map[string]string{"alertname": "Watchdog"},
 	}
 }
 
