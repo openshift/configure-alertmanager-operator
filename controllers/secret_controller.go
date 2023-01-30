@@ -780,6 +780,7 @@ func createHeartbeatRoute() *alertmanager.Route {
 		Receiver:       receiverGoAlertHeartbeat,
 		RepeatInterval: "10m",
 		Matchers:       map[string]string{"alertname": "Watchdog"},
+		Continue: true,
 	}
 }
 
@@ -789,6 +790,7 @@ func createWatchdogRoute() *alertmanager.Route {
 		Receiver:       receiverWatchdog,
 		RepeatInterval: "5m",
 		Match:          map[string]string{"alertname": "Watchdog"},
+		Continue: true,
 	}
 }
 
@@ -849,8 +851,8 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 	receivers := []*alertmanager.Receiver{}
 
 	if watchdogURL != "" {
-		// routes = append(routes, createWatchdogRoute())
-		// receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
+		routes = append(routes, createWatchdogRoute())
+		receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
 	}
 
 	if ocmAgentURL != "" {
