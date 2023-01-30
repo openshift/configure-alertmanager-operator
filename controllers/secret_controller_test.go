@@ -947,8 +947,11 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
 	oaURL := ""
+	gaHighURL := ""
+	gaLowURL := ""
+	gaHeartURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -969,8 +972,11 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := ""
 	oaURL := ""
+	gaHighURL := ""
+	gaLowURL := ""
+	gaHeartURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -994,7 +1000,10 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
 	oaURL := "http://dummy-oa-url"
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	gaHighURL := ""
+	gaLowURL := ""
+	gaHeartURL := ""
+	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1024,8 +1033,11 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 	pdKey := ""
 	wdURL := "http://theinterwebs"
 	oaURL := ""
+	gaHighURL := ""
+	gaLowURL := ""
+	gaHeartURL := ""
 
-	config := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
