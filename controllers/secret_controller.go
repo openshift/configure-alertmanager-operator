@@ -44,10 +44,13 @@ import (
 var log = logf.Log.WithName("secret_controller")
 
 const (
+	// Endpoint for "low" alerts for GoAlert. These will not page support personnel
 	secretKeyGoalertLow = "GOALERT_URL_LOW"
 
+	// Endpoint for "high" alerts for GoAlert. These will page support personnel
 	secretKeyGoalertHigh = "GOALERT_URL_HIGH"
 
+	// Endpoint for cluster heartbeat for GoAlert. These will page support personnel
 	secretKeyGoalertHeartbeat = "GOALERT_HEARTBEAT"
 
 	secretKeyPD = "PAGERDUTY_KEY" // #nosec G101

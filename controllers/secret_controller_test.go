@@ -578,16 +578,16 @@ func Test_parseSecrets(t *testing.T) {
 
 	pdKey := "asdfjkl123"
 	dmsURL := "https://hjklasdf09876"
-	goalertHeartbeat := "https://9lkdjfdlsk"
-	goalertHighURL := "https://jkhbf480"
-	goalertLowURL := "https://kjhbwedkj7834"
+	gaHeartURL := "https://9lkdjfdlsk"
+	gaHighURL := "https://jkhbf480"
+	gaLowURL := "https://kjhbwedkj7834"
 
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, goalertHeartbeat)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, goalertHighURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, goalertLowURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
 
 	secretList := &corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
@@ -600,9 +600,9 @@ func Test_parseSecrets(t *testing.T) {
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
-	assertEquals(t, goalertLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
-	assertEquals(t, goalertHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
-	assertEquals(t, goalertHeartbeat, goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
+	assertEquals(t, gaLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
+	assertEquals(t, gaHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
+	assertEquals(t, gaHeartURL, goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
 }
 
 // Test_parseSecrets tests the parseSecrets function when the DMS secret does not exist
@@ -671,14 +671,14 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	mockReadiness := readiness.NewMockInterface(ctrl)
 	reconciler := createReconciler(t, mockReadiness)
 
-	goalertHeartbeat := "https://9lkdjfdlsk"
-	goalertHighURL := "https://jkhbf480"
-	goalertLowURL := "https://kjhbwedkj7834"
+	gaHeartURL := "https://9lkdjfdlsk"
+	gaHighURL := "https://jkhbf480"
+	gaLowURL := "https://kjhbwedkj7834"
 
 	createNamespace(reconciler, t)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, goalertHeartbeat)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, goalertHighURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, goalertLowURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
 
 	secretList := &corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
@@ -691,9 +691,9 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", watchdogURL, "Expected DMS URLs to match")
-	assertEquals(t, goalertLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
-	assertEquals(t, goalertHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
-	assertEquals(t, goalertHeartbeat, goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
+	assertEquals(t, gaLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
+	assertEquals(t, gaHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
+	assertEquals(t, gaHeartURL, goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
 }
 
 // Test_parseConfigMaps tests the parseConfigMaps function under various circumstances
@@ -1136,8 +1136,11 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+	gaHighURL := "https://fgsgsdrfg443"
+	gaLowURL := "https://gfdsgfsdgsg3443"
+	gaHeartURL := "https://sdfasdfsdfds233"
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1150,6 +1153,9 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
