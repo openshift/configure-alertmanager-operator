@@ -158,6 +158,37 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route, expectedNames
 	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
 }
 
+// utility class to test Goalert route creation
+func verifyGoalertRoute(t *testing.T, route *alertmanager.Route, expectedNamespaces []string) {
+	assertEquals(t, defaultReceiver, route.Receiver, "Receiver Name")
+	assertEquals(t, true, route.Continue, "Continue")
+	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
+	assertGte(t, 1, len(route.Routes), "Number of Routes")
+
+	// verify we have the core routes for namespace, ES, and fluentd
+	hasNamespace := false
+	hasElasticsearch := false
+	hasFluentd := false
+	routeNamespaces := []string{}
+	for _, route := range route.Routes {
+		if route.Receiver == receiverPagerduty && route.MatchRE["namespace"] != "" {
+			routeNamespaces = append(routeNamespaces, route.MatchRE["namespace"])
+		} else if route.Match["job"] == "fluentd" {
+			hasFluentd = true
+		} else if route.Match["cluster"] == "elasticsearch" {
+			hasElasticsearch = true
+		}
+	}
+
+	if reflect.DeepEqual(expectedNamespaces, routeNamespaces) {
+		hasNamespace = true
+	}
+
+	assertTrue(t, hasNamespace, "No route for MatchRE on namespace")
+	assertTrue(t, hasElasticsearch, "No route for Match on cluster=elasticsearch")
+	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
+}
+
 func verifyNullReceiver(t *testing.T, receivers []*alertmanager.Receiver) {
 	hasNull := false
 	for _, receiver := range receivers {
@@ -214,37 +245,6 @@ func verifyPagerdutyReceivers(t *testing.T, key string, proxy string, receivers 
 	assertTrue(t, hasMakeItError, fmt.Sprintf("No '%s' receiver", receiverMakeItError))
 	assertTrue(t, hasMakeItWarning, fmt.Sprintf("No '%s' receiver", receiverMakeItWarning))
 	assertTrue(t, hasPagerduty, fmt.Sprintf("No '%s' receiver", receiverPagerduty))
-}
-
-// utility class to test Goalert route creation
-func verifyGoalertRoute(t *testing.T, route *alertmanager.Route, expectedNamespaces []string) {
-	assertEquals(t, defaultReceiver, route.Receiver, "Receiver Name")
-	assertEquals(t, true, route.Continue, "Continue")
-	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
-	assertGte(t, 1, len(route.Routes), "Number of Routes")
-
-	// verify we have the core routes for namespace, ES, and fluentd
-	hasNamespace := false
-	hasElasticsearch := false
-	hasFluentd := false
-	routeNamespaces := []string{}
-	for _, route := range route.Routes {
-		if route.Receiver == receiverPagerduty && route.MatchRE["namespace"] != "" {
-			routeNamespaces = append(routeNamespaces, route.MatchRE["namespace"])
-		} else if route.Match["job"] == "fluentd" {
-			hasFluentd = true
-		} else if route.Match["cluster"] == "elasticsearch" {
-			hasElasticsearch = true
-		}
-	}
-
-	if reflect.DeepEqual(expectedNamespaces, routeNamespaces) {
-		hasNamespace = true
-	}
-
-	assertTrue(t, hasNamespace, "No route for MatchRE on namespace")
-	assertTrue(t, hasElasticsearch, "No route for Match on cluster=elasticsearch")
-	assertTrue(t, hasFluentd, "No route for Match on job=fluentd")
 }
 
 // utility function to verify Goalert Receivers
@@ -671,9 +671,9 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	mockReadiness := readiness.NewMockInterface(ctrl)
 	reconciler := createReconciler(t, mockReadiness)
 
-	gaHeartURL := "https://9lkdjfdlsk"
-	gaHighURL := "https://jkhbf480"
-	gaLowURL := "https://kjhbwedkj7834"
+	gaHighURL := "https://dummy-gahigh-url"
+	gaLowURL := "https://dummy-galow-url"
+	gaHeartURL := "https://dummy-gaheartbeat-url"
 
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
@@ -931,6 +931,25 @@ func Test_createWatchdogRoute(t *testing.T) {
 	verifyWatchdogRoute(t, route)
 }
 
+func Test_createHeartbeatReceivers_WithoutURL(t *testing.T) {
+	assertEquals(t, 0, len(createHeartbeatReceivers("", "")), "Number of Receivers")
+}
+
+func Test_createHeartbeatReceivers_WithKey(t *testing.T) {
+	url := "http://whatever/something"
+
+	receivers := createHeartbeatReceivers(url, exampleProxy)
+
+	verifyHeartbeatReceiver(t, url, exampleProxy, receivers)
+}
+
+func Test_createHeartbeatRoute(t *testing.T) {
+	// test the structure of the Route is sane
+	route := createHeartbeatRoute()
+
+	verifyHeartbeatRoute(t, route)
+}
+
 func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
 	assertEquals(t, 0, len(createWatchdogReceivers("", "")), "Number of Receivers")
 }
@@ -942,7 +961,6 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 
 	verifyWatchdogReceiver(t, url, exampleProxy, receivers)
 }
-
 func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
@@ -999,10 +1017,11 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
-	oaURL := "http://dummy-oa-url"
-	gaHighURL := ""
-	gaLowURL := ""
-	gaHeartURL := ""
+	oaURL := "https://dummy-oa-url"
+	gaHighURL := "https://dummy-gahigh-url"
+	gaLowURL := "https://dummy-galow-url"
+	gaHeartURL := "https://dummy-gaheartbeat-url"
+
 	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
@@ -1136,9 +1155,9 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
-	gaHighURL := "https://fgsgsdrfg443"
-	gaLowURL := "https://gfdsgfsdgsg3443"
-	gaHeartURL := "https://sdfasdfsdfds233"
+	gaHighURL := "https://dummy-gahigh-url"
+	gaLowURL := "https://dummy-galow-url"
+	gaHeartURL := "https://dummy-gaheartbeat-url"
 
 	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
@@ -1153,9 +1172,6 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
@@ -1178,11 +1194,14 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+	gaHighURL := "https://dummy-gahigh-url"
+	gaLowURL := "https://dummy-galow-url"
+	gaHeartURL := "https://dummy-gaheartbeat-url"
 
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1195,6 +1214,100 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
+	createClusterVersion(reconciler)
+	createClusterProxy(reconciler)
+
+	// reconcile (one event should config everything)
+	req := createReconcileRequest(reconciler, secretNamePD)
+	ret, err = reconciler.Reconcile(context.TODO(), *req)
+	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+	assertEquals(t, nil, err, "Unexpected err")
+
+	// verify what we have configured is NOT what we expect at the end (we have updates to do still)
+	configActual := readAlertManagerConfig(reconciler, req)
+	assertNotEquals(t, configExpected, configActual, "Config Deep Comparison")
+
+	// update environment
+	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
+	req = createReconcileRequest(reconciler, secretNameDMS)
+	ret, err = reconciler.Reconcile(context.TODO(), *req)
+	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+	assertEquals(t, nil, err, "Unexpected err")
+
+	// read config and compare
+	configActual = readAlertManagerConfig(reconciler, req)
+
+	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
+}
+
+// Test_createPagerdutySecret_Create tests writing to the Alertmanager config.
+func Test_createGoalertSecret_Create(t *testing.T) {
+	pdKey := "fakekey"
+	wdURL := "http://theinterwebs/asdf"
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+	gaHighURL := "https://dummy-gahigh-url"
+	gaLowURL := "https://dummy-galow-url"
+	gaHeartURL := "https://dummy-gaheartbeat-url"
+
+	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+
+	verifyInhibitRules(t, configExpected.InhibitRules)
+
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	mockReadiness.EXPECT().IsReady().Times(1).Return(true, nil)
+	mockReadiness.EXPECT().Result().Times(1).Return(reconcile.Result{})
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
+	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
+	createClusterVersion(reconciler)
+	createClusterProxy(reconciler)
+
+	// reconcile (one event should config everything)
+	req := createReconcileRequest(reconciler, "goalert-secret")
+	ret, err := reconciler.Reconcile(context.TODO(), *req)
+	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+	assertEquals(t, nil, err, "Unexpected err")
+
+	// read config and a copy for comparison
+	configActual := readAlertManagerConfig(reconciler, req)
+
+	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
+}
+
+// Test updating the config and making sure it is updated as expected
+func Test_createGoalertSecret_Update(t *testing.T) {
+	pdKey := "fakekey"
+	wdURL := "http://theinterwebs/asdf"
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+	gaHighURL := "https://dummy-gahigh-url"
+	gaLowURL := "https://dummy-galow-url"
+	gaHeartURL := "https://dummy-gaheartbeat-url"
+
+	var ret reconcile.Result
+	var err error
+
+	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+
+	verifyInhibitRules(t, configExpected.InhibitRules)
+
+	// prepare environment
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	mockReadiness.EXPECT().IsReady().Times(2).Return(true, nil)
+	mockReadiness.EXPECT().Result().Times(2).Return(reconcile.Result{})
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
+	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 	createClusterProxy(reconciler)
