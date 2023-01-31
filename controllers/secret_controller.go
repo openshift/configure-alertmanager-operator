@@ -409,7 +409,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-14071
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
 
-	    // https://issues.redhat.com/browse/OSD-14857
+		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
 	}
 
@@ -447,11 +447,10 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 
 	// order matters.
 	// these are sub-routes.  if any matches it will not continue processing.
-	// 1. route anything we consider critical to "make-it-critical"
+	// 1. route anything we consider critical to "GoAlert High"
 	// 2. route anything we want to silence to "null"
-	// 3. route anything that should be a warning to "make-it-warning"
-	// 4. route anything that should be an error to "make-it-error"
-	// 5. route anything we want to go to PD
+	// 3. route anything that should be a warning to "GoAlert Low"
+	// 4. route anything we want to go to GoAlert
 	//
 	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
 	goalertSubroutes := []*alertmanager.Route{
