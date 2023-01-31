@@ -578,9 +578,9 @@ func Test_parseSecrets(t *testing.T) {
 
 	pdKey := "asdfjkl123"
 	dmsURL := "https://hjklasdf09876"
-	gaHeartURL := "https://9lkdjfdlsk"
-	gaHighURL := "https://jkhbf480"
-	gaLowURL := "https://kjhbwedkj7834"
+	gaHighURL := "https://dummy-gahigh-url"
+	gaLowURL := "https://dummy-galow-url"
+	gaHeartURL := "https://dummy-gaheartbeat-url"
 
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
@@ -1376,6 +1376,7 @@ func Test_SecretReconciler(t *testing.T) {
 		pdExists    bool
 		amExists    bool
 		oaExists    bool
+		gaExists	bool
 		otherExists bool
 	}{
 		{
@@ -1384,6 +1385,7 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    false,
 			amExists:    false,
 			oaExists:    false,
+			gaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1392,6 +1394,7 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    false,
 			amExists:    false,
 			oaExists:    false,
+			gaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1400,6 +1403,7 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    true,
 			amExists:    false,
 			oaExists:    false,
+			gaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1408,6 +1412,16 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    false,
 			amExists:    true,
 			oaExists:    false,
+			gaExists:    false,
+			otherExists: false,
+		},
+		{
+			name:        "Test reconcile with GoALert secret only.",
+			dmsExists:   false,
+			pdExists:    false,
+			amExists:    false,
+			oaExists:    false,
+			gaExists:    true,
 			otherExists: false,
 		},
 		{
@@ -1416,6 +1430,7 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    false,
 			amExists:    false,
 			oaExists:    false,
+			gaExists:    false,
 			otherExists: true,
 		},
 		{
@@ -1424,6 +1439,7 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    true,
 			amExists:    false,
 			oaExists:    false,
+			gaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1432,6 +1448,16 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    true,
 			amExists:    true,
 			oaExists:    false,
+			gaExists:    false,
+			otherExists: false,
+		},
+		{
+			name:        "Test reconcile with ga & am secrets.",
+			dmsExists:   false,
+			pdExists:    false,
+			amExists:    true,
+			oaExists:    false,
+			gaExists:    true,
 			otherExists: false,
 		},
 		{
@@ -1440,6 +1466,7 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    false,
 			amExists:    true,
 			oaExists:    false,
+			gaExists:    false,
 			otherExists: false,
 		},
 		{
@@ -1448,6 +1475,16 @@ func Test_SecretReconciler(t *testing.T) {
 			pdExists:    true,
 			amExists:    true,
 			oaExists:    false,
+			gaExists:    false,
+			otherExists: false,
+		},
+		{
+			name:        "Test reconcile with ga, pd, dms, and am secrets.",
+			dmsExists:   true,
+			pdExists:    true,
+			amExists:    true,
+			oaExists:    false,
+			gaExists:    true,
 			otherExists: false,
 		},
 	}
@@ -1463,10 +1500,13 @@ func Test_SecretReconciler(t *testing.T) {
 		pdKey := ""
 		wdURL := ""
 		oaURL := ""
+		gaLowURL := ""
+		gaHighURL := ""
+		gaHeartURL := ""
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", defaultNamespaces))
+			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", "", "", "", defaultNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1479,11 +1519,19 @@ func Test_SecretReconciler(t *testing.T) {
 			pdKey = "asdfjkl123"
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
+		if tt.gaExists {
+			gaHighURL := "https://dummy-gahigh-url"
+			gaLowURL := "https://dummy-galow-url"
+			gaHeartURL := "https://dummy-gaheartbeat-url"
+			createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
+			createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
+			createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+		}
 		if tt.oaExists {
 			oaURL = fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 		}
-		configExpected := createAlertManagerConfig(pdKey, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1511,14 +1559,16 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		readyErr  bool
 		expectDMS bool
 		expectPD  bool
+		expectGA  bool
 		expectOA  bool
 	}{
 		{
-			name:      "Cluster not ready: don't configure PD or OA.",
+			name:      "Cluster not ready: don't configure GA, PD or OA.",
 			ready:     false,
 			readyErr:  false,
 			expectDMS: true,
 			expectPD:  false,
+			expectGA:  false,
 			expectOA:  false,
 		},
 		{
@@ -1528,6 +1578,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 			readyErr:  false,
 			expectDMS: true,
 			expectPD:  true,
+			expectGA:  true,
 			expectOA:  true,
 		},
 		{
@@ -1536,6 +1587,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 			readyErr:  true,
 			expectDMS: false,
 			expectPD:  false,
+			expectGA:  false,
 			expectOA:  false,
 		},
 	}
@@ -1554,17 +1606,23 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		createClusterVersion(reconciler)
 		createClusterProxy(reconciler)
 
-		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", defaultNamespaces))
+		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", "", "", "", defaultNamespaces))
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
 		oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+		gaHighURL := "https://dummy-gahigh-url"
+		gaLowURL := "https://dummy-galow-url"
+		gaHeartURL := "https://dummy-gaheartbeat-url"
 
 		// Create the secrets for this specific test.
 		// We're testing that Reconcile parlays the PD/DMS secrets into the AM config as
 		// appropriate. So we always start with those two secrets
 		createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
 		createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+		createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
+		createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
+		createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
 
 		// However, we expect the AM config to be updated only according to the test spec
 		if !tt.expectDMS {
@@ -1573,12 +1631,17 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		if !tt.expectPD {
 			pdKey = ""
 		}
+		if !tt.expectGA {
+			gaHighURL = ""
+			gaLowURL = ""
+			gaHeartURL = ""
+		}
 		if tt.expectOA {
 			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 		} else {
 			oaURL = ""
 		}
-		configExpected := createAlertManagerConfig(pdKey, dmsURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, dmsURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
