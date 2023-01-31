@@ -45,13 +45,13 @@ var log = logf.Log.WithName("secret_controller")
 
 const (
 	// Endpoint for "low" alerts for GoAlert. These will not page support personnel
-	secretKeyGoalertLow = "GOALERT_URL_LOW"
+	secretKeyGoalertLow = "GOALERT_URL_LOW" // #nosec G101
 
 	// Endpoint for "high" alerts for GoAlert. These will page support personnel
-	secretKeyGoalertHigh = "GOALERT_URL_HIGH"
+	secretKeyGoalertHigh = "GOALERT_URL_HIGH" // #nosec G101
 
 	// Endpoint for cluster heartbeat for GoAlert. These will page support personnel
-	secretKeyGoalertHeartbeat = "GOALERT_HEARTBEAT"
+	secretKeyGoalertHeartbeat = "GOALERT_HEARTBEAT" // #nosec G101
 
 	secretKeyPD = "PAGERDUTY_KEY" // #nosec G101
 
@@ -605,6 +605,9 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-14071
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
+
+		// https://issues.redhat.com/browse/OSD-14857
+		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
