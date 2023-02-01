@@ -1052,7 +1052,11 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
 
 	verifyGoalertRoute(t, config.Route.Routes[3], exampleManagedNamespaces)
-	verifyGoalertReceivers(t, pdKey, exampleProxy, config.Receivers)
+	verifyGoalertReceivers(t, gaHighURL, exampleProxy, config.Receivers)
+	verifyGoalertReceivers(t, gaLowURL, exampleProxy, config.Receivers)
+
+	verifyHeartbeatRoute(t, config.Route.Routes[4])
+	verifyHeartbeatReceiver(t, gaHeartURL, exampleProxy, config.Receivers)
 
 	verifyWatchdogRoute(t, config.Route.Routes[0])
 	verifyWatchdogReceiver(t, wdURL, exampleProxy, config.Receivers)
@@ -1276,7 +1280,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 
 // Test_createPagerdutySecret_Create tests writing to the Alertmanager config.
 func Test_createGoalertSecret_Create(t *testing.T) {
-	pdKey := "fakekey"
+	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 	gaHighURL := "https://dummy-gahigh-url"
@@ -1314,7 +1318,7 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 
 // Test updating the config and making sure it is updated as expected
 func Test_createGoalertSecret_Update(t *testing.T) {
-	pdKey := "fakekey"
+	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 	gaHighURL := "https://dummy-gahigh-url"
