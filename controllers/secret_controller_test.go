@@ -1538,9 +1538,7 @@ func Test_SecretReconciler(t *testing.T) {
 			gaHighURL := "https://dummy-gahigh-url"
 			gaLowURL := "https://dummy-galow-url"
 			gaHeartURL := "https://dummy-gaheartbeat-url"
-			createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
-			createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
-			createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+			createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
 		}
 		if tt.oaExists {
 			oaURL = fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
