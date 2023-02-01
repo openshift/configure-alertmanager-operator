@@ -362,7 +362,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
 
 		// https://issues.redhat.com/browse/OSD-9062
-		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
+		// {Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
