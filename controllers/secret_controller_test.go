@@ -254,17 +254,11 @@ func verifyGoalertReceivers(t *testing.T, key string, proxy string, receivers []
 
 	// verify structure of each
 	hasGoalertLow := false
-	hasGoalert := false
 	hasGoalertHigh := false
 	for _, receiver := range receivers {
 		switch receiver.Name {
 		case receiverGoAlertLow:
 			hasGoalertLow = true
-			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
-			assertEquals(t, key, receiver.WebhookConfigs[0].URL, "URL")
-			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
-		case receiverGoalert:
-			hasGoalert = true
 			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.WebhookConfigs[0].URL, "URL")
 			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
@@ -278,7 +272,6 @@ func verifyGoalertReceivers(t *testing.T, key string, proxy string, receivers []
 
 	assertTrue(t, hasGoalertHigh, fmt.Sprintf("No '%s' receiver", receiverGoAlertHigh))
 	assertTrue(t, hasGoalertLow, fmt.Sprintf("No '%s' receiver", receiverGoAlertLow))
-	assertTrue(t, hasGoalert, fmt.Sprintf("No '%s' receiver", receiverGoalert))
 }
 
 // utility function to verify Goalert Heartbeat
@@ -556,6 +549,7 @@ func Test_secretInList(t *testing.T) {
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, "")
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, "")
+	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, "")
 
 	secretList := corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), &secretList, &client.ListOptions{})
@@ -565,6 +559,7 @@ func Test_secretInList(t *testing.T) {
 
 	assertTrue(t, secretInList(reqLogger, secretNamePD, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNamePD))
 	assertTrue(t, secretInList(reqLogger, secretNameDMS, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNameDMS))
+	assertTrue(t, secretInList(reqLogger, secretNameGoalert, &secretList), fmt.Sprintf("Expected Secret to be present in list: %s", secretNameGoalert))
 	assertTrue(t, !secretInList(reqLogger, "fake-secret", &secretList), fmt.Sprintf("Did not expect Secret to be present in list: %s", "fake-secret"))
 }
 
@@ -585,9 +580,7 @@ func Test_parseSecrets(t *testing.T) {
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
+	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, "")
 
 	secretList := &corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
@@ -1110,6 +1103,24 @@ func createSecret(reconciler *SecretReconciler, secretname string, secretkey str
 		},
 		Data: map[string][]byte{
 			secretkey: []byte(secretdata),
+		},
+	}
+	if err := reconciler.Client.Create(context.TODO(), newsecret); err != nil {
+		panic(err)
+	}
+}
+
+// createSecret creates a fake Secret to use in testing GoAlert. GoAlert has 3 values in a single secret
+func createGoAlertSecret(reconciler *SecretReconciler, secretname string, secretkeyLow string, secretkeyHigh string, secretkeyHeartbeat string, secretdata string) {
+	newsecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretname,
+			Namespace: config.OperatorNamespace,
+		},
+		Data: map[string][]byte{
+			secretkeyLow: []byte(secretdata),
+			secretkeyHigh: []byte(secretdata),
+			secretkeyHeartbeat: []byte(secretdata),
 		},
 	}
 	if err := reconciler.Client.Create(context.TODO(), newsecret); err != nil {
