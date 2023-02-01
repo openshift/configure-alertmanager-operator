@@ -1318,9 +1318,9 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 
 // Test updating the config and making sure it is updated as expected
 func Test_createGoalertSecret_Update(t *testing.T) {
-	// pdKey := "asdaidsgadfi9853"
-	// wdURL := "http://theinterwebs/asdf"
-	// oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+	pdKey := ""
+	wdURL := ""
+	oaURL := ""
 	gaHighURL := "https://dummy-gahigh-url"
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
@@ -1328,7 +1328,7 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig("", gaLowURL, gaHighURL, gaHeartURL, "", "", exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
