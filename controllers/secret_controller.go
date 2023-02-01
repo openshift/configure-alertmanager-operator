@@ -81,7 +81,7 @@ const (
 	receiverGoAlertHigh = "goalert-high"
 
 	// Low alerts for GoAlert. These alerts will not page
-	receiverGoAlertLow = "goalert-low"
+	receiverGoAlertLow = "goalert"
 
 	// GoAlert cluster heartbeat monitor
 	receiverGoAlertHeartbeat = "goalert-heartbeat"
@@ -629,7 +629,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 	}
 
 	return &alertmanager.Route{
-		Receiver: "GoAlert",
+		Receiver: receiverGoAlertLow,
 		GroupByStr: []string{
 			"alertname",
 			"severity",
