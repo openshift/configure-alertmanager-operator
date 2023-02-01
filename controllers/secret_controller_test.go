@@ -677,7 +677,7 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 		t.Fatalf("Could not list Secrets: %v", err)
 	}
 
-	request := createReconcileRequest(reconciler, secretNamePD)
+	request := createReconcileRequest(reconciler, secretNameGoalert)
 	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
