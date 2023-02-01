@@ -669,9 +669,6 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
 	createNamespace(reconciler, t)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
-	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
 	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
 
 	secretList := &corev1.SecretList{}
