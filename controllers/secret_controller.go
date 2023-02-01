@@ -45,7 +45,7 @@ var log = logf.Log.WithName("secret_controller")
 
 const (
 	// Endpoint for "low" alerts for GoAlert. These will not page support personnel
-	secretKeyGoalertLow = "GOALERT_URL_LOW" // #nosec G101
+	secretKeyGoalertLow = "GOALERT_URL_LOW" //#nosec G101
 
 	// Endpoint for "high" alerts for GoAlert. These will page support personnel
 	secretKeyGoalertHigh = "GOALERT_URL_HIGH" // #nosec G101
@@ -75,7 +75,7 @@ const (
 	cmNameOCPNamespaces = "ocp-namespaces"
 
 	// Catch-all for GoAlert. These alerts will not page
-	receiverGoalert = "goalert"
+	// receiverGoalert = "goalert"
 
 	// High alerts for GoAlert. These alerts will page
 	receiverGoAlertHigh = "goalert-high"
@@ -512,7 +512,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
 		// ```
 		// pass all of the alerts that are SRE related to PD
-		{Receiver: receiverGoalert, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
+		{Receiver: receiverGoAlertLow, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
 		// fluentd alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDVeryHighErrorRate", "namespace": "openshift-logging"}},
@@ -566,10 +566,10 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverGoalert, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverGoAlertLow, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverGoalert, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverGoAlertLow, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
 
 		//Add any alerts below to override their severity to Error
 
@@ -579,7 +579,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
-		{Receiver: receiverGoalert, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverGoAlertLow, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
 
 		// https://issues.redhat.com/browse/OSD-6821
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
@@ -622,14 +622,14 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		goalertSubroutes = append(goalertSubroutes, []*alertmanager.Route{
 			// https://issues.redhat.com/browse/OSD-3086
 			// https://issues.redhat.com/browse/OSD-5872
-			{Receiver: receiverGoalert, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
+			{Receiver: receiverGoAlertLow, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
 			// general: route anything in core namespaces to Goalert
-			{Receiver: receiverGoalert, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
+			{Receiver: receiverGoAlertLow, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
 		}...)
 	}
 
 	return &alertmanager.Route{
-		Receiver: receiverGoalert,
+		Receiver: receiverGoAlertLow,
 		GroupByStr: []string{
 			"alertname",
 			"severity",
@@ -753,31 +753,46 @@ func createGoalertConfig(goalertRoutingKey, clusterProxy string) *alertmanager.W
 }
 
 // createGoalertReceivers creates an AlertManager Receiver for Goalert in memory.
-func createGoalertReceivers(goalertURLlow, goalertURLhigh, clusterProxy string) []*alertmanager.Receiver {
-	if goalertURLlow == "" || goalertURLhigh == "" {
+// func createGoalertReceivers(goalertURLlow, goalertURLhigh, clusterProxy string) []*alertmanager.Receiver {
+// 	if goalertURLlow == "" || goalertURLhigh == "" {
+// 		return []*alertmanager.Receiver{}
+// 	}
+
+// 	receivers := []*alertmanager.Receiver{
+// 		{
+// 			Name:           receiverGoalert,
+// 			WebhookConfigs: []*alertmanager.WebhookConfig{createGoalertConfig(goalertURLlow, clusterProxy)},
+// 		},
+// 	}
+
+// 	// Low alerts
+// 	goalertlowconfig := createGoalertConfig(goalertURLlow, clusterProxy)
+// 	receivers = append(receivers, &alertmanager.Receiver{
+// 		Name:           receiverGoAlertLow,
+// 		WebhookConfigs: []*alertmanager.WebhookConfig{goalertlowconfig},
+// 	})
+
+// 	// High alerts
+// 	goalerthighconfig := createGoalertConfig(goalertURLhigh, clusterProxy)
+// 	receivers = append(receivers, &alertmanager.Receiver{
+// 		Name:           receiverGoAlertHigh,
+// 		WebhookConfigs: []*alertmanager.WebhookConfig{goalerthighconfig},
+// 	})
+
+// 	return receivers
+// }
+
+func createGoalertReceiver(goalertURL, goalertReceiverName, clusterProxy string) []*alertmanager.Receiver {
+	if goalertURL == "" {
 		return []*alertmanager.Receiver{}
 	}
 
 	receivers := []*alertmanager.Receiver{
 		{
-			Name:           receiverGoalert,
-			WebhookConfigs: []*alertmanager.WebhookConfig{createGoalertConfig(goalertURLlow, clusterProxy)},
+			Name:           goalertReceiverName,
+			WebhookConfigs: []*alertmanager.WebhookConfig{createGoalertConfig(goalertURL, clusterProxy)},
 		},
 	}
-
-	// Low alerts
-	goalertlowconfig := createGoalertConfig(goalertURLlow, clusterProxy)
-	receivers = append(receivers, &alertmanager.Receiver{
-		Name:           receiverGoAlertLow,
-		WebhookConfigs: []*alertmanager.WebhookConfig{goalertlowconfig},
-	})
-
-	// High alerts
-	goalerthighconfig := createGoalertConfig(goalertURLhigh, clusterProxy)
-	receivers = append(receivers, &alertmanager.Receiver{
-		Name:           receiverGoAlertHigh,
-		WebhookConfigs: []*alertmanager.WebhookConfig{goalerthighconfig},
-	})
 
 	return receivers
 }
@@ -872,16 +887,32 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
 	}
 
-	if config.IsFedramp() {
-		if goalertURLheartbeat != "" {
-			routes = append(routes, createHeartbeatRoute())
-			receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
-		}
+	// if config.IsFedramp() {
+	// 	if goalertURLheartbeat != "" {
+	// 		routes = append(routes, createHeartbeatRoute())
+	// 		receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
+	// 	}
 
-		if goalertURLlow != "" && goalertURLhigh != "" {
-			routes = append(routes, createGoalertRoute(namespaceList))
-			receivers = append(receivers, createGoalertReceivers(goalertURLhigh, goalertURLlow, clusterProxy)...)
-		}
+	// 	if goalertURLlow != "" && goalertURLhigh != "" {
+	// 		routes = append(routes, createGoalertRoute(namespaceList))
+	// 		receivers = append(receivers, createGoalertReceivers(goalertURLhigh, goalertURLlow, clusterProxy)...)
+	// 	}
+	// }
+
+	// Trying this instead
+	if goalertURLlow != "" {
+		routes = append(routes, createGoalertRoute(namespaceList))
+		receivers = append(receivers, createGoalertReceiver(goalertURLlow, x, clusterProxy)...)
+	}
+
+	if goalertURLhigh != "" {
+		routes = append(routes, createGoalertRoute(namespaceList))
+		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, x, clusterProxy)...)
+	}
+
+	if goalertURLheartbeat != "" {
+		routes = append(routes, createHeartbeatRoute())
+		receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
 	}
 
 	// always have the "null" receiver

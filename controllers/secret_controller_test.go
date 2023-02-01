@@ -912,6 +912,13 @@ func Test_createPagerdutyRoute(t *testing.T) {
 	verifyPagerdutyRoute(t, route, defaultNamespaces)
 }
 
+func Test_createGoalertRoute(t *testing.T) {
+	// test the structure of the Route is sane
+	route := createPagerdutyRoute(defaultNamespaces)
+
+	verifyGoalertRoute(t, route, defaultNamespaces)
+}
+
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
 	assertEquals(t, 0, len(createPagerdutyReceivers("", "", "")), "Number of Receivers")
 }
@@ -1038,6 +1045,9 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 
 	verifyPagerdutyRoute(t, config.Route.Routes[2], exampleManagedNamespaces)
 	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
+
+	verifyGoalertRoute(t, config.Route.Routes[3], exampleManagedNamespaces)
+	verifyGoalertReceivers(t, pdKey, exampleProxy, config.Receivers)
 
 	verifyWatchdogRoute(t, config.Route.Routes[0])
 	verifyWatchdogReceiver(t, wdURL, exampleProxy, config.Receivers)
