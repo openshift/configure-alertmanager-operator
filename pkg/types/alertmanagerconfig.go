@@ -102,7 +102,6 @@ type Route struct {
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE  map[string]string `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	Matchers map[string]string `yaml:"matchers,omitempty" json:"matchers,omitempty"`
 	Continue bool              `yaml:"continue,omitempty" json:"continue,omitempty"`
 	Routes   []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
