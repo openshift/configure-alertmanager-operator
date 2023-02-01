@@ -1449,7 +1449,7 @@ func Test_SecretReconciler(t *testing.T) {
 			otherExists: false,
 		},
 		{
-			name:        "Test reconcile with GoALert secret only.",
+			name:        "Test reconcile with GoAlert secret only.",
 			dmsExists:   false,
 			pdExists:    false,
 			amExists:    false,
