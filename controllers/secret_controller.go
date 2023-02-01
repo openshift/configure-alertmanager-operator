@@ -902,12 +902,12 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 	// Trying this instead
 	if goalertURLlow != "" {
 		routes = append(routes, createGoalertRoute(namespaceList))
-		receivers = append(receivers, createGoalertReceiver(goalertURLlow, x, clusterProxy)...)
+		receivers = append(receivers, createGoalertReceiver(goalertURLlow, receiverGoAlertLow, clusterProxy)...)
 	}
 
 	if goalertURLhigh != "" {
 		routes = append(routes, createGoalertRoute(namespaceList))
-		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, x, clusterProxy)...)
+		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, receiverGoAlertHigh, clusterProxy)...)
 	}
 
 	if goalertURLheartbeat != "" {
