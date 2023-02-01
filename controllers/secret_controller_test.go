@@ -1280,9 +1280,9 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 
 // Test_createPagerdutySecret_Create tests writing to the Alertmanager config.
 func Test_createGoalertSecret_Create(t *testing.T) {
-	pdKey := "asdaidsgadfi9853"
-	wdURL := "http://theinterwebs/asdf"
-	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+	pdKey := ""
+	wdURL := ""
+	oaURL := ""
 	gaHighURL := "https://dummy-gahigh-url"
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
@@ -1341,7 +1341,7 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
-	// createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
+	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 	createClusterProxy(reconciler)
 
