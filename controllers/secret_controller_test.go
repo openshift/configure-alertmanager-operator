@@ -1633,9 +1633,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		// appropriate. So we always start with those two secrets
 		createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
 		createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
-		createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
-		createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
-		createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
+		createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
 
 		// However, we expect the AM config to be updated only according to the test spec
 		if !tt.expectDMS {
