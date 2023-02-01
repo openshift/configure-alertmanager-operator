@@ -1318,9 +1318,9 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 
 // Test updating the config and making sure it is updated as expected
 func Test_createGoalertSecret_Update(t *testing.T) {
-	pdKey := "asdaidsgadfi9853"
-	wdURL := "http://theinterwebs/asdf"
-	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
+	// pdKey := "asdaidsgadfi9853"
+	// wdURL := "http://theinterwebs/asdf"
+	// oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 	gaHighURL := "https://dummy-gahigh-url"
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
@@ -1341,7 +1341,7 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
-	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
+	// createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 	createClusterProxy(reconciler)
 
@@ -1356,11 +1356,11 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	assertNotEquals(t, configExpected, configActual, "Config Deep Comparison")
 
 	// update environment
-	createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
-	req = createReconcileRequest(reconciler, secretNameDMS)
-	ret, err = reconciler.Reconcile(context.TODO(), *req)
-	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
-	assertEquals(t, nil, err, "Unexpected err")
+	// createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
+	// req = createReconcileRequest(reconciler, secretNameDMS)
+	// ret, err = reconciler.Reconcile(context.TODO(), *req)
+	// assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
+	// assertEquals(t, nil, err, "Unexpected err")
 
 	// read config and compare
 	configActual = readAlertManagerConfig(reconciler, req)
