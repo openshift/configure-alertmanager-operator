@@ -559,7 +559,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
 
 		// https://issues.redhat.com/browse/OSD-9062
-		// {Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
+		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverGoAlertLow, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
@@ -608,6 +608,12 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
+
+		// Overcome webhook limitations
+		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "critical"}},
+		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "error"}},
+		{Receiver: receiverGoAlertLow, Match: map[string]string{"severity": "warning"}},
+		{Receiver: receiverGoAlertLow, Match: map[string]string{"severity": "info"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
