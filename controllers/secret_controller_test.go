@@ -549,7 +549,7 @@ func Test_secretInList(t *testing.T) {
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, "")
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, "")
-	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, "")
+	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, "", "", "")
 
 	secretList := corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), &secretList, &client.ListOptions{})
@@ -580,7 +580,7 @@ func Test_parseSecrets(t *testing.T) {
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
-	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, "")
+	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
 
 	secretList := &corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
@@ -672,6 +672,7 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHeartbeat, gaHeartURL)
 	createSecret(reconciler, secretNameGoalert, secretKeyGoalertHigh, gaHighURL)
 	createSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, gaLowURL)
+	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
 
 	secretList := &corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
@@ -1111,16 +1112,16 @@ func createSecret(reconciler *SecretReconciler, secretname string, secretkey str
 }
 
 // createSecret creates a fake Secret to use in testing GoAlert. GoAlert has 3 values in a single secret
-func createGoAlertSecret(reconciler *SecretReconciler, secretname string, secretkeyLow string, secretkeyHigh string, secretkeyHeartbeat string, secretdata string) {
+func createGoAlertSecret(reconciler *SecretReconciler, secretname string, secretkeyLow string, secretkeyHigh string, secretkeyHeartbeat string, secretdataLow string, secretdataHigh string, secretdataHeartbeat string) {
 	newsecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretname,
 			Namespace: config.OperatorNamespace,
 		},
 		Data: map[string][]byte{
-			secretkeyLow: []byte(secretdata),
-			secretkeyHigh: []byte(secretdata),
-			secretkeyHeartbeat: []byte(secretdata),
+			secretkeyLow: []byte(secretdataLow),
+			secretkeyHigh: []byte(secretdataHigh),
+			secretkeyHeartbeat: []byte(secretdataHeartbeat),
 		},
 	}
 	if err := reconciler.Client.Create(context.TODO(), newsecret); err != nil {
