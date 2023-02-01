@@ -629,7 +629,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 	}
 
 	return &alertmanager.Route{
-		Receiver: receiverGoAlertLow,
+		Receiver: "GoAlert",
 		GroupByStr: []string{
 			"alertname",
 			"severity",
@@ -900,13 +900,9 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 	// }
 
 	// Trying this instead
-	if goalertURLlow != "" {
+	if goalertURLlow != "" && goalertURLhigh != "" {
 		routes = append(routes, createGoalertRoute(namespaceList))
 		receivers = append(receivers, createGoalertReceiver(goalertURLlow, receiverGoAlertLow, clusterProxy)...)
-	}
-
-	if goalertURLhigh != "" {
-		routes = append(routes, createGoalertRoute(namespaceList))
 		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, receiverGoAlertHigh, clusterProxy)...)
 	}
 
