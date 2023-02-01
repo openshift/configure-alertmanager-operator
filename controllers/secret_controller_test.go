@@ -905,13 +905,17 @@ func Test_createPagerdutyRoute(t *testing.T) {
 
 func Test_createGoalertRoute(t *testing.T) {
 	// test the structure of the Route is sane
-	route := createPagerdutyRoute(defaultNamespaces)
+	route := createGoalertRoute(defaultNamespaces)
 
 	verifyGoalertRoute(t, route, defaultNamespaces)
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
 	assertEquals(t, 0, len(createPagerdutyReceivers("", "", "")), "Number of Receivers")
+}
+
+func Test_createGoalertReceivers_WithoutURL(t *testing.T) {
+	assertEquals(t, 0, len(createGoalertReceiver("", "", "")), "Number of Receivers")
 }
 
 func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
@@ -922,30 +926,20 @@ func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 	verifyPagerdutyReceivers(t, key, exampleProxy, receivers)
 }
 
+func Test_createGoalertReceivers_WithURL(t *testing.T) {
+	url := "https://dummy-ga-url"
+
+	receivers := createGoalertReceiver(url, receiverGoAlertLow, exampleProxy)
+	receivers = createGoalertReceiver(url, receiverGoAlertHigh, exampleProxy)
+
+	verifyGoalertReceivers(t, url, exampleProxy, receivers)
+}
+
 func Test_createWatchdogRoute(t *testing.T) {
 	// test the structure of the Route is sane
 	route := createWatchdogRoute()
 
 	verifyWatchdogRoute(t, route)
-}
-
-func Test_createHeartbeatReceivers_WithoutURL(t *testing.T) {
-	assertEquals(t, 0, len(createHeartbeatReceivers("", "")), "Number of Receivers")
-}
-
-func Test_createHeartbeatReceivers_WithKey(t *testing.T) {
-	url := "http://whatever/something"
-
-	receivers := createHeartbeatReceivers(url, exampleProxy)
-
-	verifyHeartbeatReceiver(t, url, exampleProxy, receivers)
-}
-
-func Test_createHeartbeatRoute(t *testing.T) {
-	// test the structure of the Route is sane
-	route := createHeartbeatRoute()
-
-	verifyHeartbeatRoute(t, route)
 }
 
 func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
@@ -959,6 +953,26 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 
 	verifyWatchdogReceiver(t, url, exampleProxy, receivers)
 }
+
+func Test_createHeartbeatRoute(t *testing.T) {
+	// test the structure of the Route is sane
+	route := createHeartbeatRoute()
+
+	verifyHeartbeatRoute(t, route)
+}
+
+func Test_createHeartbeatReceivers_WithoutURL(t *testing.T) {
+	assertEquals(t, 0, len(createHeartbeatReceivers("", "")), "Number of Receivers")
+}
+
+func Test_createHeartbeatReceivers_WithKey(t *testing.T) {
+	url := "https://whatever/something"
+
+	receivers := createHeartbeatReceivers(url, exampleProxy)
+
+	verifyHeartbeatReceiver(t, url, exampleProxy, receivers)
+}
+
 func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
