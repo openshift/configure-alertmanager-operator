@@ -416,7 +416,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
 
 		// Needed to drop GoAlert heartbeat alerts
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
@@ -619,8 +619,8 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
 
 		// Needed to drop GoAlert heartbeat alerts
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog"}},
-		
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
+
 		// Overcome webhook limitations
 		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "critical"}},
 		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "error"}},
