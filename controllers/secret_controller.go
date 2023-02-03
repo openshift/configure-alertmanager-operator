@@ -414,6 +414,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
+
+		// Needed to drop GoAlert heartbeat alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
@@ -615,6 +618,9 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
 
+		// Needed to drop GoAlert heartbeat alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog"}},
+		
 		// Overcome webhook limitations
 		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "critical"}},
 		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "error"}},
