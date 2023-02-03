@@ -749,44 +749,14 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 	return receivers
 }
 
-func createGoalertConfig(goalertRoutingKey, clusterProxy string) *alertmanager.WebhookConfig {
+func createGoalertConfig(goalertURL, clusterProxy string) *alertmanager.WebhookConfig {
 
 	return &alertmanager.WebhookConfig{
 		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
-		URL:            goalertRoutingKey,
+		URL:            goalertURL,
 		HttpConfig:     createHttpConfig(clusterProxy),
 	}
 }
-
-// createGoalertReceivers creates an AlertManager Receiver for Goalert in memory.
-// func createGoalertReceivers(goalertURLlow, goalertURLhigh, clusterProxy string) []*alertmanager.Receiver {
-// 	if goalertURLlow == "" || goalertURLhigh == "" {
-// 		return []*alertmanager.Receiver{}
-// 	}
-
-// 	receivers := []*alertmanager.Receiver{
-// 		{
-// 			Name:           receiverGoalert,
-// 			WebhookConfigs: []*alertmanager.WebhookConfig{createGoalertConfig(goalertURLlow, clusterProxy)},
-// 		},
-// 	}
-
-// 	// Low alerts
-// 	goalertlowconfig := createGoalertConfig(goalertURLlow, clusterProxy)
-// 	receivers = append(receivers, &alertmanager.Receiver{
-// 		Name:           receiverGoAlertLow,
-// 		WebhookConfigs: []*alertmanager.WebhookConfig{goalertlowconfig},
-// 	})
-
-// 	// High alerts
-// 	goalerthighconfig := createGoalertConfig(goalertURLhigh, clusterProxy)
-// 	receivers = append(receivers, &alertmanager.Receiver{
-// 		Name:           receiverGoAlertHigh,
-// 		WebhookConfigs: []*alertmanager.WebhookConfig{goalerthighconfig},
-// 	})
-
-// 	return receivers
-// }
 
 func createGoalertReceiver(goalertURL, goalertReceiverName, clusterProxy string) []*alertmanager.Receiver {
 	if goalertURL == "" {
@@ -893,20 +863,7 @@ func createAlertManagerConfig(pagerdutyRoutingKey, goalertURLlow, goalertURLhigh
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
 	}
 
-	// if config.IsFedramp() {
-	// 	if goalertURLheartbeat != "" {
-	// 		routes = append(routes, createHeartbeatRoute())
-	// 		receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
-	// 	}
-
-	// 	if goalertURLlow != "" && goalertURLhigh != "" {
-	// 		routes = append(routes, createGoalertRoute(namespaceList))
-	// 		receivers = append(receivers, createGoalertReceivers(goalertURLhigh, goalertURLlow, clusterProxy)...)
-	// 	}
-	// }
-
-	// Trying this instead
-	if goalertURLlow != "" && goalertURLhigh != "" {
+	if (goalertURLlow != "" && goalertURLhigh != "") {
 		routes = append(routes, createGoalertRoute(namespaceList))
 		receivers = append(receivers, createGoalertReceiver(goalertURLlow, receiverGoAlertLow, clusterProxy)...)
 		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, receiverGoAlertHigh, clusterProxy)...)

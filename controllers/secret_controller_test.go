@@ -160,7 +160,7 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route, expectedNames
 
 // utility class to test Goalert route creation
 func verifyGoalertRoute(t *testing.T, route *alertmanager.Route, expectedNamespaces []string) {
-	assertEquals(t, defaultReceiver, route.Receiver, "Receiver Name")
+	assertEquals(t, receiverGoAlertLow, route.Receiver, "Receiver Name")
 	assertEquals(t, true, route.Continue, "Continue")
 	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
 	assertGte(t, 1, len(route.Routes), "Number of Routes")
@@ -171,7 +171,7 @@ func verifyGoalertRoute(t *testing.T, route *alertmanager.Route, expectedNamespa
 	hasFluentd := false
 	routeNamespaces := []string{}
 	for _, route := range route.Routes {
-		if route.Receiver == receiverPagerduty && route.MatchRE["namespace"] != "" {
+		if route.Receiver == receiverGoAlertLow && route.MatchRE["namespace"] != "" {
 			routeNamespaces = append(routeNamespaces, route.MatchRE["namespace"])
 		} else if route.Match["job"] == "fluentd" {
 			hasFluentd = true
@@ -248,30 +248,39 @@ func verifyPagerdutyReceivers(t *testing.T, key string, proxy string, receivers 
 }
 
 // utility function to verify Goalert Receivers
-func verifyGoalertReceivers(t *testing.T, key string, proxy string, receivers []*alertmanager.Receiver) {
-	// there are at least 3 receivers: namespace, elasticsearch, and fluentd
-	assertGte(t, 2, len(receivers), "Number of Receivers")
+func verifyGoalertLowReceivers(t *testing.T, url string, proxy string, receivers []*alertmanager.Receiver) {
+	// there are at least 1 receiver: goalert
+	assertGte(t, 1, len(receivers), "Number of Receivers")
 
-	// verify structure of each
 	hasGoalertLow := false
-	hasGoalertHigh := false
+
 	for _, receiver := range receivers {
-		switch receiver.Name {
-		case receiverGoAlertLow:
+		if receiver.Name == receiverGoAlertLow{
 			hasGoalertLow = true
 			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
-			assertEquals(t, key, receiver.WebhookConfigs[0].URL, "URL")
-			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
-		case receiverGoAlertHigh:
-			hasGoalertHigh = true
-			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
-			assertEquals(t, key, receiver.WebhookConfigs[0].URL, "URL")
+			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
 			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		}
 	}
-
-	assertTrue(t, hasGoalertHigh, fmt.Sprintf("No '%s' receiver", receiverGoAlertHigh))
 	assertTrue(t, hasGoalertLow, fmt.Sprintf("No '%s' receiver", receiverGoAlertLow))
+}
+
+// utility function to verify Goalert Receivers
+func verifyGoalertHighReceivers(t *testing.T, url string, proxy string, receivers []*alertmanager.Receiver) {
+	// there are at least 1 receivers: goalert-high
+	assertGte(t, 1, len(receivers), "Number of Receivers")
+
+	hasGoalertHigh := false
+
+	for _, receiver := range receivers {
+		if receiver.Name == receiverGoAlertHigh{
+			hasGoalertHigh = true
+			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
+			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
+		}
+	}
+	assertTrue(t, hasGoalertHigh, fmt.Sprintf("No '%s' receiver", receiverGoAlertHigh))
 }
 
 // utility function to verify Goalert Heartbeat
@@ -284,7 +293,7 @@ func verifyHeartbeatRoute(t *testing.T, route *alertmanager.Route) {
 
 // utility to test Goalert heartbeat receivers
 func verifyHeartbeatReceiver(t *testing.T, url string, proxy string, receivers []*alertmanager.Receiver) {
-	// there is 1 receiver
+	// there is at least 1 receiver
 	assertGte(t, 1, len(receivers), "Number of Receivers")
 
 	// verify structure of each
@@ -929,10 +938,10 @@ func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 func Test_createGoalertReceivers_WithURL(t *testing.T) {
 	url := "https://dummy-ga-url"
 
-	receivers := createGoalertReceiver(url, receiverGoAlertLow, exampleProxy)
-	receivers = createGoalertReceiver(url, receiverGoAlertHigh, exampleProxy)
-
-	verifyGoalertReceivers(t, url, exampleProxy, receivers)
+	receiver := createGoalertReceiver(url, receiverGoAlertLow, exampleProxy)
+	verifyGoalertLowReceivers(t, url, exampleProxy, receiver)
+	receiver = createGoalertReceiver(url, receiverGoAlertHigh, exampleProxy)
+	verifyGoalertHighReceivers(t, url, exampleProxy, receiver)
 }
 
 func Test_createWatchdogRoute(t *testing.T) {
@@ -1043,8 +1052,8 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	assertEquals(t, "30s", config.Route.GroupWait, "Route.GroupWait")
 	assertEquals(t, "5m", config.Route.GroupInterval, "Route.GroupInterval")
 	assertEquals(t, "12h", config.Route.RepeatInterval, "Route.RepeatInterval")
-	assertEquals(t, 3, len(config.Route.Routes), "Route.Routes")
-	assertEquals(t, 7, len(config.Receivers), "Receivers")
+	assertEquals(t, 5, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 10, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
 
@@ -1052,8 +1061,8 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
 
 	verifyGoalertRoute(t, config.Route.Routes[3], exampleManagedNamespaces)
-	verifyGoalertReceivers(t, gaHighURL, exampleProxy, config.Receivers)
-	verifyGoalertReceivers(t, gaLowURL, exampleProxy, config.Receivers)
+	verifyGoalertHighReceivers(t, gaHighURL, exampleProxy, config.Receivers)
+	verifyGoalertLowReceivers(t, gaLowURL, exampleProxy, config.Receivers)
 
 	verifyHeartbeatRoute(t, config.Route.Routes[4])
 	verifyHeartbeatReceiver(t, gaHeartURL, exampleProxy, config.Receivers)
@@ -1127,16 +1136,16 @@ func createSecret(reconciler *SecretReconciler, secretname string, secretkey str
 }
 
 // createSecret creates a fake Secret to use in testing GoAlert. GoAlert has 3 values in a single secret
-func createGoAlertSecret(reconciler *SecretReconciler, secretname string, secretkeyLow string, secretkeyHigh string, secretkeyHeartbeat string, secretdataLow string, secretdataHigh string, secretdataHeartbeat string) {
+func createGoAlertSecret(reconciler *SecretReconciler, secretname string, secreturlLow string, secreturlHigh string, secreturlHeartbeat string, secretdataLow string, secretdataHigh string, secretdataHeartbeat string) {
 	newsecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretname,
 			Namespace: config.OperatorNamespace,
 		},
 		Data: map[string][]byte{
-			secretkeyLow: []byte(secretdataLow),
-			secretkeyHigh: []byte(secretdataHigh),
-			secretkeyHeartbeat: []byte(secretdataHeartbeat),
+			secreturlLow:       []byte(secretdataLow),
+			secreturlHigh:      []byte(secretdataHigh),
+			secreturlHeartbeat: []byte(secretdataHeartbeat),
 		},
 	}
 	if err := reconciler.Client.Create(context.TODO(), newsecret); err != nil {
@@ -1192,9 +1201,9 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
-	gaHighURL := "https://dummy-gahigh-url"
-	gaLowURL := "https://dummy-galow-url"
-	gaHeartURL := "https://dummy-gaheartbeat-url"
+	gaHighURL := ""
+	gaLowURL := ""
+	gaHeartURL := ""
 
 	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
@@ -1231,9 +1240,9 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	pdKey := "asdaidsgadfi9853"
 	wdURL := "http://theinterwebs/asdf"
 	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
-	gaHighURL := "https://dummy-gahigh-url"
-	gaLowURL := "https://dummy-galow-url"
-	gaHeartURL := "https://dummy-gaheartbeat-url"
+	gaHighURL := ""
+	gaLowURL := ""
+	gaHeartURL := ""
 
 	var ret reconcile.Result
 	var err error
@@ -1282,7 +1291,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 func Test_createGoalertSecret_Create(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
-	oaURL := ""
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 	gaHighURL := "https://dummy-gahigh-url"
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
@@ -1320,7 +1329,7 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 func Test_createGoalertSecret_Update(t *testing.T) {
 	pdKey := ""
 	wdURL := ""
-	oaURL := ""
+	oaURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 	gaHighURL := "https://dummy-gahigh-url"
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
@@ -1336,8 +1345,8 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockReadiness := readiness.NewMockInterface(ctrl)
-	mockReadiness.EXPECT().IsReady().Times(2).Return(true, nil)
-	mockReadiness.EXPECT().Result().Times(2).Return(reconcile.Result{})
+	mockReadiness.EXPECT().IsReady().Times(1).Return(true, nil)
+	mockReadiness.EXPECT().Result().Times(1).Return(reconcile.Result{})
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
 	createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
@@ -1346,24 +1355,13 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	createClusterProxy(reconciler)
 
 	// reconcile (one event should config everything)
-	req := createReconcileRequest(reconciler, secretNamePD)
+	req := createReconcileRequest(reconciler, secretNameGoalert)
 	ret, err = reconciler.Reconcile(context.TODO(), *req)
 	assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
 	assertEquals(t, nil, err, "Unexpected err")
 
-	// verify what we have configured is NOT what we expect at the end (we have updates to do still)
-	configActual := readAlertManagerConfig(reconciler, req)
-	assertNotEquals(t, configExpected, configActual, "Config Deep Comparison")
-
-	// update environment
-	// createSecret(reconciler, secretNameDMS, secretKeyDMS, wdURL)
-	// req = createReconcileRequest(reconciler, secretNameDMS)
-	// ret, err = reconciler.Reconcile(context.TODO(), *req)
-	// assertEquals(t, reconcile.Result{}, ret, "Unexpected result")
-	// assertEquals(t, nil, err, "Unexpected err")
-
 	// read config and compare
-	configActual = readAlertManagerConfig(reconciler, req)
+	configActual := readAlertManagerConfig(reconciler, req)
 
 	assertEquals(t, configExpected, configActual, "Config Deep Comparison")
 }
@@ -1409,7 +1407,7 @@ func Test_SecretReconciler(t *testing.T) {
 		pdExists    bool
 		amExists    bool
 		oaExists    bool
-		gaExists	bool
+		gaExists    bool
 		otherExists bool
 	}{
 		{
@@ -1448,15 +1446,15 @@ func Test_SecretReconciler(t *testing.T) {
 			gaExists:    false,
 			otherExists: false,
 		},
-		// {
-		// 	name:        "Test reconcile with GoAlert secret only.",
-		// 	dmsExists:   false,
-		// 	pdExists:    false,
-		// 	amExists:    false,
-		// 	oaExists:    false,
-		// 	gaExists:    true,
-		// 	otherExists: false,
-		// },
+		{
+			name:        "Test reconcile with GoAlert secret only.",
+			dmsExists:   false,
+			pdExists:    false,
+			amExists:    false,
+			oaExists:    false,
+			gaExists:    true,
+			otherExists: false,
+		},
 		{
 			name:        "Test reconcile with 'other' secret only.",
 			dmsExists:   false,
@@ -1539,7 +1537,7 @@ func Test_SecretReconciler(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", "", "", "", defaultNamespaces))
+			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1553,15 +1551,16 @@ func Test_SecretReconciler(t *testing.T) {
 			createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 		}
 		if tt.gaExists {
-			gaHighURL := "https://dummy-gahigh-url"
-			gaLowURL := "https://dummy-galow-url"
-			gaHeartURL := "https://dummy-gaheartbeat-url"
+			gaHighURL = "https://dummy-gahigh-url"
+			gaLowURL = "https://dummy-galow-url"
+			gaHeartURL = "https://dummy-gaheartbeat-url"
 			createGoAlertSecret(reconciler, secretNameGoalert, secretKeyGoalertLow, secretKeyGoalertHigh, secretKeyGoalertHeartbeat, gaLowURL, gaHighURL, gaHeartURL)
 		}
 		if tt.oaExists {
 			oaURL = fmt.Sprintf("http://%s.%s.svc.cluster.local:%d%s", ocmAgentService, ocmAgentNamespace, 9999, ocmAgentWebhookPath)
 			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 		}
+
 		configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
