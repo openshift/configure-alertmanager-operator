@@ -411,6 +411,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
+
+		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
@@ -609,11 +612,15 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
 
+		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
+
 		// Overcome webhook limitations
 		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "critical"}},
 		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "error"}},
 		{Receiver: receiverGoAlertLow, Match: map[string]string{"severity": "warning"}},
 		{Receiver: receiverGoAlertLow, Match: map[string]string{"severity": "info"}},
+
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
