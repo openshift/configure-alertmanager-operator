@@ -74,9 +74,6 @@ const (
 
 	cmNameOCPNamespaces = "ocp-namespaces"
 
-	// Catch-all for GoAlert. These alerts will not page
-	// receiverGoalert = "goalert"
-
 	// High alerts for GoAlert. These alerts will page
 	receiverGoAlertHigh = "goalert-high"
 
@@ -362,7 +359,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
 
 		// https://issues.redhat.com/browse/OSD-9062
-		// {Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
+		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
