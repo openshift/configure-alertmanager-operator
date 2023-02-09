@@ -19,6 +19,8 @@
 ## Summary
 The Configure Alertmanager Operator was created for the OpenShift Dedicated platform to dynamically manage Alertmanager configurations based on the presence or absence of secrets containing a GoAlert URLs, Pager Duty RoutingKey, and [Dead Man's Snitch](https://deadmanssnitch.com) URL. When the secret is created/updated/deleted, the associated Receiver and Route will be created/updated/deleted within the Alertmanager config.
 
+The operator will only configure a Dead Man's Snitch watchdog receiver if a Pager Duty receiver is also configured to be present. This is in order to deliberately trigger a watchdog timeout if for some reason Pager Duty has not been configured, as both are required.  
+
 The operator contains the following components:
 
 * Secret controller: watches the `openshift-monitoring` namespace for any changes to relevant Secrets or ConfigMaps that are used in the configuration of Alertmanager. For more information on this see [Secret Controller](#secret-controller) below.

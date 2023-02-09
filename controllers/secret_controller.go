@@ -452,6 +452,17 @@ func createSubroutes(namespaceList []string, receiverType string) *alertmanager.
 		)
 	}
 
+	// GoAlert specific settings
+	if receiverType == "goalert" {
+		// Overcome webhook limitations
+		subroute = append(subroute, []*alertmanager.Route{
+			{Receiver: receiverCritical, Match: map[string]string{"severity": "critical"}},
+			{Receiver: receiverError, Match: map[string]string{"severity": "error"}},
+			{Receiver: receiverWarning, Match: map[string]string{"severity": "warning"}},
+			{Receiver: receiverWarning, Match: map[string]string{"severity": "info"}},
+		}...)
+	}
+
 	for _, namespace := range namespaceList {
 		subroute = append(subroute, []*alertmanager.Route{
 			// https://issues.redhat.com/browse/OSD-3086
