@@ -245,22 +245,22 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // func createSubroutes(recieverCommon, recieverCritical, recieverError, recieverWarning) (alertmanager.Route) {
 func createSubroutes(recieverType string) ([]*alertmanager.Route) {
 
-	// recieverCommon := ""
+	recieverCommon := ""
 	recieverCritical := ""
-	// recieverError := ""
-	// recieverWarning := ""
+	recieverError := ""
+	recieverWarning := ""
 
 	if recieverType == "GoAlert"{
-		// recieverCommon = receiverGoAlertLow
+		recieverCommon = receiverGoAlertLow
 		recieverCritical = receiverGoAlertHigh
-		// recieverError = receiverGoAlertHigh
-		// recieverWarning = receiverGoAlertLow
+		recieverError = receiverGoAlertHigh
+		recieverWarning = receiverGoAlertLow
 
 	} else if recieverType == "PagerDuty"{
-		// recieverCommon = receiverPagerduty
+		recieverCommon = receiverPagerduty
 		recieverCritical = receiverMakeItCritical
-		// recieverError = receiverMakeItError
-		// recieverWarning = receiverMakeItWarning
+		recieverError = receiverMakeItError
+		recieverWarning = receiverMakeItWarning
 
 	}
 	
@@ -269,8 +269,8 @@ func createSubroutes(recieverType string) ([]*alertmanager.Route) {
 		// https://issues.redhat.com/browse/OSD-11298
 		// indications that master nodes have been terminated should be critical
 		// regex tests: https://regex101.com/r/Rn6F5A/1
-		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
-		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
+		{Receiver: recieverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
+		{Receiver: recieverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
 
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
@@ -323,7 +323,7 @@ func createSubroutes(recieverType string) ([]*alertmanager.Route) {
 		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
 		// ```
 		// pass all of the alerts that are SRE related to PD
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
+		{Receiver: recieverCommon, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
 		// fluentd alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDVeryHighErrorRate", "namespace": "openshift-logging"}},
@@ -373,24 +373,24 @@ func createSubroutes(recieverType string) ([]*alertmanager.Route) {
 		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
+		{Receiver: recieverWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: recieverCommon, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: recieverCommon, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
 
 		//Add any alerts below to override their severity to Error
 
 		// Ensure NodeClockNotSynchronising is routed to PD as a high alert
 		// https://issues.redhat.com/browse/OSD-8736
-		{Receiver: receiverMakeItError, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: recieverError, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
 
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: recieverCommon, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
 
 		// https://issues.redhat.com/browse/OSD-6821
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
@@ -403,16 +403,16 @@ func createSubroutes(recieverType string) ([]*alertmanager.Route) {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusOperatorRejectedResources", "namespace": "openshift-user-workload-monitoring"}},
 
 		// https://issues.redhat.com/browse/OSD-8983
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
+		{Receiver: recieverWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
 
 		// https://issues.redhat.com/browse/OSD-10473
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
+		{Receiver: recieverWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
 
 		// https://issues.redhat.com/browse/OSD-10485
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
+		{Receiver: recieverWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
 
 		// https://issues.redhat.com/browse/DVO-54
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
+		{Receiver: recieverWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
 
 		// https://issues.redhat.com/browse/OSD-14071
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
