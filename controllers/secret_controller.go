@@ -244,6 +244,7 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // func createSubroutes(recieverCommon, recieverCritical, recieverError, recieverWarning) (alertmanager.Route) {
 func createSubroutes(recieverType string) ([]*alertmanager.Route) {
+	log.Info("bsmith: looking for the type")
 
 	recieverCommon := ""
 	recieverCritical := ""
@@ -251,12 +252,14 @@ func createSubroutes(recieverType string) ([]*alertmanager.Route) {
 	recieverWarning := ""
 
 	if recieverType == "goalert"{
+		log.Info("bsmith: Found goalert")
 		recieverCommon = receiverGoAlertLow
 		recieverCritical = receiverGoAlertHigh
 		recieverError = receiverGoAlertHigh
 		recieverWarning = receiverGoAlertLow
 
 	} else if recieverType == "pagerduty"{
+		log.Info("bsmith: Found pagerduty")
 		recieverCommon = receiverPagerduty
 		recieverCritical = receiverMakeItCritical
 		recieverError = receiverMakeItError
@@ -647,6 +650,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 	// 3. route anything that should be a warning to "GoAlert Low"
 	//
 	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
+	log.Info("bsmith: its goalert")
 	goalertSubroutes := createSubroutes("goalert")
 	
 	// goalertSubroutes := createSubroutes(receiverGoAlertLow, receiverGoAlertHigh, receiverGoAlertHigh, receiverGoAlertLow)
