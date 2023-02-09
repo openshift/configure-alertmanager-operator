@@ -907,14 +907,14 @@ func Test_readOCMAgentServiceURLFromConfig(t *testing.T) {
 
 func Test_createPagerdutyRoute(t *testing.T) {
 	// test the structure of the Route is sane
-	route := createPagerdutyRoute(defaultNamespaces)
+	route := createSubroutes(defaultNamespaces, "pagerduty")
 
 	verifyPagerdutyRoute(t, route, defaultNamespaces)
 }
 
-func Test_createGoalertRoute(t *testing.T) {
+func Test_createGoalertSubroute(t *testing.T) {
 	// test the structure of the Route is sane
-	route := createGoalertRoute(defaultNamespaces)
+	route := createSubroutes(defaultNamespaces, "goalert")
 
 	verifyGoalertRoute(t, route, defaultNamespaces)
 }
