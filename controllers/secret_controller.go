@@ -242,6 +242,41 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// func createSubroutes(recieverCommon, recieverCritical, recieverError, recieverWarning) (alertmanager.Route) {
+func createSubroutes(recieverType string) ([]*alertmanager.Route) {
+
+	// recieverCommon := ""
+	recieverCritical := ""
+	// recieverError := ""
+	// recieverWarning := ""
+
+	if recieverType == "GoAlert"{
+		// recieverCommon = receiverGoAlertLow
+		recieverCritical = receiverGoAlertHigh
+		// recieverError = receiverGoAlertHigh
+		// recieverWarning = receiverGoAlertLow
+
+	} else if recieverType == "PagerDuty"{
+		// recieverCommon = receiverPagerduty
+		recieverCritical = receiverMakeItCritical
+		// recieverError = receiverMakeItError
+		// recieverWarning = receiverMakeItWarning
+
+	}
+	
+	subroute := []*alertmanager.Route{
+
+		// https://issues.redhat.com/browse/OSD-11298
+		// indications that master nodes have been terminated should be critical
+		// regex tests: https://regex101.com/r/Rn6F5A/1
+		{Receiver: recieverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
+		{Receiver: recieverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
+	}
+
+	return subroute
+
+}
+
 // createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
 func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 	// order matters.
@@ -253,6 +288,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 	// 5. route anything we want to go to PD
 	//
 	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
+	
+	// createSubroutes(receiverPagerduty, receiverMakeItCritical, receiverMakeItError, receiverMakeItWarning)
+
 	pagerdutySubroutes := []*alertmanager.Route{
 
 		// https://issues.redhat.com/browse/OSD-11298
@@ -447,22 +485,27 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 
 // createGoalertRoute creates an AlertManager Route for GoAlert in memory.
 func createGoalertRoute(namespaceList []string) *alertmanager.Route {
-
-	// order matters.
+	
+		// order matters.
 	// these are sub-routes.  if any matches it will not continue processing.
 	// 1. route anything we consider critical to "GoAlert High"
 	// 2. route anything we want to silence to "null"
 	// 3. route anything that should be a warning to "GoAlert Low"
-	// 4. route anything we want to go to GoAlert
 	//
 	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
-	goalertSubroutes := []*alertmanager.Route{
+	goalertSubroutes := createSubroutes("GoAlert")
+	
+	// goalertSubroutes := createSubroutes(receiverGoAlertLow, receiverGoAlertHigh, receiverGoAlertHigh, receiverGoAlertLow)
+
+	goalertSubroutes = append(goalertSubroutes, []*alertmanager.Route{
+		// goalertSubroutes := []*alertmanager.Route{
+		// goalertSubroutes = append(goalertSubroutes, []*alertmanager.Route{
 
 		// https://issues.redhat.com/browse/OSD-11298
 		// indications that master nodes have been terminated should be critical
 		// regex tests: https://regex101.com/r/Rn6F5A/1
-		{Receiver: receiverGoAlertHigh, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
-		{Receiver: receiverGoAlertHigh, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
+		// {Receiver: receiverGoAlertHigh, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
+		// {Receiver: receiverGoAlertHigh, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
 
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
@@ -623,9 +666,8 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverGoAlertHigh, Match: map[string]string{"severity": "error"}},
 		{Receiver: receiverGoAlertLow, Match: map[string]string{"severity": "warning"}},
 		{Receiver: receiverGoAlertLow, Match: map[string]string{"severity": "info"}},
-
-	}
-
+	}...)
+	
 	// Silence insights in FedRAMP until its made available in the environment
 	// https://issues.redhat.com/browse/OSD-13685
 	if config.IsFedramp() {
