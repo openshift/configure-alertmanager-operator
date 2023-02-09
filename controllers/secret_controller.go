@@ -44,6 +44,15 @@ import (
 var log = logf.Log.WithName("secret_controller")
 
 const (
+	// Endpoint for "low" alerts for GoAlert. These will not page support personnel
+	secretKeyGoalertLow = "GOALERT_URL_LOW" //#nosec G101
+
+	// Endpoint for "high" alerts for GoAlert. These will page support personnel
+	secretKeyGoalertHigh = "GOALERT_URL_HIGH" // #nosec G101
+
+	// Endpoint for cluster heartbeat for GoAlert. These will page support personnel
+	secretKeyGoalertHeartbeat = "GOALERT_HEARTBEAT" // #nosec G101
+
 	secretKeyPD = "PAGERDUTY_KEY" // #nosec G101
 
 	secretKeyDMS = "SNITCH_URL"
@@ -51,6 +60,9 @@ const (
 	cmKeyManagedNamespaces = "managed_namespaces.yaml"
 
 	cmKeyOCPNamespaces = "managed_namespaces.yaml"
+
+	// Secret containing URLs for GoAlert
+	secretNameGoalert = "goalert-secret"
 
 	secretNamePD = "pd-secret"
 
@@ -62,7 +74,16 @@ const (
 
 	cmNameOCPNamespaces = "ocp-namespaces"
 
-	// anything routed to "null" receiver does not get routed to PD
+	// High alerts for GoAlert. These alerts will page
+	receiverGoAlertHigh = "goalert-high"
+
+	// Low alerts for GoAlert. These alerts will not page
+	receiverGoAlertLow = "goalert"
+
+	// GoAlert cluster heartbeat monitor
+	receiverGoAlertHeartbeat = "goalert-heartbeat"
+
+	// anything routed to "null" receiver does not get routed to PD or GoAlert
 	receiverNull = "null"
 
 	// anything routed to "make-it-warning" receiver has severity=warning
@@ -142,6 +163,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
 	// TODO: Filter these with a predicate instead
 	switch request.Name {
+	case secretNameGoalert:
 	case secretNamePD:
 	case secretNameDMS:
 	case secretNameAlertmanager:
@@ -178,7 +200,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		reqLogger.Error(err, "Unable to list configMaps")
 	}
 
-	pagerdutyRoutingKey, watchdogURL := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
+	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
 	osdNamespaces := r.parseConfigMaps(reqLogger, cmList, request.Namespace)
 	reqLogger.Info("DEBUG: Adding PagerDuty routes for the following namespaces", "Namespaces", osdNamespaces)
 
@@ -194,7 +216,16 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	if err != nil {
 		reqLogger.Error(err, "Error reading cluster id.")
 	}
-	alertmanagerconfig := createAlertManagerConfig(reqLogger, pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
+	alertmanagerconfig := createAlertManagerConfig(reqLogger,
+		pagerdutyRoutingKey,
+		goalertURLlow,
+		goalertURLhigh,
+		goalertURLheartbeat,
+		watchdogURL,
+		ocmAgentURL,
+		clusterID,
+		clusterProxy,
+		osdNamespaces)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
@@ -220,24 +251,44 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// createPagerdutyRoute creates an AlertManager Route for PagerDuty in memory.
-func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
+func createSubroutes(namespaceList []string, receiverType string) *alertmanager.Route {
+
+	receiverCommon := ""
+	receiverCritical := ""
+	receiverError := ""
+	receiverWarning := ""
+	receiverDefault := ""
+
+	if receiverType == "goalert" {
+		receiverCommon = receiverGoAlertLow
+		receiverCritical = receiverGoAlertHigh
+		receiverError = receiverGoAlertHigh
+		receiverWarning = receiverGoAlertLow
+		receiverDefault = receiverGoAlertLow
+
+	} else if receiverType == "pagerduty" {
+		receiverCommon = receiverPagerduty
+		receiverCritical = receiverMakeItCritical
+		receiverError = receiverMakeItError
+		receiverWarning = receiverMakeItWarning
+		receiverDefault = defaultReceiver
+	}
 	// order matters.
 	// these are sub-routes.  if any matches it will not continue processing.
-	// 1. route anything we consider critical to "make-it-critical"
-	// 2. route anything we want to silence to "null"
-	// 3. route anything that should be a warning to "make-it-warning"
-	// 4. route anything that should be an error to "make-it-error"
-	// 5. route anything we want to go to PD
+	// 1. route anything we consider critical to receiverCritical
+	// 2. route anything we want to silence to receiverNull
+	// 3. route anything that should be a warning to receiverWarning
+	// 4. route anything that should be an error to receiverError
+	// 5. route anything we want to go to receiverCommon
 	//
 	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
-	pagerdutySubroutes := []*alertmanager.Route{
+	subroute := []*alertmanager.Route{
 
 		// https://issues.redhat.com/browse/OSD-11298
 		// indications that master nodes have been terminated should be critical
 		// regex tests: https://regex101.com/r/Rn6F5A/1
-		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
-		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
+		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
+		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
 
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
@@ -290,7 +341,7 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
 		// ```
 		// pass all of the alerts that are SRE related to PD
-		{Receiver: receiverPagerduty, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
+		{Receiver: receiverCommon, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
 		// fluentd alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDVeryHighErrorRate", "namespace": "openshift-logging"}},
@@ -340,24 +391,24 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
 
 		// https://issues.redhat.com/browse/OSD-1922
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
+		{Receiver: receiverWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverCommon, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
-		{Receiver: receiverPagerduty, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverCommon, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
 
 		//Add any alerts below to override their severity to Error
 
 		// Ensure NodeClockNotSynchronising is routed to PD as a high alert
 		// https://issues.redhat.com/browse/OSD-8736
-		{Receiver: receiverMakeItError, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverError, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
 
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
-		{Receiver: receiverPagerduty, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+		{Receiver: receiverCommon, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
 
 		// https://issues.redhat.com/browse/OSD-6821
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
@@ -370,50 +421,55 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusOperatorRejectedResources", "namespace": "openshift-user-workload-monitoring"}},
 
 		// https://issues.redhat.com/browse/OSD-8983
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
+		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
 
 		// https://issues.redhat.com/browse/OSD-10473
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
+		{Receiver: receiverWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
 
 		// https://issues.redhat.com/browse/OSD-10485
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
+		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
 
 		// https://issues.redhat.com/browse/DVO-54
-		{Receiver: receiverMakeItWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
+		{Receiver: receiverWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
 
 		// https://issues.redhat.com/browse/OSD-14071
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
 
 		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
-	}
 
+		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
+
+		// Needed to drop GoAlert heartbeat alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
+	}
 	// Silence insights in FedRAMP until its made available in the environment
 	// https://issues.redhat.com/browse/OSD-13685
 	if config.IsFedramp() {
-		pagerdutySubroutes = append(pagerdutySubroutes,
+		subroute = append(subroute,
 			&alertmanager.Route{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
 		)
 	}
 
 	for _, namespace := range namespaceList {
-		pagerdutySubroutes = append(pagerdutySubroutes, []*alertmanager.Route{
+		subroute = append(subroute, []*alertmanager.Route{
 			// https://issues.redhat.com/browse/OSD-3086
 			// https://issues.redhat.com/browse/OSD-5872
-			{Receiver: receiverPagerduty, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
+			{Receiver: receiverCommon, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
 			// general: route anything in core namespaces to PD
-			{Receiver: receiverPagerduty, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
+			{Receiver: receiverCommon, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
 		}...)
 	}
 
 	return &alertmanager.Route{
-		Receiver: defaultReceiver,
+		Receiver: receiverDefault,
 		GroupByStr: []string{
 			"alertname",
 			"severity",
 		},
 		Continue: true,
-		Routes:   pagerdutySubroutes,
+		Routes:   subroute,
 	}
 }
 
@@ -521,12 +577,66 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 	return receivers
 }
 
+func createGoalertConfig(goalertURL, clusterProxy string) *alertmanager.WebhookConfig {
+
+	return &alertmanager.WebhookConfig{
+		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
+		URL:            goalertURL,
+		HttpConfig:     createHttpConfig(clusterProxy),
+	}
+}
+
+func createGoalertReceiver(goalertURL, goalertReceiverName, clusterProxy string) []*alertmanager.Receiver {
+	if goalertURL == "" {
+		return []*alertmanager.Receiver{}
+	}
+
+	receivers := []*alertmanager.Receiver{
+		{
+			Name:           goalertReceiverName,
+			WebhookConfigs: []*alertmanager.WebhookConfig{createGoalertConfig(goalertURL, clusterProxy)},
+		},
+	}
+
+	return receivers
+}
+
+// creatHeartbeatRoute creates an AlertManager Route for GoAlert Heartbeat in memory.
+func createHeartbeatRoute() *alertmanager.Route {
+	return &alertmanager.Route{
+		Receiver:       receiverGoAlertHeartbeat,
+		RepeatInterval: "5m",
+		Match:          map[string]string{"alertname": "Watchdog"},
+		Continue:       true,
+	}
+}
+
 // createWatchdogRoute creates an AlertManager Route for Watchdog (Dead Man's Snitch) in memory.
 func createWatchdogRoute() *alertmanager.Route {
 	return &alertmanager.Route{
 		Receiver:       receiverWatchdog,
 		RepeatInterval: "5m",
 		Match:          map[string]string{"alertname": "Watchdog"},
+		Continue:       true,
+	}
+}
+
+func createHeartbeatReceivers(heartbeatURL string, clusterProxy string) []*alertmanager.Receiver {
+	if heartbeatURL == "" {
+		return []*alertmanager.Receiver{}
+	}
+
+	heartbeatconfig := &alertmanager.WebhookConfig{
+		NotifierConfig: alertmanager.NotifierConfig{VSendResolved: true},
+		URL:            heartbeatURL,
+		HttpConfig:     createHttpConfig(clusterProxy),
+	}
+
+	return []*alertmanager.Receiver{
+		{
+			Name:           receiverGoAlertHeartbeat,
+			WebhookConfigs: []*alertmanager.WebhookConfig{heartbeatconfig},
+		},
 	}
 }
 
@@ -562,7 +672,7 @@ func createHttpConfig(clusterProxy string) alertmanager.HttpConfig {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
@@ -581,10 +691,25 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, watchd
 			receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
 		}
 		reqLogger.Info("INFO: Configuring a PagerDuty route and receiver")
-		routes = append(routes, createPagerdutyRoute(namespaceList))
+		routes = append(routes, createSubroutes(namespaceList, "pagerduty"))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
 	} else {
 		reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
+	}
+
+	if goalertURLlow != "" && goalertURLhigh != "" {
+		routes = append(routes, createSubroutes(namespaceList, "goalert"))
+		receivers = append(receivers, createGoalertReceiver(goalertURLlow, receiverGoAlertLow, clusterProxy)...)
+		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, receiverGoAlertHigh, clusterProxy)...)
+	} else {
+		reqLogger.Info("INFO: Not configuring GoAlert receivers")
+	}
+
+	if goalertURLheartbeat != "" {
+		routes = append(routes, createHeartbeatRoute())
+		receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
+	} else {
+		reqLogger.Info("INFO: Not configuring GoAlert Heartbeat receivers")
 	}
 
 	// always have the "null" receiver
@@ -793,17 +918,21 @@ func (r *SecretReconciler) readOCMAgentServiceURLFromConfig(reqLogger logr.Logge
 	return serviceURL
 }
 
-func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string) {
+func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string, goalertURLlow string, goalertURLhigh string, goalertURLheartbeat string) {
 	// Check for the presence of specific secrets.
+	goalertSecretExists := secretInList(reqLogger, secretNameGoalert, secretList)
 	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
 	snitchSecretExists := secretInList(reqLogger, secretNameDMS, secretList)
 
-	// do the work! collect secret info for PD and DMS
+	// do the work! collect secret info for PD, DMS, and GoAlert
+	goalertURLlow = ""
+	goalertURLhigh = ""
+	goalertURLheartbeat = ""
 	pagerdutyRoutingKey = ""
 	watchdogURL = ""
 
 	// If a secret exists, add the necessary configs to Alertmanager.
-	// But don't activate PagerDuty unless the cluster is "ready".
+	// But don't activate PagerDuty/Goalert unless the cluster is "ready".
 	// This is to avoid alert noise while the cluster is still being installed and configured.
 	if pagerDutySecretExists {
 		reqLogger.Info("INFO: Pager Duty secret exists")
@@ -824,7 +953,22 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: Dead Man's Snitch secret does not exist")
 	}
 
-	return pagerdutyRoutingKey, watchdogURL
+	// Pulls the values needed from the goalert secret
+	if goalertSecretExists {
+		reqLogger.Info("INFO: Goalert secret exists")
+		if clusterReady {
+			reqLogger.Info("INFO: Cluster is ready; configuring Goalert")
+			goalertURLlow = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertLow)
+			goalertURLhigh = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertHigh)
+			goalertURLheartbeat = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertHeartbeat)
+		} else {
+			reqLogger.Info("INFO: Cluster is not ready; skipping Goalert configuration")
+		}
+	} else {
+		reqLogger.Info("INFO: Goalert secret does not exist")
+	}
+
+	return pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat
 }
 
 func (r *SecretReconciler) getClusterID() (string, error) {
