@@ -1005,7 +1005,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1030,7 +1030,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1058,7 +1058,7 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
-	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1099,7 +1099,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	config := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1220,7 +1220,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1262,7 +1262,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1311,7 +1311,7 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
-	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1352,7 +1352,7 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1552,7 +1552,7 @@ func Test_SecretReconciler(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces))
+			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces))
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1651,7 +1651,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		createClusterVersion(reconciler)
 		createClusterProxy(reconciler)
 
-		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig("", "", "", "", "", "", "", "", defaultNamespaces))
+		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", defaultNamespaces))
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
@@ -1684,7 +1684,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		} else {
 			oaURL = ""
 		}
-		configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, dmsURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, dmsURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
