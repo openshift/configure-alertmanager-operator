@@ -334,9 +334,11 @@ func verifyWatchdogRoute(t *testing.T, present bool, routes []*alertmanager.Rout
 }
 
 // utility to test watchdog receivers
-func verifyWatchdogReceiver(t *testing.T, url string, proxy string, receivers []*alertmanager.Receiver) {
+func verifyWatchdogReceiver(t *testing.T, url string, proxy string, present bool, receivers []*alertmanager.Receiver) {
 	// there is 1 receiver
-	assertGte(t, 1, len(receivers), "Number of Receivers")
+	if present {
+		assertGte(t, 1, len(receivers), "Number of Receivers")
+	}
 
 	// verify structure of each
 	hasWatchdog := false
@@ -349,7 +351,11 @@ func verifyWatchdogReceiver(t *testing.T, url string, proxy string, receivers []
 		}
 	}
 
-	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
+	if present {
+		assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
+	} else {
+		assertFalse(t, hasWatchdog, fmt.Sprintf("'%s' receiver found that shouldn't be present", receiverWatchdog))
+	}
 }
 
 // utility function to verify watchdog route
@@ -963,7 +969,7 @@ func Test_createWatchdogRoute(t *testing.T) {
 	// test the structure of the Route is sane
 	route := createWatchdogRoute()
 
-	verifyWatchdogRoute(t, route)
+	verifyWatchdogRoute(t, true, []*alertmanager.Route{route})
 }
 
 func Test_createWatchdogReceivers_WithoutURL(t *testing.T) {
@@ -975,7 +981,7 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 
 	receivers := createWatchdogReceivers(url, exampleProxy)
 
-	verifyWatchdogReceiver(t, url, exampleProxy, receivers)
+	verifyWatchdogReceiver(t, url, exampleProxy, true, receivers)
 }
 
 func Test_createHeartbeatRoute(t *testing.T) {
@@ -1082,8 +1088,8 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	verifyHeartbeatRoute(t, config.Route.Routes[4])
 	verifyHeartbeatReceiver(t, gaHeartURL, exampleProxy, config.Receivers)
 
-	verifyWatchdogRoute(t, config.Route.Routes[0])
-	verifyWatchdogReceiver(t, wdURL, exampleProxy, config.Receivers)
+	verifyWatchdogRoute(t, true, config.Route.Routes)
+	verifyWatchdogReceiver(t, wdURL, exampleProxy, true, config.Receivers)
 
 	verifyOCMAgentRoute(t, config.Route.Routes[1])
 	verifyOCMAgentReceiver(t, oaURL, config.Receivers)
@@ -1112,8 +1118,9 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 	assertEquals(t, 2, len(config.Receivers), "Receivers")
 
 	verifyNullReceiver(t, config.Receivers)
-	verifyWatchdogRoute(t, config.Route.Routes[0])
-	verifyWatchdogReceiver(t, wdURL, exampleProxy, config.Receivers)
+
+	verifyWatchdogRoute(t, false, config.Route.Routes)
+	verifyWatchdogReceiver(t, wdURL, exampleProxy, false, config.Receivers)
 
 	verifyInhibitRules(t, config.InhibitRules)
 }
@@ -1576,7 +1583,7 @@ func Test_SecretReconciler(t *testing.T) {
 			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 		}
 
-		configExpected := createAlertManagerConfig(pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(reqLogger, pdKey, gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
