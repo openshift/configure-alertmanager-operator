@@ -663,14 +663,9 @@ func createHttpConfig(clusterProxy string) alertmanager.HttpConfig {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(reqLogger, pagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
-
-	if watchdogURL != "" {
-		routes = append(routes, createWatchdogRoute())
-		receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
-	}
 
 	if ocmAgentURL != "" {
 		routes = append(routes, createOCMAgentRoute())
@@ -678,19 +673,33 @@ func createAlertManagerConfig(reqLogger, pagerdutyRoutingKey, goalertURLlow, goa
 	}
 
 	if pagerdutyRoutingKey != "" {
+		if watchdogURL != "" {
+			// Only configure a watchdog route if we know that a Pagerduty route is
+			// also being configured (OSD-14347)
+			reqLogger.Info("INFO: Configuring a watchdog route and receiver")
+			routes = append(routes, createWatchdogRoute())
+			receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
+		}
+		reqLogger.Info("INFO: Configuring a PagerDuty route and receiver")
 		routes = append(routes, createSubroutes(namespaceList, "pagerduty"))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
-	}
+		} else {
+			reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
+		}
 
 	if (goalertURLlow != "" && goalertURLhigh != "") {
 		routes = append(routes, createSubroutes(namespaceList, "goalert"))
 		receivers = append(receivers, createGoalertReceiver(goalertURLlow, receiverGoAlertLow, clusterProxy)...)
 		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, receiverGoAlertHigh, clusterProxy)...)
+	} else {
+		reqLogger.Info("INFO: Not configuring GoAlert receivers")
 	}
 
 	if goalertURLheartbeat != "" {
 		routes = append(routes, createHeartbeatRoute())
 		receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
+	} else {
+		reqLogger.Info("INFO: Not configuring GoAlert Heartbeat receivers")
 	}
 
 	// always have the "null" receiver
