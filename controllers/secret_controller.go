@@ -459,7 +459,6 @@ func createSubroutes(namespaceList []string, receiverType string) *alertmanager.
 			{Receiver: receiverCritical, Match: map[string]string{"severity": "critical"}},
 			{Receiver: receiverError, Match: map[string]string{"severity": "error"}},
 			{Receiver: receiverWarning, Match: map[string]string{"severity": "warning"}},
-			{Receiver: receiverWarning, Match: map[string]string{"severity": "info"}},
 		}...)
 	}
 
