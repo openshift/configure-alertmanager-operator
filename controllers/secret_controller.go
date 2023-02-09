@@ -250,13 +250,13 @@ func createSubroutes(recieverType string) ([]*alertmanager.Route) {
 	recieverError := ""
 	recieverWarning := ""
 
-	if recieverType == "GoAlert"{
+	if recieverType == "goalert"{
 		recieverCommon = receiverGoAlertLow
 		recieverCritical = receiverGoAlertHigh
 		recieverError = receiverGoAlertHigh
 		recieverWarning = receiverGoAlertLow
 
-	} else if recieverType == "PagerDuty"{
+	} else if recieverType == "pagerduty"{
 		recieverCommon = receiverPagerduty
 		recieverCritical = receiverMakeItCritical
 		recieverError = receiverMakeItError
@@ -647,7 +647,7 @@ func createGoalertRoute(namespaceList []string) *alertmanager.Route {
 	// 3. route anything that should be a warning to "GoAlert Low"
 	//
 	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
-	goalertSubroutes := createSubroutes("GoAlert")
+	goalertSubroutes := createSubroutes("goalert")
 	
 	// goalertSubroutes := createSubroutes(receiverGoAlertLow, receiverGoAlertHigh, receiverGoAlertHigh, receiverGoAlertLow)
 
