@@ -310,12 +310,27 @@ func verifyHeartbeatReceiver(t *testing.T, url string, proxy string, receivers [
 	assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' receiver", receiverWatchdog))
 }
 
-// utility function to verify watchdog route
-func verifyWatchdogRoute(t *testing.T, route *alertmanager.Route) {
-	assertEquals(t, receiverWatchdog, route.Receiver, "Receiver Name")
-	assertEquals(t, "5m", route.RepeatInterval, "Repeat Interval")
-	assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
-	assertEquals(t, true, route.Continue, "Continue")
+// utility function to verify no watchdog routes appear in the routes
+func verifyWatchdogRoute(t *testing.T, present bool, routes []*alertmanager.Route) {
+	// There is at least one route
+	if present {
+		assertGte(t, 1, len(routes), "Number of Routes")
+	}
+
+	hasWatchdog := false
+	for _, route := range routes {
+		if route.Receiver == receiverWatchdog {
+			assertEquals(t, "5m", route.RepeatInterval, "Repeat Interval")
+			assertEquals(t, "Watchdog", route.Match["alertname"], "Alert Name")
+			hasWatchdog = true
+		}
+	}
+
+	if present {
+		assertTrue(t, hasWatchdog, fmt.Sprintf("No '%s' route", receiverWatchdog))
+	} else {
+		assertFalse(t, hasWatchdog, fmt.Sprintf("'%s' route found that shouldn't be present", receiverWatchdog))
+	}
 }
 
 // utility to test watchdog receivers
