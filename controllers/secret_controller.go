@@ -289,7 +289,6 @@ func createSubroutes(namespaceList []string, receiverType string) *alertmanager.
 		// regex tests: https://regex101.com/r/Rn6F5A/1
 		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
 		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
-
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
 		{Receiver: receiverNull, Match: map[string]string{managedNotificationLabel: "true"}},
@@ -333,15 +332,6 @@ func createSubroutes(namespaceList []string, receiverType string) *alertmanager.
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
 		// https://issues.redhat.com/browse/OSD-5544
 		{Receiver: receiverNull, MatchRE: map[string]string{"job_name": "^elasticsearch.*"}, Match: map[string]string{"alertname": "KubeJobFailed", "namespace": "openshift-logging"}},
-		// https://issues.redhat.com/browse/OSD-11273 - silence all elasticsearch alerts so we can handle only the ones that have extended logging support
-		// the list of alerts is pulled via
-		// ```
-		//  yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/fluentd_openshift-logging_collector.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
-		// # for elasticsearch
-		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
-		// ```
-		// pass all of the alerts that are SRE related to PD
-		{Receiver: receiverCommon, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
 		// fluentd alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDVeryHighErrorRate", "namespace": "openshift-logging"}},
@@ -367,83 +357,70 @@ func createSubroutes(namespaceList []string, receiverType string) *alertmanager.
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
 		// https://issues.redhat.com/browse/OSD-6363
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDegraded", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
-
 		//https://issues.redhat.com/browse/OSD-8320
 		// Sometimes only CLusterOperatorDown is firing, meaning the suppression set below in this file does not work
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
 		//https://issues.redhat.com/browse/OSD-8320
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
-
 		// https://issues.redhat.com/browse/OSD-6327
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
-
 		//https://issues.redhat.com/browse/OSD-6559
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
-
 		//https://issues.redhat.com/browse/OSD-7671
 		// might also be removed by https://issues.redhat.com/browse/OSD-11273
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
-
 		// https://issues.redhat.com/browse/OSD-9061
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
-
 		// https://issues.redhat.com/browse/OSD-9062
 		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
-
+		// https://issues.redhat.com/browse/OSD-6821
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-user-workload-monitoring"}},
+		// https://issues.redhat.com/browse/OSD-9426
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusTargetSyncFailure", "namespace": "openshift-user-workload-monitoring"}},
+		// https://issues.redhat.com/browse/OSD-11478
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusOperatorRejectedResources", "namespace": "openshift-user-workload-monitoring"}},
+		// https://issues.redhat.com/browse/OSD-14071
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
+		// https://issues.redhat.com/browse/OSD-14857
+		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
+		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
+		// Needed to drop GoAlert heartbeat alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
-
+		// https://issues.redhat.com/browse/OSD-8983
+		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
+		// https://issues.redhat.com/browse/OSD-10473
+		{Receiver: receiverWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
+		// https://issues.redhat.com/browse/OSD-10485
+		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
+		// https://issues.redhat.com/browse/DVO-54
+		{Receiver: receiverWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
+		// Ensure NodeClockNotSynchronising is routed to PD as a high alert
+		// https://issues.redhat.com/browse/OSD-8736
+		{Receiver: receiverError, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
+		// https://issues.redhat.com/browse/OSD-11273 - silence all elasticsearch alerts so we can handle only the ones that have extended logging support
+		// the list of alerts is pulled via
+		// ```
+		//  yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/fluentd_openshift-logging_collector.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
+		// # for elasticsearch
+		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
+		// ```
+		// pass all of the alerts that are SRE related to PD
+		{Receiver: receiverCommon, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
 		// fluentd: route any fluentd alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverCommon, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverCommon, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
-
-		//Add any alerts below to override their severity to Error
-
-		// Ensure NodeClockNotSynchronising is routed to PD as a high alert
-		// https://issues.redhat.com/browse/OSD-8736
-		{Receiver: receiverError, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
-
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
 		{Receiver: receiverCommon, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
-
-		// https://issues.redhat.com/browse/OSD-6821
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-user-workload-monitoring"}},
-
-		// https://issues.redhat.com/browse/OSD-9426
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusTargetSyncFailure", "namespace": "openshift-user-workload-monitoring"}},
-
-		// https://issues.redhat.com/browse/OSD-11478
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusOperatorRejectedResources", "namespace": "openshift-user-workload-monitoring"}},
-
-		// https://issues.redhat.com/browse/OSD-8983
-		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
-
-		// https://issues.redhat.com/browse/OSD-10473
-		{Receiver: receiverWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
-
-		// https://issues.redhat.com/browse/OSD-10485
-		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
-
-		// https://issues.redhat.com/browse/DVO-54
-		{Receiver: receiverWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
-
-		// https://issues.redhat.com/browse/OSD-14071
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
-
-		// https://issues.redhat.com/browse/OSD-14857
-		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
-
-		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
-
-		// Needed to drop GoAlert heartbeat alerts
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
 	}
+
 	// Silence insights in FedRAMP until its made available in the environment
 	// https://issues.redhat.com/browse/OSD-13685
 	if config.IsFedramp() {
