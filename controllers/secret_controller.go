@@ -251,24 +251,28 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func createSubroutes(namespaceList []string, receiverType string) *alertmanager.Route {
+func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType string) *alertmanager.Route{
 
-	var receiverCommon,	receiverCritical, receiverError, receiverWarning, receiverDefault string
+	var receiverCommon, receiverCritical, receiverError, receiverWarning, receiverDefault string
 
-	if receiverType == "goalert" {
+	switch receiverType {
+	case "goalert":
 		receiverCommon = receiverGoAlertLow
 		receiverCritical = receiverGoAlertHigh
 		receiverError = receiverGoAlertHigh
 		receiverWarning = receiverGoAlertLow
 		receiverDefault = receiverGoAlertLow
-
-	} else if receiverType == "pagerduty" {
+	case "pagerduty":
 		receiverCommon = receiverPagerduty
 		receiverCritical = receiverMakeItCritical
 		receiverError = receiverMakeItError
 		receiverWarning = receiverMakeItWarning
 		receiverDefault = defaultReceiver
+	default:
+		reqLogger.Info("INFO: Could not create subroute for receiver", receiverType)
+		return &alertmanager.Route{}
 	}
+
 	// order matters.
 	// these are sub-routes.  if any matches it will not continue processing.
 	// 1. route anything we consider critical to receiverCritical
@@ -673,14 +677,15 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 			receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
 		}
 		reqLogger.Info("INFO: Configuring a PagerDuty route and receiver")
-		routes = append(routes, createSubroutes(namespaceList, "pagerduty"))
+		routes = append(routes, createSubroutes(reqLogger, namespaceList, "pagerduty"))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
 	} else {
-		reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
+	reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
 	}
 
 	if goalertURLlow != "" && goalertURLhigh != "" {
-		routes = append(routes, createSubroutes(namespaceList, "goalert"))
+		reqLogger.Info("INFO: Configuring a GoAlert route and receiver")
+		routes = append(routes, createSubroutes(reqLogger, namespaceList, "goalert"))
 		receivers = append(receivers, createGoalertReceiver(goalertURLlow, receiverGoAlertLow, clusterProxy)...)
 		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, receiverGoAlertHigh, clusterProxy)...)
 	} else {
@@ -688,6 +693,7 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 	}
 
 	if goalertURLheartbeat != "" {
+		reqLogger.Info("INFO: Configuring a GoAlert heartbeat route and receiver")
 		routes = append(routes, createHeartbeatRoute())
 		receivers = append(receivers, createHeartbeatReceivers(goalertURLheartbeat, clusterProxy)...)
 	} else {
