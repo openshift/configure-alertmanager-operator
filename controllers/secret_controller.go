@@ -384,7 +384,7 @@ func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType
 		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
 		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
+		// {Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
 		// Needed to drop GoAlert heartbeat alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
 		// https://issues.redhat.com/browse/OSD-1922
