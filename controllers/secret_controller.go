@@ -253,11 +253,7 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func createSubroutes(namespaceList []string, receiverType string) *alertmanager.Route {
 
-	receiverCommon := ""
-	receiverCritical := ""
-	receiverError := ""
-	receiverWarning := ""
-	receiverDefault := ""
+	var receiverCommon,	receiverCritical, receiverError, receiverWarning, receiverDefault string
 
 	if receiverType == "goalert" {
 		receiverCommon = receiverGoAlertLow
@@ -348,7 +344,6 @@ func createSubroutes(namespaceList []string, receiverType string) *alertmanager.
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchOperatorCSVNotSuccessful", "namespace": "openshift-logging"}}, // this has happened last week
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchProcessCPUHigh", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchWriteRequestsRejectionJumps", "namespace": "openshift-logging"}},
-		// END of https://issues.redhat.com/browse/OSD-11273
 		// Suppress the alerts and use HAProxyReloadFailSRE instead (openshift/managed-cluster-config#600)
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyReloadFail", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OHSS-2163
