@@ -251,7 +251,7 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType string) *alertmanager.Route{
+func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType string) *alertmanager.Route {
 
 	var receiverCommon, receiverCritical, receiverError, receiverWarning, receiverDefault string
 
@@ -680,7 +680,7 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 		routes = append(routes, createSubroutes(reqLogger, namespaceList, "pagerduty"))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
 	} else {
-	reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
+		reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
 	}
 
 	if goalertURLlow != "" && goalertURLhigh != "" {
@@ -913,11 +913,7 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 	snitchSecretExists := secretInList(reqLogger, secretNameDMS, secretList)
 
 	// do the work! collect secret info for PD, DMS, and GoAlert
-	goalertURLlow = ""
-	goalertURLhigh = ""
-	goalertURLheartbeat = ""
-	pagerdutyRoutingKey = ""
-	watchdogURL = ""
+	goalertURLlow, goalertURLhigh, goalertURLheartbeat, pagerdutyRoutingKey, watchdogURL = "", "", "", "", ""
 
 	// If a secret exists, add the necessary configs to Alertmanager.
 	// But don't activate PagerDuty/Goalert unless the cluster is "ready".
