@@ -283,7 +283,10 @@ func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType
 	//
 	// the Route docs can be read at https://prometheus.io/docs/alerting/latest/configuration/#matcher
 	subroute := []*alertmanager.Route{
-
+		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
+		// {Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
+		// Needed to drop GoAlert heartbeat alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
 		// https://issues.redhat.com/browse/OSD-11298
 		// indications that master nodes have been terminated should be critical
 		// regex tests: https://regex101.com/r/Rn6F5A/1
@@ -383,10 +386,6 @@ func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
 		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
-		// Needed because we are now allowing DMS to continue to allow DMS and GoAlert Heartbeat to coexist. Now we just drop DMS.
-		// {Receiver: receiverNull, Match: map[string]string{"alertname": "SnitchHeartBeat", "severity": "deadman"}},
-		// Needed to drop GoAlert heartbeat alerts
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "Watchdog", "severity": "none"}},
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OSD-8983
