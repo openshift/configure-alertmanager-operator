@@ -42,8 +42,13 @@ import (
 )
 
 var log = logf.Log.WithName("secret_controller")
+type receiverType int64
 
 const (
+	// Defining reciever types to be used in subroute decision making
+	GoAlert receiverType = iota
+	Pagerduty
+
 	// Endpoint for "low" alerts for GoAlert. These will not page support personnel
 	secretKeyGoalertLow = "GOALERT_URL_LOW" //#nosec G101
 
@@ -181,7 +186,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		reqLogger.Error(err, "Error determining cluster readiness.")
 		return r.Readiness.Result(), err
 	}
-
+	
 	// Get a list of all relevant objects in the `openshift-monitoring` namespace.
 	// This is used for determining which secrets and configMaps are present so that the necessary
 	// Alertmanager config changes can happen later.
@@ -251,26 +256,25 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType string) *alertmanager.Route {
+func createSubroutes(namespaceList []string, receiver receiverType) (*alertmanager.Route) {
 
 	var receiverCommon, receiverCritical, receiverError, receiverWarning, receiverDefault string
-
-	switch receiverType {
-	case "goalert":
+	
+	switch receiver {
+	case GoAlert:
 		receiverCommon = receiverGoAlertLow
 		receiverCritical = receiverGoAlertHigh
 		receiverError = receiverGoAlertHigh
 		receiverWarning = receiverGoAlertLow
 		receiverDefault = receiverGoAlertLow
-	case "pagerduty":
+	case Pagerduty:
 		receiverCommon = receiverPagerduty
 		receiverCritical = receiverMakeItCritical
 		receiverError = receiverMakeItError
 		receiverWarning = receiverMakeItWarning
 		receiverDefault = defaultReceiver
 	default:
-		reqLogger.Info("INFO: Could not create subroute for receiver", receiverType)
-		return &alertmanager.Route{}
+		return nil
 	}
 
 	// order matters.
@@ -335,6 +339,15 @@ func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
 		// https://issues.redhat.com/browse/OSD-5544
 		{Receiver: receiverNull, MatchRE: map[string]string{"job_name": "^elasticsearch.*"}, Match: map[string]string{"alertname": "KubeJobFailed", "namespace": "openshift-logging"}},
+				// https://issues.redhat.com/browse/OSD-11273 - silence all elasticsearch alerts so we can handle only the ones that have extended logging support
+		// the list of alerts is pulled via
+		// ```
+		//  yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/fluentd_openshift-logging_collector.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
+		// # for elasticsearch
+		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
+		// ```
+		// pass all of the alerts that are SRE related to PD/GoAlert
+		{Receiver: receiverCommon, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
 		// fluentd alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDVeryHighErrorRate", "namespace": "openshift-logging"}},
@@ -351,6 +364,7 @@ func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchOperatorCSVNotSuccessful", "namespace": "openshift-logging"}}, // this has happened last week
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchProcessCPUHigh", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchWriteRequestsRejectionJumps", "namespace": "openshift-logging"}},
+		// END of https://issues.redhat.com/browse/OSD-11273
 		// Suppress the alerts and use HAProxyReloadFailSRE instead (openshift/managed-cluster-config#600)
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyReloadFail", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OHSS-2163
@@ -399,16 +413,7 @@ func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType
 		// Ensure NodeClockNotSynchronising is routed to PD as a high alert
 		// https://issues.redhat.com/browse/OSD-8736
 		{Receiver: receiverError, Match: map[string]string{"alertname": "NodeClockNotSynchronising", "prometheus": "openshift-monitoring/k8s"}},
-		// https://issues.redhat.com/browse/OSD-11273 - silence all elasticsearch alerts so we can handle only the ones that have extended logging support
-		// the list of alerts is pulled via
-		// ```
-		//  yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/fluentd_openshift-logging_collector.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
-		// # for elasticsearch
-		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
-		// ```
-		// pass all of the alerts that are SRE related to PD
-		{Receiver: receiverCommon, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
-		// fluentd: route any fluentd alert to PD
+		// fluentd: route any fluentd alert to PD/GoAlert
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverCommon, Match: map[string]string{"job": "fluentd", "prometheus": "openshift-monitoring/k8s"}},
 		// elasticsearch: route any ES alert to PD
@@ -428,7 +433,7 @@ func createSubroutes(reqLogger logr.Logger, namespaceList []string, receiverType
 	}
 
 	// GoAlert specific settings
-	if receiverType == "goalert" {
+	if receiver == GoAlert {
 		// Overcome webhook limitations
 		subroute = append(subroute, []*alertmanager.Route{
 			{Receiver: receiverCritical, Match: map[string]string{"severity": "critical"}},
@@ -676,7 +681,7 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 			receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
 		}
 		reqLogger.Info("INFO: Configuring a PagerDuty route and receiver")
-		routes = append(routes, createSubroutes(reqLogger, namespaceList, "pagerduty"))
+		routes = append(routes, createSubroutes(namespaceList, Pagerduty))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
 	} else {
 		reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
@@ -684,7 +689,7 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 
 	if goalertURLlow != "" && goalertURLhigh != "" {
 		reqLogger.Info("INFO: Configuring a GoAlert route and receiver")
-		routes = append(routes, createSubroutes(reqLogger, namespaceList, "goalert"))
+		routes = append(routes, createSubroutes(namespaceList, GoAlert))
 		receivers = append(receivers, createGoalertReceiver(goalertURLlow, receiverGoAlertLow, clusterProxy)...)
 		receivers = append(receivers, createGoalertReceiver(goalertURLhigh, receiverGoAlertHigh, clusterProxy)...)
 	} else {
@@ -910,9 +915,6 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 	goalertSecretExists := secretInList(reqLogger, secretNameGoalert, secretList)
 	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
 	snitchSecretExists := secretInList(reqLogger, secretNameDMS, secretList)
-
-	// do the work! collect secret info for PD, DMS, and GoAlert
-	goalertURLlow, goalertURLhigh, goalertURLheartbeat, pagerdutyRoutingKey, watchdogURL = "", "", "", "", ""
 
 	// If a secret exists, add the necessary configs to Alertmanager.
 	// But don't activate PagerDuty/Goalert unless the cluster is "ready".
