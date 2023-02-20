@@ -45,7 +45,7 @@ var log = logf.Log.WithName("secret_controller")
 type receiverType int64
 
 const (
-	// Defining reciever types to be used in subroute decision making
+	// Defining receiver types to be used in subroute decision making
 	GoAlert receiverType = iota
 	Pagerduty
 
