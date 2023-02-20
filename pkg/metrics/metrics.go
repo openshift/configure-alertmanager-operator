@@ -32,7 +32,7 @@ const (
 var (
 	metricGASecretExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "ga_secret_exists",
-		Help: "Pager Duty secret exists",
+		Help: "GoAlert secret exists",
 	}, []string{"name"})
 	metricPDSecretExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pd_secret_exists",
