@@ -666,25 +666,21 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
+	if watchdogURL != "" {
+    reqLogger.Info("INFO: Configuring a watchdog route and receiver")
+		routes = append(routes, createWatchdogRoute())
+		receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
+	}
+
 	if ocmAgentURL != "" {
-		reqLogger.Info("INFO: Configuring a OCM Agent route and receiver")
 		routes = append(routes, createOCMAgentRoute())
 		receivers = append(receivers, createOCMAgentReceiver(ocmAgentURL)...)
 	}
 
 	if pagerdutyRoutingKey != "" {
-		if watchdogURL != "" {
-			// Only configure a watchdog route if we know that a Pagerduty route is
-			// also being configured (OSD-14347)
-			reqLogger.Info("INFO: Configuring a watchdog route and receiver")
-			routes = append(routes, createWatchdogRoute())
-			receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
-		}
 		reqLogger.Info("INFO: Configuring a PagerDuty route and receiver")
 		routes = append(routes, createSubroutes(namespaceList, Pagerduty))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
-	} else {
-		reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
 	}
 
 	if goalertURLlow != "" && goalertURLhigh != "" {
