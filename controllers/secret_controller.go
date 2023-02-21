@@ -194,7 +194,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	if err != nil {
 		reqLogger.Error(err, "Error reading cluster id.")
 	}
-	alertmanagerconfig := createAlertManagerConfig(reqLogger, pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
+	alertmanagerconfig := createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID, clusterProxy, osdNamespaces)
 
 	// write the alertmanager Config
 	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
@@ -562,29 +562,23 @@ func createHttpConfig(clusterProxy string) alertmanager.HttpConfig {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(pagerdutyRoutingKey, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
+	if watchdogURL != "" {
+		routes = append(routes, createWatchdogRoute())
+		receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
+	}
+
 	if ocmAgentURL != "" {
-		reqLogger.Info("INFO: Configuring a OCM Agent route and receiver")
 		routes = append(routes, createOCMAgentRoute())
 		receivers = append(receivers, createOCMAgentReceiver(ocmAgentURL)...)
 	}
 
 	if pagerdutyRoutingKey != "" {
-		if watchdogURL != "" {
-			// Only configure a watchdog route if we know that a Pagerduty route is
-			// also being configured (OSD-14347)
-			reqLogger.Info("INFO: Configuring a watchdog route and receiver")
-			routes = append(routes, createWatchdogRoute())
-			receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
-		}
-		reqLogger.Info("INFO: Configuring a PagerDuty route and receiver")
 		routes = append(routes, createPagerdutyRoute(namespaceList))
 		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
-	} else {
-		reqLogger.Info("INFO: Not configuring PagerDuty or Dead Man's Snitch receivers")
 	}
 
 	// always have the "null" receiver
