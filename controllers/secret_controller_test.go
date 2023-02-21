@@ -979,7 +979,6 @@ func Test_createWatchdogReceivers_WithKey(t *testing.T) {
 func Test_createHeartbeatRoute(t *testing.T) {
 	// test the structure of the Route is sane
 	route := createHeartbeatRoute()
-
 	verifyHeartbeatRoute(t, route)
 }
 

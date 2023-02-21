@@ -221,6 +221,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	if err != nil {
 		reqLogger.Error(err, "Error reading cluster id.")
 	}
+
 	alertmanagerconfig := createAlertManagerConfig(reqLogger,
 		pagerdutyRoutingKey,
 		goalertURLlow,
