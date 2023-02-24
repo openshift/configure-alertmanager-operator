@@ -239,6 +239,9 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
 		{Receiver: receiverMakeItCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
 
+		// https://issues.redhat.com/browse/OSD-14149
+		{Receiver: receiverMakeItCritical, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
+
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
 		{Receiver: receiverNull, Match: map[string]string{managedNotificationLabel: "true"}},
@@ -322,9 +325,6 @@ func createPagerdutyRoute(namespaceList []string) *alertmanager.Route {
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
 		//https://issues.redhat.com/browse/OSD-8320
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
-
-		// https://issues.redhat.com/browse/OSD-6327
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
 
 		//https://issues.redhat.com/browse/OSD-6559
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
