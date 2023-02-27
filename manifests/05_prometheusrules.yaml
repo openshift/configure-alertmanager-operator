@@ -15,6 +15,14 @@ spec:
       for: 5m
       labels:
         severity: critical
+    - alert: ConfigureAlertmanagerOperatorMismatchGaSRE
+      annotations:
+        message: "Mismatch between GA secret and GA AlertManager config"
+        link_url: "https://access.redhat.com/articles/4165971"
+      expr: ga_secret_exists + am_secret_contains_ga == 1
+      for: 5m
+      labels:
+        severity: critical
     - alert: ConfigureAlertmanagerOperatorMismatchPdSRE
       annotations:
         message: "Mismatch between PD secret and PD AlertManager config"
@@ -31,4 +39,3 @@ spec:
       for: 5m
       labels:
         severity: critical
-

@@ -30,6 +30,10 @@ const (
 )
 
 var (
+	metricGASecretExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "ga_secret_exists",
+		Help: "GoAlert secret exists",
+	}, []string{"name"})
 	metricPDSecretExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pd_secret_exists",
 		Help: "Pager Duty secret exists",
@@ -41,6 +45,10 @@ var (
 	metricAMSecretExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "am_secret_exists",
 		Help: "AlertManager Config secret exists",
+	}, []string{"name"})
+	metricAMSecretContainsGA = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "am_secret_contains_ga",
+		Help: "AlertManager Config contains configuration for GoAlert",
 	}, []string{"name"})
 	metricAMSecretContainsPD = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "am_secret_contains_pd",
@@ -60,9 +68,11 @@ var (
 	}, []string{"name"})
 
 	metricsList = []prometheus.Collector{
+		metricGASecretExists,
 		metricPDSecretExists,
 		metricDMSSecretExists,
 		metricAMSecretExists,
+		metricAMSecretContainsGA,
 		metricAMSecretContainsPD,
 		metricAMSecretContainsDMS,
 		metricManNSConfigMapExists,
@@ -100,15 +110,19 @@ func RegisterMetrics() error {
 func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config) {
 
 	// Default to false.
+	gaSecretExists := false
 	pdSecretExists := false
 	dmsSecretExists := false
 	amSecretExists := false
+	amSecretContainsGA := false
 	amSecretContainsPD := false
 	amSecretContainsDMS := false
 
 	// Update the metric if the secret is found in the SecretList.
 	for _, secret := range list.Items {
 		switch secret.Name {
+		case "goalert-secret":
+			gaSecretExists = true
 		case "pd-secret":
 			pdSecretExists = true
 		case "dms-secret":
@@ -118,8 +132,15 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 		}
 	}
 
-	// Check for the presence of PD and DMS configs inside the AlertManager config and report metrics.
+	// Check for the presence of GoAlert, PD and DMS configs inside the AlertManager config and report metrics.
 	if amSecretExists {
+		if gaSecretExists {
+			for _, receiver := range amconfig.Receivers {
+				if receiver.Name == "goalert" {
+					amSecretContainsGA = true
+				}
+			}
+		}
 		if pdSecretExists {
 			for _, receiver := range amconfig.Receivers {
 				if receiver.Name == "pagerduty" {
@@ -137,6 +158,11 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 	}
 
 	// Only set metrics once per run.
+	if gaSecretExists {
+		metricGASecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
+	} else {
+		metricGASecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
 	if pdSecretExists {
 		metricPDSecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	} else {
@@ -151,6 +177,11 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 		metricAMSecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	} else {
 		metricAMSecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
+	if amSecretContainsGA {
+		metricAMSecretContainsGA.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
+	} else {
+		metricAMSecretContainsGA.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
 	}
 	if amSecretContainsPD {
 		metricAMSecretContainsPD.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))

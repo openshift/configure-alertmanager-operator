@@ -17,7 +17,7 @@
       - [Replace the Image](#replace-the-image)
 
 ## Summary
-The Configure Alertmanager Operator was created for the OpenShift Dedicated platform to dynamically manage Alertmanager configurations based on the presence or absence of secrets containing a Pager Duty RoutingKey and [Dead Man's Snitch](https://deadmanssnitch.com) URL. When the secret is created/updated/deleted, the associated Receiver and Route will be created/updated/deleted within the Alertmanager config.
+The Configure Alertmanager Operator was created for the OpenShift Dedicated platform to dynamically manage Alertmanager configurations based on the presence or absence of secrets containing a GoAlert URLs, Pager Duty RoutingKey, and [Dead Man's Snitch](https://deadmanssnitch.com) URL. When the secret is created/updated/deleted, the associated Receiver and Route will be created/updated/deleted within the Alertmanager config.
 
 The operator contains the following components:
 
@@ -32,11 +32,12 @@ The Secret Controller watches over the resources in the table below. Changes to 
 | Resource Type | Resource Namespace/Name                   | Reason for watching                                                                                                                                    |
 |---------------|-------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Secret        | `openshift-monitoring/alertmanager-main`  | Represents the Alertmanager Configuration that the operator creates/maintains the state of.                                                            |
+| Secret        | `openshift-monitoring/goalert-secret`     | Indicates that the operator should configure GoAlert routing. Contains 3 values used by GoAlert; URL for high alerts, low alerts, and a heartbeat.              |
 | Secret        | `openshift-monitoring/pd-secret`          | Indicates that the operator should configure PagerDuty routing. Contains the PagerDuty API Key that is used for PagerDuty communications.              |
 | Secret        | `openshift-monitoring/dms-secret`         | Indicates that the operator should configure DeadmansSnitch routing. Contains the DeadmansSnitch URL that the Alertmanager should report readiness to. |
 | ConfigMap     | `openshift-monitoring/ocm-agent`          | Indicates that the operator should configure OCM Agent routing. Contains the OCM Agent service URL that Alertmanager should route alerts to.           |
-| ConfigMap     | `openshift-monitoring/managed-namespaces` | Defines a list of OpenShift "managed" namespaces. The operator will route alerts originating from these namespaces to PagerDuty.                       |
-| ConfigMap     | `openshift-monitoring/ocp-namespaces`     | Defines a list of OpenShift Container Platform namespaces. The operator will route alerts originating from these namespaces to PagerDuty.              |
+| ConfigMap     | `openshift-monitoring/managed-namespaces` | Defines a list of OpenShift "managed" namespaces. The operator will route alerts originating from these namespaces to PagerDuty and/or GoAlert.                       |
+| ConfigMap     | `openshift-monitoring/ocp-namespaces`     | Defines a list of OpenShift Container Platform namespaces. The operator will route alerts originating from these namespaces to PagerDuty and/or GoAlert.              |
 
 ## Cluster Readiness
 To avoid alert noise while a cluster is in the early stages of being installed and configured, this operator waits to configure Pager Duty -- effectively silencing alerts -- until a predetermined set of health checks, performed by [osd-cluster-ready](https://github.com/openshift/osd-cluster-ready/), has completed.
@@ -48,11 +49,13 @@ The Configure Alertmanager Operator exposes the following Prometheus metrics:
 
 | Metric name                           | Purpose                                                                                               |
 |---------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `ga_secret_exists`                    | indicates that a Secret named `goalert-secret` exists in the `openshift-monitoring` namespace.        |
 | `pd_secret_exists`                    | indicates that a Secret named `pd-secret` exists in the `openshift-monitoring` namespace.             |
 | `dms_secret_exists`                   | indicates that a Secret named `dms-secret` exists in the `openshift-monitoring` namespace.            |
 | `am_secret_exists`                    | indicates that a Secret named `alertmanager-main` exists in the `openshift-monitoring` namespace.     |
 | `managed_namespaces_configmap_exists` | indicates that a ConfigMap named `managed-namespaces` exists in the `openshift-monitoring` namespace. |
 | `ocp_namespaces_configmap_exists`     | indicates that a ConfigMap named `ocp-namespaces` exists in the `openshift-monitoring` namespace.     |
+| `am_secret_contains_ga`               | indicates the GoAlert receiver is present in alertmanager.yaml.                                       |
 | `am_secret_contains_pd`               | indicates the Pager Duty receiver is present in alertmanager.yaml.                                    |
 | `am_secret_contains_dms`              | indicates the Dead Man's Snitch receiver is present in alertmanager.yaml.                             |
 
@@ -61,6 +64,7 @@ The operator creates a `Service` and `ServiceMonitor` named `configure-alertmana
 ## Alerts
 The following alerts are added to Prometheus as part of configure-alertmanager-operator:
 * Mismatch between DMS secret and DMS Alertmanager config.
+* Mismatch between GoAlert secret and GoAlert Alertmanager config.
 * Mismatch between PD secret and PD Alertmanager config.
 * Alertmanager config secret does not exist.
 
