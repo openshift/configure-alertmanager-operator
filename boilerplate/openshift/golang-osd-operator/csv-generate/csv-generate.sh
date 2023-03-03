@@ -48,7 +48,8 @@ fi
 if [[ -z "$CONTAINER_ENGINE" ]]; then
     YQ_CMD="yq"
 else
-    YQ_CMD="$CONTAINER_ENGINE run --rm -i quay.io/app-sre/yq:3.4.1 yq"
+    $CONTAINER_ENGINE pull quay.io/app-sre/yq:4
+    YQ_CMD="$CONTAINER_ENGINE run --rm -i quay.io/app-sre/yq:4 yq"
 fi
 
 # Get the image URI as repo URL + image digest
@@ -175,5 +176,5 @@ else
     else
         CE_OPTS="-v `pwd`:`pwd`"
     fi
-    $CONTAINER_ENGINE run --rm ${CE_OPTS} -u `id -u`:0 -w `pwd` registry.access.redhat.com/ubi8/python-36:1-134 /bin/bash -c "python -m pip install oyaml; python ./boilerplate/openshift/golang-osd-operator/csv-generate/common-generate-operator-bundle.py -o ${operator_name} -d ${OUTPUT_DIR} ${PREV_VERSION_OPTS} -i ${REPO_DIGEST} -V ${operator_version}"
+    $CONTAINER_ENGINE run --pull=always --rm ${CE_OPTS} -u `id -u`:0 -w `pwd` registry.access.redhat.com/ubi8/python-39 /bin/bash -c "python -m pip install --disable-pip-version-check oyaml; python ./boilerplate/openshift/golang-osd-operator/csv-generate/common-generate-operator-bundle.py -o ${operator_name} -d ${OUTPUT_DIR} ${PREV_VERSION_OPTS} -i ${REPO_DIGEST} -V ${operator_version}"
 fi
