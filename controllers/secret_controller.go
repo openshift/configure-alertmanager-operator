@@ -340,8 +340,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) (*alertmanag
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetAtLimit"}},
 		// https://issues.redhat.com/browse/OSD-4373
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
-		// https://issues.redhat.com/browse/OSD-5544
-		{Receiver: receiverNull, MatchRE: map[string]string{"job_name": "^elasticsearch.*"}, Match: map[string]string{"alertname": "KubeJobFailed", "namespace": "openshift-logging"}},
+		// https://issues.redhat.com/browse/OSD-13306
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeJobFailed"}},
 				// https://issues.redhat.com/browse/OSD-11273 - silence all elasticsearch alerts so we can handle only the ones that have extended logging support
 		// the list of alerts is pulled via
 		// ```
