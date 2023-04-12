@@ -42,6 +42,7 @@ import (
 )
 
 var log = logf.Log.WithName("secret_controller")
+
 type receiverType int64
 
 const (
@@ -186,7 +187,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		reqLogger.Error(err, "Error determining cluster readiness.")
 		return r.Readiness.Result(), err
 	}
-	
+
 	// Get a list of all relevant objects in the `openshift-monitoring` namespace.
 	// This is used for determining which secrets and configMaps are present so that the necessary
 	// Alertmanager config changes can happen later.
@@ -257,10 +258,10 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func createSubroutes(namespaceList []string, receiver receiverType) (*alertmanager.Route) {
+func createSubroutes(namespaceList []string, receiver receiverType) *alertmanager.Route {
 
 	var receiverCommon, receiverCritical, receiverError, receiverWarning, receiverDefault string
-	
+
 	switch receiver {
 	case GoAlert:
 		receiverCommon = receiverGoAlertLow
@@ -342,7 +343,7 @@ func createSubroutes(namespaceList []string, receiver receiverType) (*alertmanag
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
 		// https://issues.redhat.com/browse/OSD-13306
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeJobFailed"}},
-				// https://issues.redhat.com/browse/OSD-11273 - silence all elasticsearch alerts so we can handle only the ones that have extended logging support
+		// https://issues.redhat.com/browse/OSD-11273 - silence all elasticsearch alerts so we can handle only the ones that have extended logging support
 		// the list of alerts is pulled via
 		// ```
 		//  yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/fluentd_openshift-logging_collector.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
@@ -423,6 +424,9 @@ func createSubroutes(namespaceList []string, receiver receiverType) (*alertmanag
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
 		{Receiver: receiverCommon, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+		// Route CannotRetrieveUpdates to null
+		// https://issues.redhat.com/browse/OCPBUGS-11636
+		{Receiver: receiverCommon, Match: map[string]string{"severity": "warning", "alertname": "CannotRetrieveUpdates", "prometheus": "openshift-monitoring/k8s"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
@@ -668,7 +672,7 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 	receivers := []*alertmanager.Receiver{}
 
 	if watchdogURL != "" {
-    reqLogger.Info("INFO: Configuring a watchdog route and receiver")
+		reqLogger.Info("INFO: Configuring a watchdog route and receiver")
 		routes = append(routes, createWatchdogRoute())
 		receivers = append(receivers, createWatchdogReceivers(watchdogURL, clusterProxy)...)
 	}
