@@ -298,8 +298,9 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// regex tests: https://regex101.com/r/Rn6F5A/1
 		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
 		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
-		// https://issues.redhat.com/browse/OSD-14149
-		{Receiver: receiverMakeItCritical, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
+		// Route CannotRetrieveUpdates to null, created CannotRetrieveUpdatesSRE in managed-cluster-config to address https://issues.redhat.com/browse/OSD-14149
+		// https://issues.redhat.com/browse/OCPBUGS-11636
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
 		// Silence anything intended for OCM Agent
 		// https://issues.redhat.com/browse/SDE-1315
 		{Receiver: receiverNull, Match: map[string]string{managedNotificationLabel: "true"}},
@@ -424,9 +425,6 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
 		{Receiver: receiverCommon, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
-		// Route CannotRetrieveUpdates to null
-		// https://issues.redhat.com/browse/OCPBUGS-11636
-		{Receiver: receiverCommon, Match: map[string]string{"severity": "warning", "alertname": "CannotRetrieveUpdates", "prometheus": "openshift-monitoring/k8s"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
