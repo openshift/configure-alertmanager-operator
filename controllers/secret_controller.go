@@ -383,6 +383,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
 		//https://issues.redhat.com/browse/OSD-8320
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
+		//https://issues.redhat.com/browse/OSD-16158
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "monitoring"}},
 		//https://issues.redhat.com/browse/OSD-6559
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
 		//https://issues.redhat.com/browse/OSD-7671
