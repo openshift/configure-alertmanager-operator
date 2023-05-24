@@ -316,6 +316,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"}},
 		// https://issues.redhat.com/browse/OSD-12379
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFileDescriptorLimit"}},
+		// https://issues.redhat.com/browse/OSD-16520
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace"}},
 		// https://issues.redhat.com/browse/OSD-2611
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-customer-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-3569
