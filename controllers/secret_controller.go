@@ -405,6 +405,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
 		// https://issues.redhat.com/browse/OSD-14857
 		{Receiver: receiverNull, MatchRE: map[string]string{"mountpoint": "/var/lib/ibmc-s3fs.*"}, Match: map[string]string{"alertname": "NodeFilesystemAlmostOutOfSpace", "severity": "critical"}},
+		// https://issues.redhat.com/browse/OSD-17225
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeMemoryUsage", "namespace": "openshift-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-1922
 		{Receiver: receiverWarning, Match: map[string]string{"alertname": "KubeAPILatencyHigh", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OSD-8983
