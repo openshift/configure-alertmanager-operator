@@ -372,6 +372,26 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchProcessCPUHigh", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ElasticsearchWriteRequestsRejectionJumps", "namespace": "openshift-logging"}},
 		// END of https://issues.redhat.com/browse/OSD-11273
+		//
+		// https://issues.redhat.com/browse/OSD-17372 - silence all loki/vector alerts for none of them is in the support scope of extended logging support
+		// For detail explaination, please check https://issues.redhat.com/browse/OSD-17371
+		// vector alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorNodeDown", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorHighErrorRate", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorVeryHighErrorRate", "namespace": "openshift-logging"}},
+		// loki alerts
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiRequestErrors", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiStackWriteRequestErrors", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiStackReadRequestErrors", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiRequestPanics", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiRequestLatency", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiTenantRateLimit", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiStorageSlowWrite", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiStorageSlowRead", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiWritePathHighLoad", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "LokiReadPathHighLoad", "namespace": "openshift-logging"}},
+		// END of https://issues.redhat.com/browse/OSD-17372
+		//
 		// Suppress the alerts and use HAProxyReloadFailSRE instead (openshift/managed-cluster-config#600)
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyReloadFail", "severity": "critical"}},
 		// https://issues.redhat.com/browse/OHSS-2163
