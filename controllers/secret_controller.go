@@ -312,8 +312,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// TODO: Remove CPUThrottlingHigh entry after all OSD clusters upgrade to 4.6 and above version
 		// https://issues.redhat.com/browse/OSD-6351 based on https://bugzilla.redhat.com/show_bug.cgi?id=1843346
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CPUThrottlingHigh"}},
-		// https://issues.redhat.com/browse/OSD-3010
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp", "severity": "warning"}},
+		// https://issues.redhat.com/browse/OSD-3010 && https://issues.redhat.com/browse/OSD-14017
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFilesystemSpaceFillingUp"}},
 		// https://issues.redhat.com/browse/OSD-12379
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "NodeFileDescriptorLimit"}},
 		// https://issues.redhat.com/browse/OSD-2611
