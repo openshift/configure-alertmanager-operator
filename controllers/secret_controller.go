@@ -35,6 +35,7 @@ import (
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
@@ -447,6 +448,11 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
 		// https://issues.redhat.com/browse/OSD-8006
 		{Receiver: receiverCommon, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+		// Route HaproxyDown alert in cluster-ingress-operator to null
+		// use the SRE managed alerts instead, so that we can ignore the alert
+		// for non-default ingresscontroller in 4.13+ when user can control their own
+		// https://issues.redhat.com/browse/OSD-16014
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyDown"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
