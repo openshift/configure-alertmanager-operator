@@ -453,6 +453,10 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// for non-default ingresscontroller in 4.13+ when user can control their own
 		// https://issues.redhat.com/browse/OSD-16014
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyDown"}},
+
+		// Route UWM-misconfiguration alerts to null
+		// https://issues.redhat.com/browse/OSD-17651
+		{Receiver: receiverNull, MatchRE: map[string]string{"reason": "UpdatingPrometheusUserWorkloadFailed"}, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "monitoring"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
