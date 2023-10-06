@@ -337,8 +337,9 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ImagePruningDisabled"}},
 		// https://issues.redhat.com/browse/OSD-3794
 		{Receiver: receiverNull, Match: map[string]string{"severity": "info"}},
-		// https://issues.redhat.com/browse/OSD-8665
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "severity": "warning", "namespace": "openshift-logging"}},
+		// https://issues.redhat.com/browse/OSD-8665 - Warning
+		// https://issues.redhat.com/browse/OSD-19000 - Critical
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "openshift-logging"}},
 		// https://issues.redhat.com/browse/OSD-3973
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetLimit"}},
 		// https://issues.redhat.com/browse/OSD-3973
