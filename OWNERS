@@ -1,12 +1,15 @@
 reviewers:
-- cblecker
-- fahlmant
-- dofinn
 - NautiluX
+- fahlmant
+- dustman9000
+- wanghaoran1988
 approvers:
-- cblecker
-- fahlmant
-- dofinn
 - NautiluX
+- fahlmant
+- dustman9000
+- wanghaoran1988
 maintainers:
-- jewzaam
+- NautiluX
+- fahlmant
+- dustman9000
+- wanghaoran1988
