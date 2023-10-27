@@ -454,6 +454,9 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// for non-default ingresscontroller in 4.13+ when user can control their own
 		// https://issues.redhat.com/browse/OSD-16014
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "HAProxyDown"}},
+		// Route CertificateIsAboutToExpire alert to null
+		// https://issues.redhat.com/browse/OSD-19439
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "CertificateIsAboutToExpire"}},
 	}
 
 	// Silence insights in FedRAMP until its made available in the environment
