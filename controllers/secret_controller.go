@@ -469,12 +469,13 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 
 	// GoAlert specific settings
 	if receiver == GoAlert {
-		// Overcome webhook limitations
-		subroute = append(subroute, []*alertmanager.Route{
-			{Receiver: receiverCritical, Match: map[string]string{"severity": "critical"}},
-			{Receiver: receiverError, Match: map[string]string{"severity": "error"}},
-			{Receiver: receiverWarning, Match: map[string]string{"severity": "warning"}},
-		}...)
+		for _, namespace := range namespaceList {
+			subroute = append(subroute, []*alertmanager.Route{
+				{Receiver: receiverCritical, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s", "severity": "critical"}},
+				{Receiver: receiverError, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s", "severity": "error"}},
+				{Receiver: receiverWarning, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s", "severity": "warning"}},
+			}...)
+		}
 	}
 
 	for _, namespace := range namespaceList {
