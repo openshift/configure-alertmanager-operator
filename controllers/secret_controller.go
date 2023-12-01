@@ -457,14 +457,9 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route CertificateIsAboutToExpire alert to null
 		// https://issues.redhat.com/browse/OSD-19439
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CertificateIsAboutToExpire"}},
-	}
-
-	// Silence insights in FedRAMP until its made available in the environment
-	// https://issues.redhat.com/browse/OSD-13685
-	if config.IsFedramp() {
-		subroute = append(subroute,
-			&alertmanager.Route{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
-		)
+		// Route ClusterOperatorDown for insights to null receiver https://issues.redhat.com/browse/OSD-19800
+		// Also needs to be silenced for FedRAMP until its made available in the environment https://issues.redhat.com/browse/OSD-13685
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
 	}
 
 	// GoAlert specific settings
