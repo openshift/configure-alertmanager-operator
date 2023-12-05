@@ -269,7 +269,7 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		receiverCritical = receiverGoAlertHigh
 		receiverError = receiverGoAlertHigh
 		receiverWarning = receiverGoAlertLow
-		receiverDefault = receiverGoAlertLow
+		receiverDefault = receiverNull
 	case Pagerduty:
 		receiverCommon = receiverPagerduty
 		receiverCritical = receiverMakeItCritical
@@ -467,24 +467,24 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		)
 	}
 
-	// GoAlert specific settings
-	if receiver == GoAlert {
-		// Overcome webhook limitations
-		subroute = append(subroute, []*alertmanager.Route{
-			{Receiver: receiverCritical, Match: map[string]string{"severity": "critical"}},
-			{Receiver: receiverError, Match: map[string]string{"severity": "error"}},
-			{Receiver: receiverWarning, Match: map[string]string{"severity": "warning"}},
-		}...)
-	}
-
 	for _, namespace := range namespaceList {
-		subroute = append(subroute, []*alertmanager.Route{
-			// https://issues.redhat.com/browse/OSD-3086
-			// https://issues.redhat.com/browse/OSD-5872
-			{Receiver: receiverCommon, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
-			// general: route anything in core namespaces to PD
-			{Receiver: receiverCommon, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
-		}...)
+		if receiver == Pagerduty {
+			subroute = append(subroute, []*alertmanager.Route{
+				// https://issues.redhat.com/browse/OSD-3086
+				// https://issues.redhat.com/browse/OSD-5872
+				{Receiver: receiverCommon, MatchRE: map[string]string{"exported_namespace": namespace}, Match: map[string]string{"prometheus": "openshift-monitoring/k8s"}},
+				// general: route anything in core namespaces to PD
+				{Receiver: receiverCommon, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s"}},
+			}...)
+		}
+		// GoAlert config
+		if receiver == GoAlert {
+			subroute = append(subroute, []*alertmanager.Route{
+				{Receiver: receiverCritical, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s", "severity": "critical"}},
+				{Receiver: receiverError, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s", "severity": "error"}},
+				{Receiver: receiverWarning, MatchRE: map[string]string{"namespace": namespace}, Match: map[string]string{"exported_namespace": "", "prometheus": "openshift-monitoring/k8s", "severity": "warning"}},
+			}...)
+		}
 	}
 
 	return &alertmanager.Route{
