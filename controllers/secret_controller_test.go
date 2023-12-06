@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/readiness"
 	alertmanager "github.com/openshift/configure-alertmanager-operator/pkg/types"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"go.uber.org/mock/gomock"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
