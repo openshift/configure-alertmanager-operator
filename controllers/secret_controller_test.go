@@ -160,7 +160,7 @@ func verifyPagerdutyRoute(t *testing.T, route *alertmanager.Route, expectedNames
 
 // utility class to test Goalert route creation
 func verifyGoalertRoute(t *testing.T, route *alertmanager.Route, expectedNamespaces []string) {
-	assertEquals(t, receiverGoAlertLow, route.Receiver, "Receiver Name")
+	assertEquals(t, receiverNull, route.Receiver, "Receiver Name")
 	assertEquals(t, true, route.Continue, "Continue")
 	assertEquals(t, []string{"alertname", "severity"}, route.GroupByStr, "GroupByStr")
 	assertGte(t, 1, len(route.Routes), "Number of Routes")
@@ -1338,13 +1338,13 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 	mockReadiness.EXPECT().Result().Times(1).Return(reconcile.Result{})
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
-	createGoAlertSecret(reconciler, 
-		secretNameGoalert, 
-		secretKeyGoalertLow, 
-		secretKeyGoalertHigh, 
-		secretKeyGoalertHeartbeat, 
-		gaLowURL, 
-		gaHighURL, 
+	createGoAlertSecret(reconciler,
+		secretNameGoalert,
+		secretKeyGoalertLow,
+		secretKeyGoalertHigh,
+		secretKeyGoalertHeartbeat,
+		gaLowURL,
+		gaHighURL,
 		gaHeartURL)
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
@@ -1386,13 +1386,13 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	mockReadiness.EXPECT().Result().Times(1).Return(reconcile.Result{})
 	reconciler := createReconciler(t, mockReadiness)
 	createNamespace(reconciler, t)
-	createGoAlertSecret(reconciler, 
-		secretNameGoalert, 
-		secretKeyGoalertLow, 
-		secretKeyGoalertHigh, 
-		secretKeyGoalertHeartbeat, 
-		gaLowURL, 
-		gaHighURL, 
+	createGoAlertSecret(reconciler,
+		secretNameGoalert,
+		secretKeyGoalertLow,
+		secretKeyGoalertHigh,
+		secretKeyGoalertHeartbeat,
+		gaLowURL,
+		gaHighURL,
 		gaHeartURL)
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
@@ -1598,13 +1598,13 @@ func Test_SecretReconciler(t *testing.T) {
 			gaHighURL = "https://dummy-gahigh-url"
 			gaLowURL = "https://dummy-galow-url"
 			gaHeartURL = "https://dummy-gaheartbeat-url"
-			createGoAlertSecret(reconciler, 
-				secretNameGoalert, 
-				secretKeyGoalertLow, 
-				secretKeyGoalertHigh, 
-				secretKeyGoalertHeartbeat, 
-				gaLowURL, 
-				gaHighURL, 
+			createGoAlertSecret(reconciler,
+				secretNameGoalert,
+				secretKeyGoalertLow,
+				secretKeyGoalertHigh,
+				secretKeyGoalertHeartbeat,
+				gaLowURL,
+				gaHighURL,
 				gaHeartURL)
 		}
 		if tt.oaExists {
@@ -1701,13 +1701,13 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		// appropriate. So we always start with those two secrets
 		createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
 		createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
-		createGoAlertSecret(reconciler, 
-			secretNameGoalert, 
-			secretKeyGoalertLow, 
-			secretKeyGoalertHigh, 
-			secretKeyGoalertHeartbeat, 
-			gaLowURL, 
-			gaHighURL, 
+		createGoAlertSecret(reconciler,
+			secretNameGoalert,
+			secretKeyGoalertLow,
+			secretKeyGoalertHigh,
+			secretKeyGoalertHeartbeat,
+			gaLowURL,
+			gaHighURL,
 			gaHeartURL)
 
 		// However, we expect the AM config to be updated only according to the test spec
