@@ -461,6 +461,13 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
 	}
 
+	if !config.IsFedramp() {
+        // Route ClusterOperatorDown for monitoring to null receiver https://issues.redhat.com/browse/OSD-19769
+        subroute = append(subroute,
+			&alertmanager.Route{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "monitoring"}},
+		)
+    }
+
 	for _, namespace := range namespaceList {
 		if receiver == Pagerduty {
 			subroute = append(subroute, []*alertmanager.Route{
