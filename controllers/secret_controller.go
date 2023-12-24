@@ -460,6 +460,9 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route ClusterOperatorDown for insights to null receiver https://issues.redhat.com/browse/OSD-19800
 		// Also needs to be silenced for FedRAMP until its made available in the environment https://issues.redhat.com/browse/OSD-13685
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
+		// Route KubePersistentVolumeFillingUp alerts in the uwm namespace to null
+		// A new alert is created in MCC to watch for this case and notify the customer
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "openshift-user-workload-monitoring"}},
 	}
 
 	for _, namespace := range namespaceList {
