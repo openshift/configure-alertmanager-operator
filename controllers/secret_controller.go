@@ -446,9 +446,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// elasticsearch: route any ES alert to PD
 		// https://issues.redhat.com/browse/OSD-3326
 		{Receiver: receiverCommon, Match: map[string]string{"cluster": "elasticsearch", "prometheus": "openshift-monitoring/k8s"}},
-		// Route KubeAPIErrorBudgetBurn to PD despite lack of namespace label
-		// https://issues.redhat.com/browse/OSD-8006
-		{Receiver: receiverCommon, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
+		// https://issues.redhat.com/browse/OSD-20058
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubeAPIErrorBudgetBurn", "prometheus": "openshift-monitoring/k8s"}},
 		// Route HaproxyDown alert in cluster-ingress-operator to null
 		// use the SRE managed alerts instead, so that we can ignore the alert
 		// for non-default ingresscontroller in 4.13+ when user can control their own
