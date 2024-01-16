@@ -1,13 +1,23 @@
 reviewers:
-- NautiluX
-- fahlmant
-- dustman9000
-- wanghaoran1988
+- srep-functional-leads
+- srep-team-leads
+- clcollins
+- hectorakemp
+- robotmaxtron
+- typeid
+- xiaoyu74
+- zmird-r
+- maorfr
 approvers:
-- NautiluX
-- fahlmant
-- dustman9000
-- wanghaoran1988
+- srep-functional-leads
+- srep-team-leads
+- clcollins
+- hectorakemp
+- robotmaxtron
+- typeid
+- xiaoyu74
+- zmird-r
+- maorfr
 maintainers:
 - NautiluX
 - fahlmant
