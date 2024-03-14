@@ -5,6 +5,7 @@
 //
 //	mockgen -destination zz_generated_mocks.go -package readiness -source=cluster_ready.go
 //
+
 // Package readiness is a generated GoMock package.
 package readiness
 
