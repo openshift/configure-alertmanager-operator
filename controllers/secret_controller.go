@@ -342,10 +342,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "openshift-user-workload-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-19000 - Critical
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "openshift-logging"}},
-		// https://issues.redhat.com/browse/OSD-3973
-		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetLimit"}},
-		// https://issues.redhat.com/browse/OSD-3973
-		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "PodDisruptionBudgetAtLimit"}},
+		// https://issues.redhat.com/browse/OSD-6598
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "PodDisruptionBudgetLimit"}},
 		// https://issues.redhat.com/browse/OSD-4373
 		{Receiver: receiverNull, MatchRE: map[string]string{"namespace": alertmanager.PDRegexLP}, Match: map[string]string{"alertname": "TargetDown"}},
 		// https://issues.redhat.com/browse/OSD-13306
@@ -464,11 +462,11 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 	}
 
 	if !config.IsFedramp() {
-        // Route ClusterOperatorDown for monitoring to null receiver https://issues.redhat.com/browse/OSD-19769
-        subroute = append(subroute,
+		// Route ClusterOperatorDown for monitoring to null receiver https://issues.redhat.com/browse/OSD-19769
+		subroute = append(subroute,
 			&alertmanager.Route{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "monitoring"}},
 		)
-    }
+	}
 
 	for _, namespace := range namespaceList {
 		if receiver == Pagerduty {
