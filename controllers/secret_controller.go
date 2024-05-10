@@ -297,8 +297,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// https://issues.redhat.com/browse/OSD-11298
 		// indications that master nodes have been terminated should be critical
 		// regex tests: https://regex101.com/r/Rn6F5A/1
-		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
-		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-[123]$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
+		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-.*[0-9]+$"}, Match: map[string]string{"alertname": "MachineWithoutValidNode", "namespace": "openshift-machine-api"}},
+		{Receiver: receiverCritical, MatchRE: map[string]string{"name": "^.+-master-.*[0-9]+$"}, Match: map[string]string{"alertname": "MachineWithNoRunningPhase", "namespace": "openshift-machine-api"}},
 		// Route CannotRetrieveUpdates to null, created CannotRetrieveUpdatesSRE in managed-cluster-config to address https://issues.redhat.com/browse/OSD-14149
 		// https://issues.redhat.com/browse/OCPBUGS-11636
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CannotRetrieveUpdates"}},
