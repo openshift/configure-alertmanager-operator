@@ -433,8 +433,6 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdGRPCRequestsSlow", "namespace": "openshift-etcd"}},
 		// https://issues.redhat.com/browse/OSD-10473
 		{Receiver: receiverWarning, Match: map[string]string{"alertname": "ExtremelyHighIndividualControlPlaneCPU", "namespace": "openshift-kube-apiserver"}},
-		// https://issues.redhat.com/browse/OSD-10485
-		{Receiver: receiverWarning, Match: map[string]string{"alertname": "etcdHighNumberOfFailedGRPCRequests", "namespace": "openshift-etcd"}},
 		// https://issues.redhat.com/browse/DVO-54
 		{Receiver: receiverWarning, Match: map[string]string{"severity": "critical", "namespace": "openshift-deployment-validation-operator"}},
 		// Ensure NodeClockNotSynchronising is routed to PD as a high alert
