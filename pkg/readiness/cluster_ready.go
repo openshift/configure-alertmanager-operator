@@ -171,10 +171,10 @@ func (impl *Impl) setPromAPI() error {
 				Timeout:   30 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
-			// disable "G402 (CWE-295): TLS InsecureSkipVerify set true."
-			// #nosec G402
 			TLSClientConfig: &tls.Config{
 				MinVersion:         tls.VersionTLS12,
+			        // disable "G402 (CWE-295): TLS InsecureSkipVerify set true."
+			        // #nosec G402
 				InsecureSkipVerify: true,
 			},
 			TLSHandshakeTimeout: 10 * time.Second,

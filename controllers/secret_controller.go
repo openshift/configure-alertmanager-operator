@@ -376,7 +376,7 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// END of https://issues.redhat.com/browse/OSD-11273
 		//
 		// https://issues.redhat.com/browse/OSD-17372 - silence all loki/vector alerts for none of them is in the support scope of extended logging support
-		// For detail explaination, please check https://issues.redhat.com/browse/OSD-17371
+		// For detail explanation, please check https://issues.redhat.com/browse/OSD-17371
 		// vector alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorNodeDown", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorHighErrorRate", "namespace": "openshift-logging"}},
