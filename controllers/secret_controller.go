@@ -457,6 +457,13 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route ClusterOperatorDown for insights to null receiver https://issues.redhat.com/browse/OSD-19800
 		// Also needs to be silenced for FedRAMP until its made available in the environment https://issues.redhat.com/browse/OSD-13685
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
+		// Route some customer defined alerts to null receiver
+		// https://issues.redhat.com/browse/OSD-22337
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "memory-request"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "cpu-request"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "daemonset-availability"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "sonarqube-ErrorBudgetBurn"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "DnsDefaultPodRestarted"}},
 	}
 
 	if !config.IsFedramp() {
