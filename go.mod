@@ -90,8 +90,8 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.26.0
 	k8s.io/component-base => k8s.io/component-base v0.24.0
 	k8s.io/kubectl => k8s.io/kubectl v0.24.0
-// k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
-// sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.12.3
+	// k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
+	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.18.0
 // sigs.k8s.io/json => sigs.k8s.io/json v0.0.0-20220525155651-40170945cd93
 // sigs.k8s.io/e2e-framework => sigs.k8s.io/e2e-framework v0.2.0
 )

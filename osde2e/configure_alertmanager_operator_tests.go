@@ -29,9 +29,7 @@ import (
 
 var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 	var (
-		// k8sClient *openshift.Client
-		client *resources.Resources
-		// impersonatedResourceClient *openshift.Client
+		client            *resources.Resources
 		configMapLockFile = "configure-alertmanager-operator-lock"
 		namespace         = "openshift-monitoring"
 		operatorName      = "configure-alertmanager-operator"
