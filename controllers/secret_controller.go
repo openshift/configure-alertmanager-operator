@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
@@ -255,7 +254,7 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Secret{}).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForObject{}).
+		Watches(&corev1.ConfigMap{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
 
