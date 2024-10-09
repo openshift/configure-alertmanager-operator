@@ -29,13 +29,17 @@ import (
 
 var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 	var (
-		client            *resources.Resources
+		client          *resources.Resources
+		dynamicClient   dynamic.Interface
+		secrets         = []string{"pd-secret", "dms-secret"}
+		serviceAccounts = []string{"configure-alertmanager-operator"}
+	)
+	const (
+		timeoutDuration   = 300 * time.Second
+		pollingDuration   = 30 * time.Second
 		configMapLockFile = "configure-alertmanager-operator-lock"
 		namespace         = "openshift-monitoring"
 		operatorName      = "configure-alertmanager-operator"
-		secrets           = []string{"pd-secret", "dms-secret"}
-		serviceAccounts   = []string{"configure-alertmanager-operator"}
-		dynamicClient     dynamic.Interface
 	)
 
 	BeforeAll(func() {
@@ -67,7 +71,7 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 				}
 			}
 			return false
-		}).WithTimeout(time.Duration(300)*time.Second).WithPolling(time.Duration(30)*time.Second).Should(BeTrue(), "CSV %s should exist and have Succeeded status", operatorName)
+		}).WithTimeout(timeoutDuration).WithPolling(pollingDuration).Should(BeTrue(), "CSV %s should exist and have Succeeded status", operatorName)
 	})
 
 	It("service accounts exist", func(ctx context.Context) {
