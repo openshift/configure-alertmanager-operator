@@ -29,6 +29,8 @@ The operator contains the following components:
 
 The Secret Controller watches over the resources in the table below. Changes to these resources will prompt the controller to reconcile.
 
+**Note**: When making changes to [matching rules](https://github.com/openshift/configure-alertmanager-operator/blob/master/controllers/secret_controller.go) in secret controller, check to make sure the newly added rules won't get ignored. e.g. when a matching rule above the new rule captures it and don't continue to match the following rules, the new matching rule will be ignored. [ocm-agent matching](https://github.com/openshift/configure-alertmanager-operator/blob/master/controllers/secret_controller.go#L504) rule is an example, if an alert matches this rule, the rules after will never gets ignored.
+
 | Resource Type | Resource Namespace/Name                   | Reason for watching                                                                                                                                    |
 |---------------|-------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Secret        | `openshift-monitoring/alertmanager-main`  | Represents the Alertmanager Configuration that the operator creates/maintains the state of.                                                            |
