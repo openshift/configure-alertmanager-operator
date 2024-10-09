@@ -33,6 +33,7 @@ import (
 	operatormetrics "github.com/openshift/configure-alertmanager-operator/pkg/metrics"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
+	"github.com/openshift/configure-alertmanager-operator/controllers"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -41,8 +42,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"github.com/openshift/configure-alertmanager-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
