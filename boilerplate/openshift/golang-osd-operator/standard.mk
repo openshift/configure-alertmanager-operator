@@ -205,7 +205,7 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
-CONTROLLER_GEN = controller-gen
+CONTROLLER_GEN = /go/bin/controller-gen
 OPENAPI_GEN = openapi-gen
 KUSTOMIZE = kustomize
 YQ = yq
