@@ -128,7 +128,7 @@ endif
 # ex, -v
 TESTOPTS :=
 
-ALLOW_DIRTY_CHECKOUT?=false
+ALLOW_DIRTY_CHECKOUT?=true
 
 # TODO: Figure out how to discover this dynamically
 CONVENTION_DIR := boilerplate/openshift/golang-osd-operator
