@@ -194,4 +194,4 @@ if [[ -z "$LATEST_IMAGE_TAG" ]]; then
     fi
 fi
 # The public image location
-IMAGE_PULL_PATH=${IMAGE_PULL_PATH:-quay.io/app-sre/$IMAGE_NAME:$LATEST_IMAGE_TAG}
+IMAGE_PULL_PATH=${IMAGE_PULL_PATH:-quay.io/redhat-services-prod/openshift/$IMAGE_NAME:$LATEST_IMAGE_TAG}
