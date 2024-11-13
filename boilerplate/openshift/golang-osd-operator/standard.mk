@@ -128,7 +128,7 @@ endif
 # ex, -v
 TESTOPTS :=
 
-ALLOW_DIRTY_CHECKOUT?=true
+ALLOW_DIRTY_CHECKOUT?=false
 
 # TODO: Figure out how to discover this dynamically
 CONVENTION_DIR := boilerplate/openshift/golang-osd-operator
@@ -205,7 +205,7 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
-CONTROLLER_GEN = /go/bin/controller-gen
+CONTROLLER_GEN = controller-gen
 OPENAPI_GEN = openapi-gen
 KUSTOMIZE = kustomize
 YQ = yq
