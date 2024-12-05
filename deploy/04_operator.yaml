@@ -28,7 +28,7 @@ spec:
           operator: Exists
       containers:
         - name: configure-alertmanager-operator
-          image: quay.io/app-sre/configure-alertmanager-operator:staging-latest
+          image: quay.io/redhat-services-prod/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-master@sha256:d7f818055f9abc155de0103a246b8ceddf13d72c2d2f9072894da0f50c8e1175
           command:
           - configure-alertmanager-operator
           imagePullPolicy: Always
