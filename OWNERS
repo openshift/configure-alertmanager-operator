@@ -7,7 +7,6 @@ reviewers:
 - typeid
 - xiaoyu74
 - zmird-r
-- maorfr
 approvers:
 - srep-functional-leads
 - srep-team-leads
@@ -17,7 +16,6 @@ approvers:
 - typeid
 - xiaoyu74
 - zmird-r
-- maorfr
 maintainers:
 - fahlmant
 - dustman9000
