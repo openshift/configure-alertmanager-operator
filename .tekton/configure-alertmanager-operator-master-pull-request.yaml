@@ -7,8 +7,15 @@ metadata:
     build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
-      == "master"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "pull_request" &&
+      target_branch == "master" &&
+      (
+        ".tekton/configure-alertmanager-operator-master-pull-request.yaml".pathChanged() ||
+        "build/Dockerfile".pathChanged() ||
+        "***/*.go".pathChanged() ||
+        "go.*".pathChanged()
+      )
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: configure-alertmanager-operator-master

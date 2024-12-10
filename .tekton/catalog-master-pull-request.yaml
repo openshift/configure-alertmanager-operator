@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/openshift/configure-alertmanager-operator?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "pull_request" &&
+      target_branch == "master" &&
+      ".tekton/catalog-master-pull-request.yaml".pathChanged()
+  labels:
+    appstudio.openshift.io/application: configure-alertmanager-operator-master
+    appstudio.openshift.io/component: catalog-master
+    pipelines.appstudio.openshift.io/type: build
+  name: catalog-master-on-pull-request
+  namespace: camo-hcm-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/redhat-user-workloads/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-master/catalog:on-pr-{{revision}}
+  - name: operator-name
+    value: configure-alertmanager-operator
+  - name: operator-bundle-image
+    value: quay.io/redhat-services-prod/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-bundle-master:586b4aaa1eeac681fb7a4fad73a4f6618f34f499
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/openshift/boilerplate
+    - name: revision
+      value: master
+    - name: pathInRepo
+      value: pipelines/catalog-builder/pipeline.yaml
+  workspaces:
+  - name: workspace
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
