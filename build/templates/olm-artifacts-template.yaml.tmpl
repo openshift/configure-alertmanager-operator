@@ -32,6 +32,8 @@ objects:
         labels:
           opsrc-datastore: "true"
           opsrc-provider: redhat
+        annotations:
+          openshift.io/required-scc: anyuid
         name: configure-alertmanager-operator-registry
         namespace: openshift-monitoring
       spec:
