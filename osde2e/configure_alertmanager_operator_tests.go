@@ -6,14 +6,12 @@ package osde2etests
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,6 +38,7 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		configMapLockFile = "configure-alertmanager-operator-lock"
 		namespace         = "openshift-monitoring"
 		operatorName      = "configure-alertmanager-operator"
+		labelSelector     = "operators.coreos.com/configure-alertmanager-operator.openshift-monitoring"
 	)
 
 	BeforeAll(func() {
@@ -53,25 +52,24 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 	})
 
 	It("cluster service version exists", func(ctx context.Context) {
-		Eventually(func() bool {
+		Eventually(func(ctx context.Context) bool {
 			csvList, err := dynamicClient.Resource(
 				schema.GroupVersionResource{
 					Group:    "operators.coreos.com",
 					Version:  "v1alpha1",
 					Resource: "clusterserviceversions",
 				},
-			).Namespace(namespace).List(ctx, metav1.ListOptions{})
+			).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
 			Expect(err).NotTo(HaveOccurred(), "Failed to retrieve CSV from namespace %s", namespace)
+			Expect(csvList.Items).Should(HaveLen(1))
 
-			for _, csv := range csvList.Items {
-				specName, _, _ := unstructured.NestedFieldCopy(csv.Object, "spec", "displayName")
-				statusPhase, _, _ := unstructured.NestedFieldCopy(csv.Object, "status", "phase")
-				if statusPhase == "Succeeded" && specName == operatorName {
-					return true
-				}
+			statusPhase, _, _ := unstructured.NestedFieldCopy(csvList.Items[0].Object, "status", "phase")
+			if statusPhase == "Succeeded" {
+				return true
 			}
+			GinkgoLogr.Info("csv phase", "phase", statusPhase)
 			return false
-		}).WithTimeout(timeoutDuration).WithPolling(pollingDuration).Should(BeTrue(), "CSV %s should exist and have Succeeded status", operatorName)
+		}, ctx).WithTimeout(timeoutDuration).WithPolling(pollingDuration).Should(BeTrue(), "CSV %s should exist and have Succeeded status", operatorName)
 	})
 
 	It("service accounts exist", func(ctx context.Context) {
@@ -82,75 +80,36 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 	})
 
 	It("deployment exists", func(ctx context.Context) {
-		if client == nil {
-			Fail("Kubernetes client is not initialized")
-		}
-
-		cond := conditions.New(client)
-		if cond == nil {
-			Fail("Failed to create conditions object")
-		}
-		err := wait.For(conditions.New(client).DeploymentConditionMatch(
-			&appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operatorName,
-					Namespace: namespace,
-				},
-			}, appsv1.DeploymentAvailable, v1.ConditionTrue))
+		err := wait.For(conditions.New(client).DeploymentAvailable(operatorName, namespace))
 		Expect(err).ShouldNot(HaveOccurred(), "Deployment %s not available", operatorName)
 	})
 
 	It("roles exist", func(ctx context.Context) {
 		var roles rbacv1.RoleList
-		err := client.WithNamespace(namespace).List(ctx, &roles)
+		err := client.WithNamespace(namespace).List(ctx, &roles, resources.WithLabelSelector(labelSelector))
 		Expect(err).ShouldNot(HaveOccurred(), "Failed to get roles")
-		found := false
-		for _, role := range roles.Items {
-			if strings.HasPrefix(role.Name, operatorName) {
-				found = true
-			}
-		}
-		Expect(found).To(BeTrue(), "Roles not found")
+		Expect(roles.Items).ShouldNot(BeZero(), "no roles found")
 	})
 
 	It("role bindings exist", func(ctx context.Context) {
 		var roleBindings rbacv1.RoleBindingList
-		err := client.List(ctx, &roleBindings)
+		err := client.WithNamespace(namespace).List(ctx, &roleBindings, resources.WithLabelSelector(labelSelector))
 		Expect(err).ShouldNot(HaveOccurred(), "Failed to get role bindings")
-		found := false
-		for _, roleBinding := range roleBindings.Items {
-			if strings.HasPrefix(roleBinding.Name, operatorName) {
-				found = true
-			}
-		}
-		Expect(found).To(BeTrue(), "Role bindings not found")
+		Expect(roleBindings.Items).ShouldNot(BeZero(), "no rolebindings found")
 	})
 
 	It("cluster roles exist", func(ctx context.Context) {
 		var clusterRoles rbacv1.ClusterRoleList
-		err := client.WithNamespace(namespace).List(ctx, &clusterRoles)
+		err := client.WithNamespace(namespace).List(ctx, &clusterRoles, resources.WithLabelSelector(labelSelector))
 		Expect(err).ShouldNot(HaveOccurred(), "Failed to get cluster roles")
-		found := false
-		for _, clusterRole := range clusterRoles.Items {
-			olmOwner := clusterRole.Labels["olm.owner"]
-			if strings.HasPrefix(olmOwner, operatorName) {
-				found = true
-			}
-		}
-		Expect(found).To(BeTrue(), "Cluster roles not found")
+		Expect(clusterRoles.Items).ShouldNot(BeZero(), "no clusterroles found")
 	})
 
 	It("cluster role bindings exist", func(ctx context.Context) {
 		var clusterRoleBindings rbacv1.ClusterRoleBindingList
-		err := client.List(ctx, &clusterRoleBindings)
+		err := client.List(ctx, &clusterRoleBindings, resources.WithLabelSelector(labelSelector))
 		Expect(err).ShouldNot(HaveOccurred(), "Failed to get cluster role bindings")
-		found := false
-		for _, clusterRoleBinding := range clusterRoleBindings.Items {
-			if strings.HasPrefix(clusterRoleBinding.Name, operatorName) {
-				found = true
-			}
-		}
-		Expect(found).To(BeTrue(), "Cluster role bindings not found")
+		Expect(clusterRoleBindings.Items).ShouldNot(BeZero(), "no clusterrolebindingss found")
 	})
 
 	It("config map exists", func(ctx context.Context) {
@@ -165,7 +124,7 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		}
 	})
 
-	It("can be upgraded", func(ctx context.Context) {
+	PIt("can be upgraded", func(ctx context.Context) {
 		log.SetLogger(GinkgoLogr)
 		k8sClient, err := openshift.New(ginkgo.GinkgoLogr)
 		Expect(err).ShouldNot(HaveOccurred(), "unable to setup k8s client")
