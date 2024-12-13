@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         name: configure-alertmanager-operator
+      annotations:
+        openshift.io/required-scc: restricted-v2
     spec:
       serviceAccountName: configure-alertmanager-operator
       affinity:
