@@ -336,9 +336,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ImagePruningDisabled"}},
 		// https://issues.redhat.com/browse/OSD-3794
 		{Receiver: receiverNull, Match: map[string]string{"severity": "info"}},
-		// https://issues.redhat.com/browse/OSD-8665 - Warning
-		// https://issues.redhat.com/browse/OSD-18515
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "openshift-user-workload-monitoring"}},
+		// https://issues.redhat.com/browse/OSD-27306
+		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-user-workload-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-19000 - Critical
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "openshift-logging"}},
 		// https://issues.redhat.com/browse/OSD-6598
@@ -406,8 +405,6 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "IdentityProviderConfig_Error"}},
 		//https://issues.redhat.com/browse/OSD-8320
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "authentication", "reason": "OAuthServerConfigObservation_Error"}},
-		//https://issues.redhat.com/browse/OSD-6559
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusNotIngestingSamples", "namespace": "openshift-user-workload-monitoring"}},
 		//https://issues.redhat.com/browse/OSD-7671
 		// might also be removed by https://issues.redhat.com/browse/OSD-11273
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentdQueueLengthBurst", "namespace": "openshift-logging", "severity": "warning"}},
@@ -415,13 +412,6 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterAutoscalerUnschedulablePods", "namespace": "openshift-machine-api"}},
 		// https://issues.redhat.com/browse/OSD-9062
 		{Receiver: receiverNull, Match: map[string]string{"severity": "alert"}},
-		// https://issues.redhat.com/browse/OSD-6821
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusBadConfig", "namespace": "openshift-user-workload-monitoring"}},
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusDuplicateTimestamps", "namespace": "openshift-user-workload-monitoring"}},
-		// https://issues.redhat.com/browse/OSD-9426
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusTargetSyncFailure", "namespace": "openshift-user-workload-monitoring"}},
-		// https://issues.redhat.com/browse/OSD-11478
-		{Receiver: receiverNull, Match: map[string]string{"alertname": "PrometheusOperatorRejectedResources", "namespace": "openshift-user-workload-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-14071
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "MultipleDefaultStorageClasses", "namespace": "openshift-cluster-storage-operator"}},
 		// https://issues.redhat.com/browse/OSD-14857
