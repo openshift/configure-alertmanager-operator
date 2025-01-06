@@ -446,6 +446,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route ClusterOperatorDown for insights to null receiver https://issues.redhat.com/browse/OSD-19800
 		// Also needs to be silenced for FedRAMP until its made available in the environment https://issues.redhat.com/browse/OSD-13685
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
+		// https://issues.redhat.com/browse/OSD-27571
+		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-mtv"}},
 	}
 
 	if !config.IsFedramp() {
