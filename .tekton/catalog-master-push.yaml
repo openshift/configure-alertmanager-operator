@@ -27,7 +27,7 @@ spec:
   - name: operator-name
     value: configure-alertmanager-operator
   - name: operator-bundle-image
-    value: quay.io/redhat-services-prod/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-bundle-master@sha256:b856bfa390f6b5ae2e4ef15dcd0ea6b412318840bbdb9278f36ef43ca5297a88
+    value: quay.io/redhat-services-prod/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-bundle-master@sha256:ca6db697992a42d4a57f5c573dafbad8b556ac7a77241e0fe8f518e627b6d443
   pipelineRef:
     resolver: git
     params:
