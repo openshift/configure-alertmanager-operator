@@ -338,6 +338,8 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		{Receiver: receiverNull, Match: map[string]string{"severity": "info"}},
 		// https://issues.redhat.com/browse/OSD-27306
 		{Receiver: receiverNull, Match: map[string]string{"namespace": "openshift-user-workload-monitoring"}},
+		// https://issues.redhat.com/browse/OSD-26543
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterNodeDown", "namespace": "openshift-monitoring"}},
 		// https://issues.redhat.com/browse/OSD-19000 - Critical
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "KubePersistentVolumeFillingUp", "namespace": "openshift-logging"}},
 		// https://issues.redhat.com/browse/OSD-6598
