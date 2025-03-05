@@ -353,7 +353,7 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// # for elasticsearch
 		// yq '.spec.groups[].rules[].alert | select( . != null) ' ../managed-cluster-config/resources/prometheusrules/elasticsearch_openshift-logging_elasticsearch-prometheus-rules.PrometheusRule.yaml | sort -u | awk '{print "{Receiver: receiverNull, Match: map[string]string{\"alertname\": \"" $1 "\", \"namespace\": \"openshift-logging\"}},"}'
 		// ```
-		// pass all of the alerts that are SRE related to PD/GoAlert
+		// pass all the alerts that are SRE related to PD/GoAlert
 		{Receiver: receiverCommon, MatchRE: map[string]string{"alertname": "^.*SRE$"}, Match: map[string]string{"namespace": "openshift-logging"}},
 		// fluentd alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "FluentDHighErrorRate", "namespace": "openshift-logging"}},
@@ -446,6 +446,9 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route ClusterOperatorDown for insights to null receiver https://issues.redhat.com/browse/OSD-19800
 		// Also needs to be silenced for FedRAMP until its made available in the environment https://issues.redhat.com/browse/OSD-13685
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
+		// Route etcdExcessiveDatabaseGrowth warning level alerts to SRE as critical to aid in reducing incidents related
+		// to customers exceeding etcd's max database size.
+		{Receiver: receiverCritical, Match: map[string]string{"alertname": "etcdExcessiveDatabaseGrowth"}},
 	}
 
 	if !config.IsFedramp() {
