@@ -6,9 +6,6 @@ metadata:
 parameters:
 - name: REGISTRY_IMG
   required: true
-- name: CHANNEL
-  value: staging
-  required: true
 - name: IMAGE_DIGEST
   required: true
 - name: FEDRAMP
@@ -69,7 +66,7 @@ objects:
         name: configure-alertmanager-operator
         namespace: openshift-monitoring
       spec:
-        channel: ${CHANNEL}
+        channel: stable
         name: configure-alertmanager-operator
         source: configure-alertmanager-operator-registry
         sourceNamespace: openshift-monitoring
