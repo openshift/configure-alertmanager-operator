@@ -30,7 +30,7 @@ spec:
           operator: Exists
       containers:
         - name: configure-alertmanager-operator
-          image: quay.io/redhat-services-prod/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-master@sha256:06210e55ea90935f8e1ccea48b1b3db2694de6bac4564596d306dd94333933b9
+          image: quay.io/redhat-services-prod/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-master@sha256:3cac86018f0930a5e9b25ee15b2592d528cdb7c825e9c329a3eec5bacb798ce9
           command:
           - configure-alertmanager-operator
           imagePullPolicy: Always
