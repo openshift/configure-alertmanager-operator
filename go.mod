@@ -1,8 +1,8 @@
 module github.com/openshift/configure-alertmanager-operator
 
-go 1.22.3
+go 1.23.0
 
-toolchain go1.22.8
+toolchain go1.23.8
 
 require (
 	github.com/go-logr/logr v1.4.2
@@ -61,8 +61,8 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/term v0.24.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
