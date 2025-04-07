@@ -25,6 +25,7 @@ objects:
       matchLabels:
         api.openshift.com/managed: "true"
     resourceApplyMode: Sync
+    applyBehavior: CreateOrUpdate
     resources:
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
