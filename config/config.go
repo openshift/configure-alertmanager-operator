@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	OperatorName      string = "configure-alertmanager-operator"
-	OperatorNamespace string = "openshift-monitoring"
+	OperatorName       string = "configure-alertmanager-operator"
+	OperatorNamespace  string = "openshift-monitoring"
+	EnableOLMSkipRange        = "true"
 )
 
 var isFedramp = false
