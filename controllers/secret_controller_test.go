@@ -214,27 +214,27 @@ func verifyPagerdutyReceivers(t *testing.T, key string, proxy string, receivers 
 		switch receiver.Name {
 		case receiverMakeItWarning:
 			hasMakeItWarning = true
-			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		case receiverPagerduty:
 			hasPagerduty = true
-			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertTrue(t, receiver.PagerdutyConfigs[0].Severity != "", "Non empty Severity")
 			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		case receiverMakeItError:
 			hasMakeItError = true
-			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertEquals(t, "error", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertNotEquals(t, "warning", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		case receiverMakeItCritical:
 			hasMakeItCritical = true
-			assertEquals(t, true, receiver.PagerdutyConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].VSendResolved, "VSendResolved")
 			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
 			assertEquals(t, "critical", receiver.PagerdutyConfigs[0].Severity, "Severity")
 			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
@@ -257,7 +257,7 @@ func verifyGoalertLowReceivers(t *testing.T, url string, proxy string, receivers
 	for _, receiver := range receivers {
 		if receiver.Name == receiverGoAlertLow {
 			hasGoalertLow = true
-			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, true, receiver.WebhookConfigs[0].VSendResolved, "VSendResolved")
 			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
 			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		}
@@ -275,7 +275,7 @@ func verifyGoalertHighReceivers(t *testing.T, url string, proxy string, receiver
 	for _, receiver := range receivers {
 		if receiver.Name == receiverGoAlertHigh {
 			hasGoalertHigh = true
-			assertEquals(t, true, receiver.WebhookConfigs[0].NotifierConfig.VSendResolved, "VSendResolved")
+			assertEquals(t, true, receiver.WebhookConfigs[0].VSendResolved, "VSendResolved")
 			assertEquals(t, url, receiver.WebhookConfigs[0].URL, "URL")
 			assertEquals(t, proxy, receiver.WebhookConfigs[0].HttpConfig.ProxyURL, "Proxy")
 		}

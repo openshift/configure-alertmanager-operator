@@ -37,7 +37,7 @@ func SetIsFedramp() error {
 
 	fedrampBool, err := strconv.ParseBool(fedramp)
 	if err != nil {
-		return fmt.Errorf("Invalid value for FedRAMP environment variable. %w", err)
+		return fmt.Errorf("invalid value for FedRAMP environment variable. %w", err)
 	}
 
 	isFedramp = fedrampBool
