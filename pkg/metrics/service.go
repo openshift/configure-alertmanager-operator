@@ -59,7 +59,7 @@ func GenerateService(port int32, portName string) (*v1.Service, error) {
 // based on the passed Service object.
 func GenerateServiceMonitor(s *v1.Service) *monitoringv1.ServiceMonitor {
 	labels := make(map[string]string)
-	for k, v := range s.ObjectMeta.Labels {
+	for k, v := range s.Labels {
 		labels[k] = v
 	}
 
@@ -69,8 +69,8 @@ func GenerateServiceMonitor(s *v1.Service) *monitoringv1.ServiceMonitor {
 			APIVersion: "monitoring.coreos.com/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.ObjectMeta.Name,
-			Namespace: s.ObjectMeta.Namespace,
+			Name:      s.Name,
+			Namespace: s.Namespace,
 			Labels:    labels,
 		},
 		Spec: monitoringv1.ServiceMonitorSpec{
