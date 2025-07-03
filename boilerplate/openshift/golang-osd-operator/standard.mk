@@ -21,6 +21,7 @@ endif
 # invocation; otherwise it could collide across jenkins jobs. We'll use
 # a .docker folder relative to pwd (the repo root).
 CONTAINER_ENGINE_CONFIG_DIR = .docker
+JENKINS_DOCKER_CONFIG_FILE = /var/lib/jenkins/.docker/config.json
 export REGISTRY_AUTH_FILE = ${CONTAINER_ENGINE_CONFIG_DIR}/config.json
 
 # If this configuration file doesn't exist, podman will error out. So
@@ -29,7 +30,7 @@ ifeq (,$(wildcard $(REGISTRY_AUTH_FILE)))
 $(shell mkdir -p $(CONTAINER_ENGINE_CONFIG_DIR))
 # Copy the node container auth file so that we get access to the registries the
 # parent node has access to
-$(shell cp /var/lib/jenkins/.docker/config.json $(REGISTRY_AUTH_FILE))
+$(shell if test -f $(JENKINS_DOCKER_CONFIG_FILE); then cp $(JENKINS_DOCKER_CONFIG_FILE) $(REGISTRY_AUTH_FILE); fi)
 endif
 
 # ==> Docker uses --config=PATH *before* (any) subcommand; so we'll glue
@@ -209,7 +210,7 @@ YQ = yq
 .PHONY: op-generate
 ## CRD v1beta1 is no longer supported.
 op-generate:
-	cd ./api; ${GOENV} $(CONTROLLER_GEN) crd:crdVersions=v1,generateEmbeddedObjectMeta=true paths=./... output:dir=$(PWD)/deploy/crds
+	cd ./api; ${GOENV} $(CONTROLLER_GEN) crd:crdVersions=v1,generateEmbeddedObjectMeta=true paths=./... output:dir=$(shell pwd)/deploy/crds
 	cd ./api; ${GOENV} $(CONTROLLER_GEN) object paths=./...
 
 .PHONY: openapi-generate
@@ -242,9 +243,7 @@ endif
 
 .PHONY: go-build
 go-build: ## Build binary
-	# Force GOOS=linux as we may want to build containers in other *nix-like systems (ie darwin).
-	# This is temporary until a better container build method is developed
-	${GOENV} GOOS=linux go build ${GOBUILDFLAGS} -o build/_output/bin/$(OPERATOR_NAME) .
+	${GOENV} go build ${GOBUILDFLAGS} -o build/_output/bin/$(OPERATOR_NAME) .
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
