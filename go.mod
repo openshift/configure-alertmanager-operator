@@ -2,7 +2,7 @@ module github.com/openshift/configure-alertmanager-operator
 
 go 1.22.3
 
-toolchain go1.22.8
+toolchain go1.24.5
 
 require (
 	github.com/go-logr/logr v1.4.2
