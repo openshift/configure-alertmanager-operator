@@ -85,17 +85,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-//replace (
-// github.com/openshift/api => github.com/openshift/api v0.0.0-20220414050251-a83e6f8f1d50
-// github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring => github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.56.3
-// k8s.io/api => k8s.io/api v0.28.14
-// k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.0
-// k8s.io/apimachinery => k8s.io/apimachinery v0.28.0
-// k8s.io/client-go => k8s.io/client-go v0.28.11
-// k8s.io/component-base => k8s.io/component-base v0.24.0
-// k8s.io/kubectl => k8s.io/kubectl v0.24.0
-// k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
-// sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.15.1
-// sigs.k8s.io/json => sigs.k8s.io/json v0.0.0-20220525155651-40170945cd93
-// )
