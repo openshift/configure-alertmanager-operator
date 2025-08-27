@@ -12,7 +12,7 @@ metadata:
       target_branch == "master" &&
       (
         ".tekton/e2e-master-pull-request.yaml".pathChanged() ||
-        "test/e2e/Dockerfile.konflux".pathChanged() ||
+        "test/e2e/Dockerfile".pathChanged() ||
         "***/*.go".pathChanged() ||
         "***/go.*".pathChanged()
       )
@@ -34,7 +34,7 @@ spec:
   - name: image-expires-after
     value: 5d
   - name: dockerfile
-    value: test/e2e/Dockerfile.konflux
+    value: test/e2e/Dockerfile
   - name: path-context
     value: .
   pipelineSpec:

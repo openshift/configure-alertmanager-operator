@@ -11,7 +11,7 @@ metadata:
       target_branch == "master" &&
       (
         ".tekton/e2e-master-push.yaml".pathChanged() ||
-        "test/e2e/Dockerfile.konflux".pathChanged() ||
+        "test/e2e/Dockerfile".pathChanged() ||
         "***/*.go".pathChanged() ||
         "***/go.*".pathChanged()
       )
@@ -31,7 +31,7 @@ spec:
   - name: output-image
     value: quay.io/redhat-user-workloads/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-master/e2e:{{revision}}
   - name: dockerfile
-    value: test/e2e/Dockerfile.konflux
+    value: test/e2e/Dockerfile
   - name: path-context
     value: .
   pipelineSpec:
