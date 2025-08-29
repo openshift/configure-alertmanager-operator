@@ -23,7 +23,7 @@ spec:
   - name: output-image
     value: quay.io/redhat-user-workloads/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-master/e2e:{{revision}}
   - name: dockerfile
-    value: test/e2e/Dockerfile.konflux
+    value: test/e2e/Dockerfile
   - name: path-context
     value: .
   pipelineSpec:
