@@ -10,8 +10,7 @@ metadata:
     pipelinesascode.tekton.dev/on-cel-expression: |
       event == "pull_request" 
       && target_branch == "master"
-      && (".tekton/e2e-master-pull-request.yaml".pathChanged() ||
-          "test/e2e/Dockerfile.konflux".pathChanged() )
+      && "test/e2e/Dockerfile.konflux".pathChanged()
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: configure-alertmanager-operator-master
