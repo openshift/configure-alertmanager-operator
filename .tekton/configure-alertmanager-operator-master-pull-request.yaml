@@ -538,7 +538,8 @@ spec:
       optional: true
     - name: netrc
       optional: true
-  taskRunTemplate: {}
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-configure-alertmanager-operator-master
   workspaces:
   - name: workspace
     volumeClaimTemplate:
