@@ -26,7 +26,7 @@ spec:
   - name: image-expires-after
     value: 5d
   - name: dockerfile
-    value: test/e2e/Dockerfile.konflux
+    value: test/e2e/Dockerfile
   - name: path-context
     value: .
   pipelineSpec:
