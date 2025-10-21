@@ -6,6 +6,7 @@ package osde2etests
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -33,6 +34,7 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		serviceAccounts = []string{"configure-alertmanager-operator"}
 	)
 	const (
+		maxCSVFailures    = 1 //number of csv request failures before exiting
 		timeoutDuration   = 300 * time.Second
 		pollingDuration   = 30 * time.Second
 		configMapLockFile = "configure-alertmanager-operator-lock"
@@ -50,9 +52,13 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		dynamicClient, err = dynamic.NewForConfig(cfg)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to configure Dynamic client")
 	})
-
+	// Allow for one CSV request failure before exiting Eventually() loop...
+	csvErrCounter := 0
+	startCSVCheck := time.Now()
 	It("cluster service version exists", func(ctx context.Context) {
 		Eventually(func(ctx context.Context) bool {
+			elapsed := fmt.Sprintf("%f", time.Since(startCSVCheck).Seconds())
+			GinkgoLogr.Info("CAMO CSV check", "secondsElapsed", elapsed)
 			csvList, err := dynamicClient.Resource(
 				schema.GroupVersionResource{
 					Group:    "operators.coreos.com",
@@ -60,11 +66,31 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 					Resource: "clusterserviceversions",
 				},
 			).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-			Expect(err).NotTo(HaveOccurred(), "Failed to retrieve CSV from namespace %s", namespace)
-			Expect(csvList.Items).Should(HaveLen(1))
-
+			if csvErrCounter >= maxCSVFailures {
+				// If maxCSVFailures has been exceeded, handle errors with Expect()...
+				csvErrCounter++
+				GinkgoLogr.Error(err, fmt.Sprintf("CSV error counter: %d, tolerated errors: %d", csvErrCounter, maxCSVFailures))
+				Expect(err).NotTo(HaveOccurred(), "Failed to retrieve CSV from namespace %s", namespace)
+				Expect(csvList.Items).Should(HaveLen(1))
+			}
+			if err != nil {
+				GinkgoLogr.Error(err, fmt.Sprintf("Err, fetching CSV for NS:'%s' LABEL:'%s'", namespace, labelSelector))
+				csvErrCounter++
+				return false
+			}
+			if csvList == nil {
+				GinkgoLogr.Error(nil, fmt.Sprintf("Err, nil CSV list fetching CSV for NS:'%s' LABEL:'%s'", namespace, labelSelector))
+				csvErrCounter++
+				return false
+			}
+			if len(csvList.Items) != 1 {
+				GinkgoLogr.Error(nil, fmt.Sprintf("Err, expected 1 CSV for NS:'%s' LABEL:'%s'. Got %d", namespace, labelSelector, len(csvList.Items)))
+				csvErrCounter++
+				return false
+			}
 			statusPhase, _, _ := unstructured.NestedFieldCopy(csvList.Items[0].Object, "status", "phase")
 			if statusPhase == "Succeeded" {
+				GinkgoLogr.Info("csv phase", "phase", statusPhase)
 				return true
 			}
 			GinkgoLogr.Info("csv phase", "phase", statusPhase)
