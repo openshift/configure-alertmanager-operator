@@ -138,6 +138,12 @@ const (
 
 	// OCM Agent configmap key for service URL
 	cmKeyOCMAgent = "serviceURL"
+
+	// Management cluster detection - label key on Infrastructure object
+	clusterTypeLabelKey = "ext-hypershift.openshift.io/cluster-type"
+
+	// Management cluster detection - label value for MC clusters
+	clusterTypeManagement = "management-cluster"
 )
 
 var defaultNamespaces = []string{
@@ -173,7 +179,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	reqLogger := log.WithValues("Request.Name", request.Name)
 	reqLogger.Info("Reconciling Object")
 
-	// This operator is only interested in the 3 secrets & 1 configMap listed below. Skip reconciling for all other objects.
+	// This operator is only interested in the secrets, configMaps, and ClusterVersion listed below. Skip reconciling for all other objects.
 	// TODO: Filter these with a predicate instead
 	switch request.Name {
 	case secretNameGoalert:
@@ -183,11 +189,20 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	case cmNameOcmAgent:
 	case cmNameManagedNamespaces:
 	case cmNameOCPNamespaces:
+	case "version": // ClusterVersion object - triggers reconcile when cluster type changes
 	default:
 		reqLogger.Info("Skip reconcile: No changes detected to alertmanager secrets.")
 		return reconcile.Result{}, nil
 	}
 	reqLogger.Info("DEBUG: Started reconcile loop")
+
+	// Determine and log cluster type early for visibility
+	isMC, err := r.isManagementCluster()
+	if err != nil {
+		reqLogger.Error(err, "WARNING: Unable to determine cluster type - defaulting to non-management cluster behavior")
+	} else {
+		reqLogger.Info("Cluster type determined", "isManagementCluster", isMC)
+	}
 
 	clusterReady, err := r.Readiness.IsReady()
 	if err != nil {
@@ -263,6 +278,7 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Secret{}).
 		Watches(&corev1.ConfigMap{}, &handler.EnqueueRequestForObject{}).
+		Watches(&configv1.ClusterVersion{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
 
@@ -909,6 +925,18 @@ func (r *SecretReconciler) parseConfigMaps(reqLogger logr.Logger, cmList *corev1
 	managedNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameManagedNamespaces, cmNamespace, cmKeyManagedNamespaces, cmList)
 	ocpNamespaces := r.parseNamespaceConfigMap(reqLogger, cmNameOCPNamespaces, cmNamespace, cmKeyOCPNamespaces, cmList)
 
+	// Check if this is a management cluster and load MC-specific namespaces if so
+	var mcNamespaces []string
+	isMC, err := r.isManagementCluster()
+	if err != nil {
+		reqLogger.Error(err, "Unable to determine if cluster is management cluster, skipping MC-specific namespaces")
+	} else if isMC {
+		reqLogger.Info("INFO: Management cluster detected, loading MC-specific namespaces for alerting")
+		mcNamespaces = r.parseMCNamespaceConfigMap(reqLogger, cmNameManagedNamespaces, cmNamespace, cmList)
+	} else {
+		reqLogger.Info("INFO: Not a management cluster, skipping MC-specific namespaces")
+	}
+
 	// Default to alerting on all ^openshift-.* namespaces if either list is empty, potentially indicating a problem parsing configMaps
 	if len(managedNamespaces) == 0 ||
 		len(ocpNamespaces) == 0 {
@@ -918,6 +946,7 @@ func (r *SecretReconciler) parseConfigMaps(reqLogger logr.Logger, cmList *corev1
 
 	namespaceList = append(namespaceList, managedNamespaces...)
 	namespaceList = append(namespaceList, ocpNamespaces...)
+	namespaceList = append(namespaceList, mcNamespaces...)
 
 	return namespaceList
 }
@@ -945,6 +974,43 @@ func (r *SecretReconciler) parseNamespaceConfigMap(reqLogger logr.Logger, cmName
 	for _, ns := range namespaceConfig.Resources.Namespaces {
 		nsList = append(nsList, "^"+ns.Name+"$")
 	}
+	return nsList
+}
+
+// parseMCNamespaceConfigMap returns management-cluster-specific namespaces from managed-namespaces configMap
+// This function extracts the ManagementCluster.AdditionalNamespaces list which should only be used on management clusters
+func (r *SecretReconciler) parseMCNamespaceConfigMap(reqLogger logr.Logger, cmName string, cmNamespace string, cmList *corev1.ConfigMapList) (nsList []string) {
+	cmExists := cmInList(reqLogger, cmName, cmList)
+	if !cmExists {
+		reqLogger.Info("INFO: ConfigMap does not exist", "ConfigMap", cmName)
+		return []string{}
+	}
+
+	// Unmarshal configMap to get ManagementCluster configuration
+	var namespaceConfig alertmanager.NamespaceConfig
+	rawNamespaces := readCMKey(r, reqLogger, cmName, cmNamespace, cmKeyManagedNamespaces)
+	err := yaml.Unmarshal([]byte(rawNamespaces), &namespaceConfig)
+	if err != nil {
+		reqLogger.Info("DEBUG: Unable to unmarshal from configMap", "ConfigMap", fmt.Sprintf("%s/%s", cmNamespace, cmName), "Error", err)
+		return []string{}
+	}
+
+	// Extract MC-specific namespaces from ManagementCluster.AdditionalNamespaces
+	if namespaceConfig.Resources.ManagementCluster == nil {
+		reqLogger.Info("DEBUG: No ManagementCluster configuration found in configMap", "ConfigMap", fmt.Sprintf("%s/%s", cmNamespace, cmName))
+		return []string{}
+	}
+
+	if len(namespaceConfig.Resources.ManagementCluster.AdditionalNamespaces) == 0 {
+		reqLogger.Info("DEBUG: No MC-specific namespaces found in ManagementCluster.AdditionalNamespaces", "ConfigMap", fmt.Sprintf("%s/%s", cmNamespace, cmName))
+		return []string{}
+	}
+
+	for _, ns := range namespaceConfig.Resources.ManagementCluster.AdditionalNamespaces {
+		nsList = append(nsList, "^"+ns.Name+"$")
+	}
+
+	reqLogger.Info("INFO: Loaded MC-specific namespaces for alerting", "Count", len(nsList), "Namespaces", nsList)
 	return nsList
 }
 
@@ -1033,6 +1099,44 @@ func (r *SecretReconciler) getClusterProxy() (string, error) {
 		return proxy.Status.HTTPSProxy, nil
 	}
 	return "", nil
+}
+
+// isManagementCluster checks if the current cluster is a HyperShift management cluster
+// by examining the infrastructureName in the Infrastructure object
+func (r *SecretReconciler) isManagementCluster() (bool, error) {
+	var infra configv1.Infrastructure
+	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, &infra)
+	if err != nil {
+		return false, err
+	}
+
+	// Primary detection: Check if infrastructureName starts with "hs-mc"
+	// HyperShift management clusters have infrastructure names like "hs-mc-<cluster-id>-<hash>"
+	// Example: "hs-mc-ibv8l52c0-d4v8v"
+	if infra.Status.InfrastructureName != "" {
+		if len(infra.Status.InfrastructureName) >= 5 {
+			// Check if the name starts with "hs-mc" (first 5 characters)
+			if infra.Status.InfrastructureName[:5] == "hs-mc" {
+				return true, nil
+			}
+		}
+	}
+
+	// Fallback: Check via ClusterVersion annotations
+	var version configv1.ClusterVersion
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "version"}, &version)
+	if err != nil {
+		// If we can't get the ClusterVersion, don't fail - just return false
+		return false, nil
+	}
+
+	// Check if cluster version has hypershift annotations
+	if clusterType, exists := version.Annotations[clusterTypeLabelKey]; exists {
+		return clusterType == clusterTypeManagement, nil
+	}
+
+	// Default to false if not a management cluster
+	return false, nil
 }
 
 // secretInList takes the name of Secret, and a list of Secrets, and returns a Bool
