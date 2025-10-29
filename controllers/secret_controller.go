@@ -59,7 +59,8 @@ const (
 	// Endpoint for cluster heartbeat for GoAlert. These will page support personnel
 	secretKeyGoalertHeartbeat = "GOALERT_HEARTBEAT" // #nosec G101
 
-	secretKeyPD = "PAGERDUTY_KEY" // #nosec G101
+	secretKeyPD    = "PAGERDUTY_KEY"     // #nosec G101
+	secretKeyCADPD = "CAD_PAGERDUTY_KEY" // #nosec G101
 
 	secretKeyDMS = "SNITCH_URL"
 
@@ -103,12 +104,18 @@ const (
 
 	// anything routed to "pagerduty" will alert/notify SREP
 	receiverPagerduty = "pagerduty"
+	// anything routed to "cad-pagerduty" routes alerts to separate PagerDuty integration
+	receiverCADPagerduty = "cad-pagerduty"
 
 	// anything going to Dead Man's Snitch (watchdog)
 	receiverWatchdog = "watchdog"
 
 	// the default receiver used by the route used for pagerduty
 	defaultReceiver = receiverNull
+
+	// alert label used to identify CAD alerts to be routed to event-based automation service
+	routeCADLabel      = "route-to-cad"
+	routeCADLabelValue = "true"
 
 	// global config for PagerdutyURL
 	pagerdutyURL = "https://events.pagerduty.com/v2/enqueue"
@@ -206,7 +213,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		reqLogger.Error(err, "Unable to list configMaps")
 	}
 
-	pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
 	osdNamespaces := r.parseConfigMaps(reqLogger, cmList, request.Namespace)
 	reqLogger.Info("DEBUG: Adding PagerDuty routes for the following namespaces", "Namespaces", osdNamespaces)
 
@@ -225,6 +232,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 
 	alertmanagerconfig := createAlertManagerConfig(reqLogger,
 		pagerdutyRoutingKey,
+		cadPagerdutyRoutingKey,
 		goalertURLlow,
 		goalertURLhigh,
 		goalertURLheartbeat,
@@ -556,6 +564,19 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy s
 	}
 }
 
+func createCADPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
+	if pagerdutyRoutingKey == "" {
+		return []*alertmanager.Receiver{}
+	}
+
+	return []*alertmanager.Receiver{
+		{
+			Name:             receiverCADPagerduty,
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)},
+		},
+	}
+}
+
 // createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
 func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
@@ -640,6 +661,13 @@ func createWatchdogRoute() *alertmanager.Route {
 	}
 }
 
+func createCADPagerdutyRoute() *alertmanager.Route {
+	return &alertmanager.Route{
+		Match:    map[string]string{routeCADLabel: routeCADLabelValue},
+		Receiver: receiverCADPagerduty,
+	}
+}
+
 func createHeartbeatReceivers(heartbeatURL string, clusterProxy string) []*alertmanager.Receiver {
 	if heartbeatURL == "" {
 		return []*alertmanager.Receiver{}
@@ -691,7 +719,7 @@ func createHttpConfig(clusterProxy string) alertmanager.HttpConfig {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, cadPagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
@@ -704,6 +732,12 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, goaler
 	if ocmAgentURL != "" {
 		routes = append(routes, createOCMAgentRoute())
 		receivers = append(receivers, createOCMAgentReceiver(ocmAgentURL)...)
+	}
+
+	if cadPagerdutyRoutingKey != "" {
+		reqLogger.Info("INFO: Configuring a CAD PagerDuty route and receiver")
+		routes = append(routes, createCADPagerdutyRoute())
+		receivers = append(receivers, createCADPagerdutyReceivers(cadPagerdutyRoutingKey, clusterID, clusterProxy)...)
 	}
 
 	if pagerdutyRoutingKey != "" {
@@ -935,7 +969,7 @@ func (r *SecretReconciler) readOCMAgentServiceURLFromConfig(reqLogger logr.Logge
 	return serviceURL
 }
 
-func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, watchdogURL string, goalertURLlow string, goalertURLhigh string, goalertURLheartbeat string) {
+func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, cadPagerdutyRoutingKey string, watchdogURL string, goalertURLlow string, goalertURLhigh string, goalertURLheartbeat string) {
 	// Check for the presence of specific secrets.
 	goalertSecretExists := secretInList(reqLogger, secretNameGoalert, secretList)
 	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
@@ -949,6 +983,7 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		if clusterReady {
 			reqLogger.Info("INFO: Cluster is ready; configuring Pager Duty")
 			pagerdutyRoutingKey = readSecretKey(r, secretNamePD, namespace, secretKeyPD)
+			cadPagerdutyRoutingKey = readSecretKey(r, secretNamePD, namespace, secretKeyCADPD)
 		} else {
 			reqLogger.Info("INFO: Cluster is not ready; skipping Pager Duty configuration")
 		}
@@ -978,7 +1013,7 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: Goalert secret does not exist")
 	}
 
-	return pagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat
+	return pagerdutyRoutingKey, cadPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat
 }
 
 func (r *SecretReconciler) getClusterID() (string, error) {
