@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"runtime/debug"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -155,6 +157,7 @@ type SecretReconciler struct {
 //+kubebuilder:rbac:groups=managed.openshift.io,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=managed.openshift.io,resources=secrets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=managed.openshift.io,resources=secrets/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -190,12 +193,20 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	reqLogger.Info("DEBUG: Started reconcile loop")
 
 	// Determine and log cluster type early for visibility
-	isMC, err := r.isManagementCluster()
+	readMC, err := r.isManagementCluster()
 	if err != nil {
-		reqLogger.Error(err, "WARNING: Unable to determine cluster type - defaulting to non-management cluster behavior")
-	} else {
-		reqLogger.Info("Cluster type determined", "isManagementCluster", isMC)
+		// Default to true (management cluster) for safety - better to monitor MC namespaces
+		// on a non-MC cluster (false positive) than miss critical alerts on an actual MC
+		readMC = true
+		reqLogger.Error(err, "CRITICAL: Unable to determine cluster type - defaulting to MANAGEMENT CLUSTER behavior for safety",
+			"default_behavior", "monitoring_mc_namespaces",
+			"action_required", "investigate this error immediately - file issue at https://github.com/openshift/configure-alertmanager-operator/issues if not already reported")
+		// Log stack trace for debugging
+		reqLogger.Error(err, "Stack trace for cluster type determination failure", "stack", string(debug.Stack()))
+		// Generate a Kubernetes event to alert SRE
+		r.recordClusterTypeDetectionEvent(err)
 	}
+	reqLogger.Info("Cluster type determined", "isManagementCluster", readMC)
 
 	clusterReady, err := r.Readiness.IsReady()
 	if err != nil {
@@ -896,10 +907,20 @@ func (r *SecretReconciler) parseConfigMaps(reqLogger logr.Logger, cmList *corev1
 
 	// Check if this is a management cluster and load MC-specific namespaces if so
 	var mcNamespaces []string
-	isMC, err := r.isManagementCluster()
+	readMC, err := r.isManagementCluster()
 	if err != nil {
-		reqLogger.Error(err, "Unable to determine if cluster is management cluster, skipping MC-specific namespaces")
-	} else if isMC {
+		// Default to true (management cluster) for safety
+		readMC = true
+		reqLogger.Error(err, "CRITICAL: Unable to determine if cluster is management cluster - defaulting to MANAGEMENT CLUSTER behavior",
+			"default_behavior", "loading_mc_namespaces",
+			"action_required", "investigate this error immediately - file issue at https://github.com/openshift/configure-alertmanager-operator/issues if not already reported")
+		// Log stack trace for debugging
+		reqLogger.Error(err, "Stack trace for cluster type determination failure", "stack", string(debug.Stack()))
+		// Generate a Kubernetes event to alert SRE
+		r.recordClusterTypeDetectionEvent(err)
+	}
+
+	if readMC {
 		reqLogger.Info("INFO: Management cluster detected, loading MC-specific namespaces for alerting")
 		mcNamespaces = r.parseMCNamespaceConfigMap(reqLogger, cmNameManagedNamespaces, cmNamespace, cmList)
 	} else {
@@ -1105,6 +1126,39 @@ func (r *SecretReconciler) isManagementCluster() (bool, error) {
 
 	// Default to false if not a management cluster
 	return false, nil
+}
+
+// recordClusterTypeDetectionEvent creates a Kubernetes event to alert SRE when cluster type detection fails
+func (r *SecretReconciler) recordClusterTypeDetectionEvent(err error) {
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("cluster-type-detection-failure-%d", time.Now().Unix()),
+			Namespace: "openshift-monitoring",
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:      "ConfigMap",
+			Namespace: "openshift-monitoring",
+			Name:      "configure-alertmanager-operator",
+		},
+		Reason:  "ClusterTypeDetectionFailure",
+		Message: fmt.Sprintf("CRITICAL: Failed to determine cluster type - defaulting to management cluster behavior. Error: %v. Action required: This is a bug that needs to be addressed by CAMO. If an issue is not already opened, please file at https://github.com/openshift/configure-alertmanager-operator/issues", err),
+		Type:    corev1.EventTypeWarning,
+		EventTime: metav1.MicroTime{
+			Time: time.Now(),
+		},
+		FirstTimestamp: metav1.Time{
+			Time: time.Now(),
+		},
+		LastTimestamp: metav1.Time{
+			Time: time.Now(),
+		},
+		Count: 1,
+	}
+
+	// Best effort event creation - don't fail reconciliation if event creation fails
+	if createErr := r.Client.Create(context.TODO(), event); createErr != nil {
+		log.Error(createErr, "Failed to create cluster type detection failure event")
+	}
 }
 
 // secretInList takes the name of Secret, and a list of Secrets, and returns a Bool
