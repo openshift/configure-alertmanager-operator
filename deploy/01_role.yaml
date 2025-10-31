@@ -54,6 +54,13 @@ metadata:
   name: configure-alertmanager-operator-view
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+- apiGroups:
   - config.openshift.io
   attributeRestrictions: null
   resources:
@@ -66,6 +73,7 @@ rules:
     - config.openshift.io
   resources:
     - proxies
+    - infrastructures
   verbs:
     - get
     - list
