@@ -457,9 +457,6 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// Route ClusterOperatorDown for insights to null receiver https://issues.redhat.com/browse/OSD-19800
 		// Also needs to be silenced for FedRAMP until its made available in the environment https://issues.redhat.com/browse/OSD-13685
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterOperatorDown", "name": "insights"}},
-		// Route etcdExcessiveDatabaseGrowth warning level alerts to SRE as critical to aid in reducing incidents related
-		// to customers exceeding etcd's max database size.
-		{Receiver: receiverCritical, Match: map[string]string{"alertname": "etcdExcessiveDatabaseGrowth"}},
 	}
 
 	if !config.IsFedramp() {
