@@ -163,7 +163,13 @@ type NamespaceConfig struct {
 }
 
 type NamespaceList struct {
-	Namespaces []Namespace `yaml:"Namespace,omitempty" json:"Namespace,omitempty"`
+	Namespaces        []Namespace              `yaml:"Namespace,omitempty" json:"Namespace,omitempty"`
+	ManagementCluster *ManagementClusterConfig `yaml:"ManagementCluster,omitempty" json:"ManagementCluster,omitempty"`
+}
+
+// ManagementClusterConfig holds configuration specific to HyperShift management clusters
+type ManagementClusterConfig struct {
+	AdditionalNamespaces []Namespace `yaml:"AdditionalNamespaces,omitempty" json:"AdditionalNamespaces,omitempty"`
 }
 
 type Namespace struct {
