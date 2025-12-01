@@ -606,7 +606,8 @@ func Test_parseSecrets(t *testing.T) {
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
 	createNamespace(reconciler, t)
-	createSecretWithData(reconciler, secretNamePD, map[string]string{secretKeyPD: pdKey, secretKeyCADPD: cadKey})
+	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createSecret(reconciler, secretNameCADPD, secretKeyCADPD, cadKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
 	createGoAlertSecret(reconciler,
 		secretNameGoalert,
@@ -646,7 +647,8 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	cadKey := "cadlkj890"
 
 	createNamespace(reconciler, t)
-	createSecretWithData(reconciler, secretNamePD, map[string]string{secretKeyPD: pdKey, secretKeyCADPD: cadKey})
+	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
+	createSecret(reconciler, secretNameCADPD, secretKeyCADPD, cadKey)
 
 	secretList := &corev1.SecretList{}
 	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
