@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: configure-alertmanager-operator
+    app.kubernetes.io/part-of: openshift-monitoring
+  name: configure-alertmanager-operator
+  namespace: openshift-monitoring
+spec:
+  egress:
+    - {}
+  podSelector:
+    matchLabels:
+      name: configure-alertmanager-operator
+  policyTypes:
+    - Ingress
+    - Egress
