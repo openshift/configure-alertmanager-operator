@@ -75,6 +75,8 @@ const (
 
 	secretNamePD = "pd-secret"
 
+	secretNameCADPD = "cad-pd-secret" // #nosec G101
+
 	secretNameDMS = "dms-secret"
 
 	secretNameAlertmanager = "alertmanager-main"
@@ -190,6 +192,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	switch request.Name {
 	case secretNameGoalert:
 	case secretNamePD:
+	case secretNameCADPD:
 	case secretNameDMS:
 	case secretNameAlertmanager:
 	case cmNameOcmAgent:
@@ -1060,6 +1063,7 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 	// Check for the presence of specific secrets.
 	goalertSecretExists := secretInList(reqLogger, secretNameGoalert, secretList)
 	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
+	cadPagerDutySecretExists := secretInList(reqLogger, secretNameCADPD, secretList)
 	snitchSecretExists := secretInList(reqLogger, secretNameDMS, secretList)
 
 	// If a secret exists, add the necessary configs to Alertmanager.
@@ -1070,12 +1074,23 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		if clusterReady {
 			reqLogger.Info("INFO: Cluster is ready; configuring Pager Duty")
 			pagerdutyRoutingKey = readSecretKey(r, secretNamePD, namespace, secretKeyPD)
-			cadPagerdutyRoutingKey = readSecretKey(r, secretNamePD, namespace, secretKeyCADPD)
 		} else {
 			reqLogger.Info("INFO: Cluster is not ready; skipping Pager Duty configuration")
 		}
 	} else {
 		reqLogger.Info("INFO: Pager Duty secret does not exist")
+	}
+
+	if cadPagerDutySecretExists {
+		reqLogger.Info("INFO: CAD Pager Duty secret exists")
+		if clusterReady {
+			reqLogger.Info("INFO: Cluster is ready; configuring CAD Pager Duty")
+			cadPagerdutyRoutingKey = readSecretKey(r, secretNameCADPD, namespace, secretKeyCADPD)
+		} else {
+			reqLogger.Info("INFO: Cluster is not ready; skipping CAD Pager Duty configuration")
+		}
+	} else {
+		reqLogger.Info("INFO: CAD Pager Duty secret does not exist")
 	}
 
 	if snitchSecretExists {
