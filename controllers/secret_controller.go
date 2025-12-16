@@ -119,7 +119,7 @@ const (
 	defaultReceiver = receiverNull
 
 	// alert label used to identify CAD alerts to be routed to event-based automation service
-	routeCADLabel      = "route_to_cad"
+	routeCADLabel      = "route-to-cad"
 	routeCADLabelValue = "true"
 
 	// global config for PagerdutyURL
