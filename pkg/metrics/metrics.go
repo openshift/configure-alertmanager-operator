@@ -66,6 +66,10 @@ var (
 		Name: "ocp_namespaces_configmap_exists",
 		Help: "ocp-namespaces configMap exists",
 	}, []string{"name"})
+	metricAlertmanagerConfigValidationStatus = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "alertmanager_config_validation_status",
+		Help: "Alertmanager config validation status (0=valid, 1=invalid)",
+	}, []string{"name"})
 
 	metricsList = []prometheus.Collector{
 		metricGASecretExists,
@@ -77,6 +81,7 @@ var (
 		metricAMSecretContainsDMS,
 		metricManNSConfigMapExists,
 		metricOcpNSConfigMapExists,
+		metricAlertmanagerConfigValidationStatus,
 	}
 )
 
@@ -223,5 +228,15 @@ func UpdateConfigMapMetrics(list *corev1.ConfigMapList) {
 		metricOcpNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	} else {
 		metricOcpNSConfigMapExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
+}
+
+// UpdateAlertmanagerConfigValidationMetric updates the validation status metric
+// validationPassed should be true if validation succeeded, false if it failed
+func UpdateAlertmanagerConfigValidationMetric(validationPassed bool) {
+	if validationPassed {
+		metricAlertmanagerConfigValidationStatus.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	} else {
+		metricAlertmanagerConfigValidationStatus.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	}
 }
