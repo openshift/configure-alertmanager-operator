@@ -1632,7 +1632,9 @@ func Test_SecretReconciler(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces))
+			if err := writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces)); err != nil {
+				t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
+			}
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1738,7 +1740,9 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		createClusterVersion(reconciler)
 		createClusterProxy(reconciler)
 
-		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", defaultNamespaces))
+		if err := writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
+			t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
+		}
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
