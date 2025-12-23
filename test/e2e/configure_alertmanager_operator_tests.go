@@ -13,6 +13,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
+	"github.com/openshift/osde2e-common/pkg/clients/prometheus"
+	amconfig "github.com/prometheus/alertmanager/config"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +32,7 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 	var (
 		client          *resources.Resources
 		dynamicClient   dynamic.Interface
+		prom            *prometheus.Client
 		secrets         = []string{"pd-secret", "dms-secret"}
 		serviceAccounts = []string{"configure-alertmanager-operator"}
 	)
@@ -43,7 +46,9 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		labelSelector     = "operators.coreos.com/configure-alertmanager-operator.openshift-monitoring"
 	)
 
-	BeforeAll(func() {
+	BeforeAll(func(ctx context.Context) {
+		log.SetLogger(GinkgoLogr)
+
 		cfg, err := config.GetConfig()
 		Expect(err).Should(BeNil(), "failed to get kubeconfig")
 		client, err = resources.New(cfg)
@@ -51,6 +56,13 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 
 		dynamicClient, err = dynamic.NewForConfig(cfg)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to configure Dynamic client")
+
+		// Create openshift client locally for prometheus client setup
+		k8s, err := openshift.New(GinkgoLogr)
+		Expect(err).ShouldNot(HaveOccurred(), "unable to setup openshift client")
+
+		prom, err = prometheus.New(ctx, k8s)
+		Expect(err).ShouldNot(HaveOccurred(), "unable to setup prometheus client")
 	})
 	// Allow for one CSV request failure before exiting Eventually() loop...
 	csvErrCounter := 0
@@ -148,6 +160,52 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 			err := client.Get(ctx, secret, namespace, &v1.Secret{})
 			Expect(err).ShouldNot(HaveOccurred(), "Secret %s not found", secret)
 		}
+	})
+
+	It("alertmanager-main secret contains valid configuration", func(ctx context.Context) {
+		// Get the alertmanager-main secret from openshift-monitoring
+		var secret v1.Secret
+		err := client.Get(ctx, "alertmanager-main", namespace, &secret)
+		Expect(err).ShouldNot(HaveOccurred(), "Failed to get alertmanager-main secret")
+
+		// Extract the alertmanager.yaml data
+		configData, exists := secret.Data["alertmanager.yaml"]
+		Expect(exists).Should(BeTrue(), "alertmanager.yaml not found in secret")
+		Expect(configData).ShouldNot(BeEmpty(), "alertmanager.yaml is empty")
+
+		// Validate the config using Alertmanager's official validation
+		// This is the same validation that Alertmanager performs on startup
+		_, err = amconfig.Load(string(configData))
+		Expect(err).ShouldNot(HaveOccurred(), "alertmanager config validation failed: %v", err)
+	})
+
+	It("validation metric exists and shows config is valid", func(ctx context.Context) {
+		// Query the alertmanager_config_validation_status metric
+		// Metric value: 0 = valid config, 1 = invalid config
+		query := `alertmanager_config_validation_status{name="configure-alertmanager-operator"}`
+
+		// Use Eventually to allow time for metric to be scraped
+		Eventually(ctx, func(ctx context.Context) error {
+			results, err := prom.InstantQuery(ctx, query)
+			if err != nil {
+				return fmt.Errorf("failed to query prometheus: %w", err)
+			}
+
+			if len(results) == 0 {
+				return fmt.Errorf("metric not found: %s", query)
+			}
+
+			// Verify metric value is 0 (valid config)
+			metricValue := int(results[0].Value)
+			if metricValue != 0 {
+				return fmt.Errorf("expected metric value 0 (valid), got %d (invalid)", metricValue)
+			}
+
+			return nil
+		}).
+			WithPolling(10 * time.Second).
+			WithTimeout(2 * time.Minute).
+			Should(Succeed(), "validation metric should exist and show config is valid")
 	})
 
 	PIt("can be upgraded", func(ctx context.Context) {
