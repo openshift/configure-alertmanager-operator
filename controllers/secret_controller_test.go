@@ -2011,3 +2011,99 @@ func Test_recordConfigValidationEvent(t *testing.T) {
 		t.Error("Expected event message to contain guidance about checking source configmaps and secrets")
 	}
 }
+
+// Test_writeAlertManagerConfig_ValidationFailure verifies writeAlertManagerConfig returns error when validation fails
+func Test_writeAlertManagerConfig_ValidationFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create invalid config (bad duration format)
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "invalid-time-format",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+	}
+
+	err := writeAlertManagerConfig(reconciler, reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected writeAlertManagerConfig to return error for invalid config, but got nil")
+	}
+
+	if !strings.Contains(err.Error(), "alertmanager config validation failed") {
+		t.Errorf("Expected error to mention validation failure, got: %v", err)
+	}
+
+	// Verify secret was not created
+	secret := &corev1.Secret{}
+	objectKey := client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}
+	getErr := reconciler.Client.Get(context.TODO(), objectKey, secret)
+	if getErr == nil {
+		t.Error("Expected secret to not exist after validation failure, but it was created")
+	}
+}
+
+// Test_writeAlertManagerConfig_Success verifies writeAlertManagerConfig succeeds with valid config
+func Test_writeAlertManagerConfig_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create valid config
+	validConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+			PagerdutyURL:   "https://events.pagerduty.com/v2/enqueue",
+		},
+		Route: &alertmanager.Route{
+			Receiver:       "null",
+			GroupByStr:     []string{"alertname"},
+			GroupWait:      "30s",
+			GroupInterval:  "5m",
+			RepeatInterval: "12h",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+		Templates: []string{},
+	}
+
+	err := writeAlertManagerConfig(reconciler, reqLogger, validConfig)
+	if err != nil {
+		t.Fatalf("Expected writeAlertManagerConfig to succeed for valid config, got error: %v", err)
+	}
+
+	// Verify secret was created
+	secret := &corev1.Secret{}
+	objectKey := client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}
+	getErr := reconciler.Client.Get(context.TODO(), objectKey, secret)
+	if getErr != nil {
+		t.Fatalf("Expected secret to exist after successful write, got error: %v", getErr)
+	}
+
+	// Verify secret contains the config
+	configData, exists := secret.Data["alertmanager.yaml"]
+	if !exists {
+		t.Fatal("Expected alertmanager.yaml to exist in secret")
+	}
+	if len(configData) == 0 {
+		t.Fatal("Expected alertmanager.yaml to have content")
+	}
+}
+
