@@ -1632,7 +1632,7 @@ func Test_SecretReconciler(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			if err := writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces)); err != nil {
+			if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces)); err != nil {
 				t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
 			}
 		}
@@ -1740,7 +1740,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		createClusterVersion(reconciler)
 		createClusterProxy(reconciler)
 
-		if err := writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
+		if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
 			t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
 		}
 
@@ -1952,7 +1952,7 @@ func Test_recordConfigValidationEvent(t *testing.T) {
 	validationErr := fmt.Errorf("alertmanager config validation failed: invalid label name \"route-to-cad\"")
 
 	// Record the event
-	reconciler.recordConfigValidationEvent(validationErr)
+	reconciler.recordConfigValidationEvent(context.Background(), validationErr)
 
 	// Verify event was created
 	eventList := &corev1.EventList{}
@@ -2033,7 +2033,7 @@ func Test_writeAlertManagerConfig_ValidationFailure(t *testing.T) {
 		},
 	}
 
-	err := writeAlertManagerConfig(reconciler, reqLogger, invalidConfig)
+	err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, invalidConfig)
 	if err == nil {
 		t.Fatal("Expected writeAlertManagerConfig to return error for invalid config, but got nil")
 	}
@@ -2081,7 +2081,7 @@ func Test_writeAlertManagerConfig_Success(t *testing.T) {
 		Templates: []string{},
 	}
 
-	err := writeAlertManagerConfig(reconciler, reqLogger, validConfig)
+	err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, validConfig)
 	if err != nil {
 		t.Fatalf("Expected writeAlertManagerConfig to succeed for valid config, got error: %v", err)
 	}

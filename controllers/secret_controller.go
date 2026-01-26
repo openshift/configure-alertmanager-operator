@@ -273,7 +273,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		osdNamespaces)
 
 	// write the alertmanager Config
-	if err := writeAlertManagerConfig(r, reqLogger, alertmanagerconfig); err != nil {
+	if err := writeAlertManagerConfig(ctx, r, reqLogger, alertmanagerconfig); err != nil {
 		reqLogger.Error(err, "Failed to write alertmanager config")
 		return reconcile.Result{}, err
 	}
@@ -1284,7 +1284,7 @@ func validateAlertManagerConfig(reqLogger logr.Logger, cfg *alertmanager.Config)
 }
 
 // recordConfigValidationEvent creates a Kubernetes event to alert SRE when Alertmanager config validation fails
-func (r *SecretReconciler) recordConfigValidationEvent(err error) {
+func (r *SecretReconciler) recordConfigValidationEvent(ctx context.Context, err error) {
 	event := &corev1.Event{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("alertmanager-config-validation-failure-%d", time.Now().Unix()),
@@ -1311,19 +1311,19 @@ func (r *SecretReconciler) recordConfigValidationEvent(err error) {
 	}
 
 	// Best effort event creation - don't fail reconciliation if event creation fails
-	if createErr := r.Client.Create(context.TODO(), event); createErr != nil {
+	if createErr := r.Client.Create(ctx, event); createErr != nil {
 		log.Error(createErr, "Failed to create Alertmanager config validation failure event")
 	}
 }
 
 // writeAlertManagerConfig writes the updated alertmanager config to the `alertmanager-main` secret in namespace `openshift-monitoring`.
 // It validates the config before writing to prevent Alertmanager from failing on restart.
-func writeAlertManagerConfig(r *SecretReconciler, reqLogger logr.Logger, amconfig *alertmanager.Config) error {
+func writeAlertManagerConfig(ctx context.Context, r *SecretReconciler, reqLogger logr.Logger, amconfig *alertmanager.Config) error {
 	// Validate the config before writing
 	if err := validateAlertManagerConfig(reqLogger, amconfig); err != nil {
 		reqLogger.Error(err, "ERROR: Alertmanager config validation failed - will not write to secret")
 		// Record Kubernetes event to alert SRE
-		r.recordConfigValidationEvent(err)
+		r.recordConfigValidationEvent(ctx, err)
 		// Update metric to indicate validation failure
 		metrics.UpdateAlertmanagerConfigValidationMetric(false)
 		return fmt.Errorf("alertmanager config validation failed, config not written: %w", err)
@@ -1350,12 +1350,12 @@ func writeAlertManagerConfig(r *SecretReconciler, reqLogger logr.Logger, amconfi
 	}
 
 	// Write the alertmanager config into the alertmanager secret.
-	err := r.Client.Update(context.TODO(), secret)
+	err := r.Client.Update(ctx, secret)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// couldn't update because it didn't exist.
 			// create it instead.
-			err = r.Client.Create(context.TODO(), secret)
+			err = r.Client.Create(ctx, secret)
 		}
 	}
 
