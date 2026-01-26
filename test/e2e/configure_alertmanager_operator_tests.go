@@ -180,9 +180,9 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 	})
 
 	It("validation metric exists and shows config is valid", func(ctx context.Context) {
-		// Query the alertmanager_config_validation_status metric
-		// Metric value: 0 = valid config, 1 = invalid config
-		query := `alertmanager_config_validation_status{name="configure-alertmanager-operator"}`
+		// Query the alertmanager_config_validation_failed metric
+		// Metric value: 0 = validation succeeded, 1 = validation failed
+		query := `alertmanager_config_validation_failed{name="configure-alertmanager-operator"}`
 
 		// Use Eventually to allow time for metric to be scraped
 		Eventually(ctx, func(ctx context.Context) error {

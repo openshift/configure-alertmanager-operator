@@ -52,21 +52,21 @@ The operator validates all Alertmanager configurations before writing them to th
 2. **Validation Failure Handling**: If validation fails:
    - The invalid config is **not written** to the secret (preserving the last-known-good configuration)
    - A Kubernetes Event is created in `openshift-monitoring` namespace with reason `AlertmanagerConfigValidationFailure`
-   - The `alertmanager_config_validation_status` metric is set to `1` (invalid)
+   - The `alertmanager_config_validation_failed` metric is set to `1` (failed)
    - The reconcile loop returns an error, triggering automatic retry
 
 3. **Validation Success**: If validation succeeds:
    - The config is written to `alertmanager-main`
-   - The `alertmanager_config_validation_status` metric is set to `0` (valid)
+   - The `alertmanager_config_validation_failed` metric is set to `0` (succeeded)
 
 ### Monitoring Validation Status
 
 **Via Prometheus Metric**:
 ```promql
-alertmanager_config_validation_status{name="configure-alertmanager-operator"}
+alertmanager_config_validation_failed{name="configure-alertmanager-operator"}
 ```
-- Value `0` = configuration is valid
-- Value `1` = configuration validation failed
+- Value `0` = validation succeeded (config is valid)
+- Value `1` = validation failed (config is invalid)
 
 **Via Kubernetes Events**:
 ```bash
@@ -105,7 +105,7 @@ The Configure Alertmanager Operator exposes the following Prometheus metrics:
 | `am_secret_contains_ga`                        | indicates the GoAlert receiver is present in alertmanager.yaml.                                       |
 | `am_secret_contains_pd`                        | indicates the Pager Duty receiver is present in alertmanager.yaml.                                    |
 | `am_secret_contains_dms`                       | indicates the Dead Man's Snitch receiver is present in alertmanager.yaml.                             |
-| `alertmanager_config_validation_status`        | indicates Alertmanager config validation status: `0` = valid, `1` = invalid.                          |
+| `alertmanager_config_validation_failed`        | indicates Alertmanager config validation failed: `1` = failed, `0` = succeeded.                       |
 
 The operator creates a `Service` and `ServiceMonitor` named `configure-alertmanager-operator` to expose these metrics to Prometheus.
 
