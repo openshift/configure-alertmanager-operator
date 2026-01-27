@@ -36,6 +36,7 @@ import (
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
+	amconfig "github.com/prometheus/alertmanager/config"
 
 	"github.com/openshift/configure-alertmanager-operator/config"
 	"github.com/openshift/configure-alertmanager-operator/pkg/metrics"
@@ -272,7 +273,10 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		osdNamespaces)
 
 	// write the alertmanager Config
-	writeAlertManagerConfig(r, reqLogger, alertmanagerconfig)
+	if err := writeAlertManagerConfig(ctx, r, reqLogger, alertmanagerconfig); err != nil {
+		reqLogger.Error(err, "Failed to write alertmanager config")
+		return reconcile.Result{}, err
+	}
 
 	// Update metrics after all reconcile operations are complete.
 	metrics.UpdateSecretsMetrics(secretList, alertmanagerconfig)
@@ -1259,11 +1263,78 @@ func readSecretKey(r *SecretReconciler, secretName string, secretNamespace strin
 	return string(secret.Data[fieldName])
 }
 
+// validateAlertManagerConfig validates the alertmanager config using Alertmanager's official validation
+// This ensures the config will be accepted by Alertmanager on startup/reload
+func validateAlertManagerConfig(reqLogger logr.Logger, cfg *alertmanager.Config) error {
+	// Marshal our config to YAML
+	cfgBytes, marshalerr := yaml.Marshal(cfg)
+	if marshalerr != nil {
+		return fmt.Errorf("failed to marshal alertmanager config for validation: %w", marshalerr)
+	}
+
+	// Use Alertmanager's official config.Load() to validate
+	// This is the same validation Alertmanager performs on startup
+	_, err := amconfig.Load(string(cfgBytes))
+	if err != nil {
+		return fmt.Errorf("alertmanager config validation failed: %w", err)
+	}
+
+	reqLogger.Info("INFO: Alertmanager config validation passed")
+	return nil
+}
+
+// recordConfigValidationEvent creates a Kubernetes event to alert SRE when Alertmanager config validation fails
+func (r *SecretReconciler) recordConfigValidationEvent(ctx context.Context, err error) {
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("alertmanager-config-validation-failure-%d", time.Now().Unix()),
+			Namespace: "openshift-monitoring",
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:      "Secret",
+			Namespace: "openshift-monitoring",
+			Name:      secretNameAlertmanager,
+		},
+		Reason:  "AlertmanagerConfigValidationFailure",
+		Message: fmt.Sprintf("CRITICAL: Failed to validate Alertmanager configuration - config will not be written to prevent Alertmanager from failing on restart. Error: %v. Action required: Check source configmaps and secrets for invalid data. Review operator logs for details.", err),
+		Type:    corev1.EventTypeWarning,
+		EventTime: metav1.MicroTime{
+			Time: time.Now(),
+		},
+		FirstTimestamp: metav1.Time{
+			Time: time.Now(),
+		},
+		LastTimestamp: metav1.Time{
+			Time: time.Now(),
+		},
+		Count: 1,
+	}
+
+	// Best effort event creation - don't fail reconciliation if event creation fails
+	if createErr := r.Client.Create(ctx, event); createErr != nil {
+		log.Error(createErr, "Failed to create Alertmanager config validation failure event")
+	}
+}
+
 // writeAlertManagerConfig writes the updated alertmanager config to the `alertmanager-main` secret in namespace `openshift-monitoring`.
-func writeAlertManagerConfig(r *SecretReconciler, reqLogger logr.Logger, amconfig *alertmanager.Config) {
+// It validates the config before writing to prevent Alertmanager from failing on restart.
+func writeAlertManagerConfig(ctx context.Context, r *SecretReconciler, reqLogger logr.Logger, amconfig *alertmanager.Config) error {
+	// Validate the config before writing
+	if err := validateAlertManagerConfig(reqLogger, amconfig); err != nil {
+		reqLogger.Error(err, "ERROR: Alertmanager config validation failed - will not write to secret")
+		// Record Kubernetes event to alert SRE
+		r.recordConfigValidationEvent(ctx, err)
+		// Update metric to indicate validation failure
+		metrics.UpdateAlertmanagerConfigValidationMetric(false)
+		return fmt.Errorf("alertmanager config validation failed, config not written: %w", err)
+	}
+
+	// Config is valid, proceed with marshaling and writing
 	amconfigbyte, marshalerr := yaml.Marshal(amconfig)
 	if marshalerr != nil {
 		reqLogger.Error(marshalerr, "ERROR: failed to marshal Alertmanager config")
+		metrics.UpdateAlertmanagerConfigValidationMetric(false)
+		return fmt.Errorf("failed to marshal alertmanager config: %w", marshalerr)
 	}
 	// This is commented out because it prints secrets, but it might be useful for debugging when running locally.
 	//reqLogger.Info("DEBUG: Marshalled Alertmanager config:", string(amconfigbyte))
@@ -1279,18 +1350,23 @@ func writeAlertManagerConfig(r *SecretReconciler, reqLogger logr.Logger, amconfi
 	}
 
 	// Write the alertmanager config into the alertmanager secret.
-	err := r.Client.Update(context.TODO(), secret)
+	err := r.Client.Update(ctx, secret)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// couldn't update because it didn't exist.
 			// create it instead.
-			err = r.Client.Create(context.TODO(), secret)
+			err = r.Client.Create(ctx, secret)
 		}
 	}
 
 	if err != nil {
 		reqLogger.Error(err, "ERROR: Could not write secret alertmanger-main", "namespace", secret.Namespace)
-		return
+		metrics.UpdateAlertmanagerConfigValidationMetric(false)
+		return fmt.Errorf("failed to write alertmanager-main secret: %w", err)
 	}
+
 	reqLogger.Info("INFO: Secret alertmanager-main successfully updated")
+	// Update metric to indicate validation and write success
+	metrics.UpdateAlertmanagerConfigValidationMetric(true)
+	return nil
 }

@@ -41,6 +41,51 @@ The Secret Controller watches over the resources in the table below. Changes to 
 | ConfigMap     | `openshift-monitoring/managed-namespaces` | Defines a list of OpenShift "managed" namespaces. The operator will route alerts originating from these namespaces to PagerDuty and/or GoAlert.                       |
 | ConfigMap     | `openshift-monitoring/ocp-namespaces`     | Defines a list of OpenShift Container Platform namespaces. The operator will route alerts originating from these namespaces to PagerDuty and/or GoAlert.              |
 
+## Alertmanager Config Validation
+
+The operator validates all Alertmanager configurations before writing them to the `alertmanager-main` secret. This prevents invalid configurations from being deployed, which could cause Alertmanager to fail on restart.
+
+### How Validation Works
+
+1. **Pre-write Validation**: Before writing any configuration to `alertmanager-main`, the operator validates it using Prometheus Alertmanager's official `config.Load()` function - the exact same validation that Alertmanager performs on startup.
+
+2. **Validation Failure Handling**: If validation fails:
+   - The invalid config is **not written** to the secret (preserving the last-known-good configuration)
+   - A Kubernetes Event is created in `openshift-monitoring` namespace with reason `AlertmanagerConfigValidationFailure`
+   - The `alertmanager_config_validation_failed` metric is set to `1` (failed)
+   - The reconcile loop returns an error, triggering automatic retry
+
+3. **Validation Success**: If validation succeeds:
+   - The config is written to `alertmanager-main`
+   - The `alertmanager_config_validation_failed` metric is set to `0` (succeeded)
+
+### Monitoring Validation Status
+
+**Via Prometheus Metric**:
+```promql
+alertmanager_config_validation_failed{name="configure-alertmanager-operator"}
+```
+- Value `0` = validation succeeded (config is valid)
+- Value `1` = validation failed (config is invalid)
+
+**Via Kubernetes Events**:
+```bash
+oc get events -n openshift-monitoring --field-selector reason=AlertmanagerConfigValidationFailure
+```
+
+Failed validation events include:
+- The specific validation error from Alertmanager
+- Guidance to check source secrets and configmaps for invalid data
+- A reference to operator logs for detailed debugging
+
+### Common Validation Failures
+
+- **Invalid label names**: Prometheus label names must match `[a-zA-Z_][a-zA-Z0-9_]*` (no hyphens allowed)
+- **Duplicate receiver names**: Each receiver must have a unique name
+- **Missing required fields**: Route and at least one receiver are required
+- **Invalid duration formats**: Must use valid Go duration strings (e.g., "5m", "1h")
+- **Invalid regex patterns**: MatchRE patterns must be valid regular expressions
+
 ## Cluster Readiness
 To avoid alert noise while a cluster is in the early stages of being installed and configured, this operator waits to configure Pager Duty -- effectively silencing alerts -- until a predetermined set of health checks, performed by [osd-cluster-ready](https://github.com/openshift/osd-cluster-ready/), has completed.
 
@@ -49,17 +94,18 @@ This determination is made through the presence of a completed `Job` named `osd-
 ## Metrics
 The Configure Alertmanager Operator exposes the following Prometheus metrics:
 
-| Metric name                           | Purpose                                                                                               |
-|---------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `ga_secret_exists`                    | indicates that a Secret named `goalert-secret` exists in the `openshift-monitoring` namespace.        |
-| `pd_secret_exists`                    | indicates that a Secret named `pd-secret` exists in the `openshift-monitoring` namespace.             |
-| `dms_secret_exists`                   | indicates that a Secret named `dms-secret` exists in the `openshift-monitoring` namespace.            |
-| `am_secret_exists`                    | indicates that a Secret named `alertmanager-main` exists in the `openshift-monitoring` namespace.     |
-| `managed_namespaces_configmap_exists` | indicates that a ConfigMap named `managed-namespaces` exists in the `openshift-monitoring` namespace. |
-| `ocp_namespaces_configmap_exists`     | indicates that a ConfigMap named `ocp-namespaces` exists in the `openshift-monitoring` namespace.     |
-| `am_secret_contains_ga`               | indicates the GoAlert receiver is present in alertmanager.yaml.                                       |
-| `am_secret_contains_pd`               | indicates the Pager Duty receiver is present in alertmanager.yaml.                                    |
-| `am_secret_contains_dms`              | indicates the Dead Man's Snitch receiver is present in alertmanager.yaml.                             |
+| Metric name                                    | Purpose                                                                                               |
+|------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `ga_secret_exists`                             | indicates that a Secret named `goalert-secret` exists in the `openshift-monitoring` namespace.        |
+| `pd_secret_exists`                             | indicates that a Secret named `pd-secret` exists in the `openshift-monitoring` namespace.             |
+| `dms_secret_exists`                            | indicates that a Secret named `dms-secret` exists in the `openshift-monitoring` namespace.            |
+| `am_secret_exists`                             | indicates that a Secret named `alertmanager-main` exists in the `openshift-monitoring` namespace.     |
+| `managed_namespaces_configmap_exists`          | indicates that a ConfigMap named `managed-namespaces` exists in the `openshift-monitoring` namespace. |
+| `ocp_namespaces_configmap_exists`              | indicates that a ConfigMap named `ocp-namespaces` exists in the `openshift-monitoring` namespace.     |
+| `am_secret_contains_ga`                        | indicates the GoAlert receiver is present in alertmanager.yaml.                                       |
+| `am_secret_contains_pd`                        | indicates the Pager Duty receiver is present in alertmanager.yaml.                                    |
+| `am_secret_contains_dms`                       | indicates the Dead Man's Snitch receiver is present in alertmanager.yaml.                             |
+| `alertmanager_config_validation_failed`        | indicates Alertmanager config validation failed: `1` = failed, `0` = succeeded.                       |
 
 The operator creates a `Service` and `ServiceMonitor` named `configure-alertmanager-operator` to expose these metrics to Prometheus.
 

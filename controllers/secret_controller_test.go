@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -1631,7 +1632,9 @@ func Test_SecretReconciler(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces))
+			if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces)); err != nil {
+				t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
+			}
 		}
 		if tt.dmsExists {
 			wdURL = "https://hjklasdf09876"
@@ -1737,7 +1740,9 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		createClusterVersion(reconciler)
 		createClusterProxy(reconciler)
 
-		writeAlertManagerConfig(reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", defaultNamespaces))
+		if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
+			t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
+		}
 
 		pdKey := "asdfjkl123"
 		dmsURL := "https://hjklasdf09876"
@@ -1794,3 +1799,311 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		assertEquals(t, configExpected.String(), configActual.String(), tt.name)
 	}
 }
+
+// Test_validateAlertManagerConfig_ValidConfig verifies that a valid Alertmanager config passes validation
+func Test_validateAlertManagerConfig_ValidConfig(t *testing.T) {
+	validConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+			PagerdutyURL:   "https://events.pagerduty.com/v2/enqueue",
+		},
+		Route: &alertmanager.Route{
+			Receiver:       "null",
+			GroupByStr:     []string{"alertname"},
+			GroupWait:      "30s",
+			GroupInterval:  "5m",
+			RepeatInterval: "12h",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+		Templates: []string{},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, validConfig)
+	if err != nil {
+		t.Fatalf("Expected validation to pass for valid config, got error: %v", err)
+	}
+}
+
+// Test_validateAlertManagerConfig_InvalidConfig verifies that an invalid config fails validation
+func Test_validateAlertManagerConfig_InvalidConfig(t *testing.T) {
+	// Config with invalid resolve_timeout format
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "invalid-time-format",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected validation to fail for invalid resolve_timeout, but it passed")
+	}
+}
+
+// Test_validateAlertManagerConfig_InvalidLabelNameWithHyphens verifies that label names with hyphens fail validation
+// Regression test for ITN-2025-00331: CAMO generated invalid label "route-to-cad" causing AlertManager failures
+func Test_validateAlertManagerConfig_InvalidLabelNameWithHyphens(t *testing.T) {
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+			PagerdutyURL:   "https://events.pagerduty.com/v2/enqueue",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+			Routes: []*alertmanager.Route{
+				{
+					// Invalid label name with hyphens (Prometheus labels must match [a-zA-Z_][a-zA-Z0-9_]*)
+					Match: map[string]string{
+						"route-to-cad": "true",
+					},
+					Receiver: "cad-pagerduty",
+				},
+			},
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+			{Name: "cad-pagerduty"},
+		},
+		Templates: []string{},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected validation to fail for label name 'route-to-cad' (contains hyphens), but it passed")
+	}
+
+	// Verify error message indicates invalid label name
+	errStr := err.Error()
+	if !strings.Contains(errStr, "invalid label name") && !strings.Contains(errStr, "route-to-cad") {
+		t.Fatalf("Expected error about invalid label name 'route-to-cad', got: %v", err)
+	}
+}
+
+// Test_validateAlertManagerConfig_DuplicateReceiverNames verifies that duplicate receiver names fail validation
+func Test_validateAlertManagerConfig_DuplicateReceiverNames(t *testing.T) {
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "duplicate-name",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "duplicate-name"},
+			{Name: "duplicate-name"}, // Duplicate receiver name
+		},
+		Templates: []string{},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected validation to fail for duplicate receiver names, but it passed")
+	}
+
+	// Verify error message indicates duplicate receiver name
+	errStr := err.Error()
+	if !strings.Contains(errStr, "not unique") && !strings.Contains(errStr, "duplicate") {
+		t.Fatalf("Expected error about duplicate receiver name, got: %v", err)
+	}
+}
+
+// Test_validateAlertManagerConfig_MissingRoute verifies that a config with no route fails validation
+func Test_validateAlertManagerConfig_MissingRoute(t *testing.T) {
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+		},
+		Route: nil, // Missing route
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+		Templates: []string{},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected validation to fail for missing route, but it passed")
+	}
+
+	// Verify error message indicates missing route
+	errStr := err.Error()
+	if !strings.Contains(errStr, "no route") {
+		t.Fatalf("Expected error about missing route, got: %v", err)
+	}
+}
+
+// Test_recordConfigValidationEvent verifies that a Kubernetes event is created when validation fails
+func Test_recordConfigValidationEvent(t *testing.T) {
+	// Create test reconciler with fake client
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create a validation error
+	validationErr := fmt.Errorf("alertmanager config validation failed: invalid label name \"route-to-cad\"")
+
+	// Record the event
+	reconciler.recordConfigValidationEvent(context.Background(), validationErr)
+
+	// Verify event was created
+	eventList := &corev1.EventList{}
+	err := reconciler.Client.List(context.TODO(), eventList, &client.ListOptions{
+		Namespace: "openshift-monitoring",
+	})
+	if err != nil {
+		t.Fatalf("Failed to list events: %v", err)
+	}
+
+	if len(eventList.Items) == 0 {
+		t.Fatal("Expected at least one event to be created, got none")
+	}
+
+	// Find our validation event
+	var validationEvent *corev1.Event
+	for i := range eventList.Items {
+		if eventList.Items[i].Reason == "AlertmanagerConfigValidationFailure" {
+			validationEvent = &eventList.Items[i]
+			break
+		}
+	}
+
+	if validationEvent == nil {
+		t.Fatal("Expected to find AlertmanagerConfigValidationFailure event, but didn't")
+	}
+
+	// Verify event fields
+	if validationEvent.Type != corev1.EventTypeWarning {
+		t.Errorf("Expected event type %s, got %s", corev1.EventTypeWarning, validationEvent.Type)
+	}
+
+	if validationEvent.InvolvedObject.Kind != "Secret" {
+		t.Errorf("Expected InvolvedObject.Kind 'Secret', got '%s'", validationEvent.InvolvedObject.Kind)
+	}
+
+	if validationEvent.InvolvedObject.Name != secretNameAlertmanager {
+		t.Errorf("Expected InvolvedObject.Name '%s', got '%s'", secretNameAlertmanager, validationEvent.InvolvedObject.Name)
+	}
+
+	if validationEvent.InvolvedObject.Namespace != "openshift-monitoring" {
+		t.Errorf("Expected InvolvedObject.Namespace 'openshift-monitoring', got '%s'", validationEvent.InvolvedObject.Namespace)
+	}
+
+	// Verify error message is included in event message
+	if !strings.Contains(validationEvent.Message, validationErr.Error()) {
+		t.Errorf("Expected event message to contain validation error '%s', got: %s", validationErr.Error(), validationEvent.Message)
+	}
+
+	// Verify event message contains actionable guidance
+	if !strings.Contains(validationEvent.Message, "CRITICAL") {
+		t.Error("Expected event message to contain 'CRITICAL'")
+	}
+
+	if !strings.Contains(validationEvent.Message, "Check source configmaps and secrets") {
+		t.Error("Expected event message to contain guidance about checking source configmaps and secrets")
+	}
+}
+
+// Test_writeAlertManagerConfig_ValidationFailure verifies writeAlertManagerConfig returns error when validation fails
+func Test_writeAlertManagerConfig_ValidationFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create invalid config (bad duration format)
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "invalid-time-format",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+	}
+
+	err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected writeAlertManagerConfig to return error for invalid config, but got nil")
+	}
+
+	if !strings.Contains(err.Error(), "alertmanager config validation failed") {
+		t.Errorf("Expected error to mention validation failure, got: %v", err)
+	}
+
+	// Verify secret was not created
+	secret := &corev1.Secret{}
+	objectKey := client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}
+	getErr := reconciler.Client.Get(context.TODO(), objectKey, secret)
+	if getErr == nil {
+		t.Error("Expected secret to not exist after validation failure, but it was created")
+	}
+}
+
+// Test_writeAlertManagerConfig_Success verifies writeAlertManagerConfig succeeds with valid config
+func Test_writeAlertManagerConfig_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create valid config
+	validConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+			PagerdutyURL:   "https://events.pagerduty.com/v2/enqueue",
+		},
+		Route: &alertmanager.Route{
+			Receiver:       "null",
+			GroupByStr:     []string{"alertname"},
+			GroupWait:      "30s",
+			GroupInterval:  "5m",
+			RepeatInterval: "12h",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+		Templates: []string{},
+	}
+
+	err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, validConfig)
+	if err != nil {
+		t.Fatalf("Expected writeAlertManagerConfig to succeed for valid config, got error: %v", err)
+	}
+
+	// Verify secret was created
+	secret := &corev1.Secret{}
+	objectKey := client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}
+	getErr := reconciler.Client.Get(context.TODO(), objectKey, secret)
+	if getErr != nil {
+		t.Fatalf("Expected secret to exist after successful write, got error: %v", getErr)
+	}
+
+	// Verify secret contains the config
+	configData, exists := secret.Data["alertmanager.yaml"]
+	if !exists {
+		t.Fatal("Expected alertmanager.yaml to exist in secret")
+	}
+	if len(configData) == 0 {
+		t.Fatal("Expected alertmanager.yaml to have content")
+	}
+}
+
