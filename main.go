@@ -39,6 +39,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -91,6 +93,26 @@ func main() {
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
+
+		// Cache scoping: Only cache namespaced resources from openshift-monitoring
+		// This reduces memory usage by ~90% (910 MB -> 90 MB on Service Clusters)
+		// by avoiding caching of all cluster-wide secrets/configmaps.
+		// See NAMESPACE_SCOPING_SAFETY_ANALYSIS.md for detailed analysis.
+		Cache: cache.Options{
+			// Only cache namespaced resources (Secrets, ConfigMaps) from openshift-monitoring
+			DefaultNamespaces: map[string]cache.Config{
+				operatorconfig.OperatorNamespace: {}, // "openshift-monitoring"
+			},
+			// Explicitly cache cluster-scoped resources the operator accesses
+			ByObject: map[client.Object]cache.ByObject{
+				// ClusterVersion: watched + accessed via Get() for cluster ID
+				&configv1.ClusterVersion{}: {},
+				// Proxy: accessed via Get() for HTTPS proxy settings (not watched)
+				&configv1.Proxy{}: {},
+				// Infrastructure: accessed via Get() for management cluster detection (not watched)
+				&configv1.Infrastructure{}: {},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -107,10 +129,14 @@ func main() {
 		setupLog.Info("running in fedramp environment.")
 	}
 
-	err = leader.Become(context.TODO(), "configure-alertmanager-operator-lock")
-	if err != nil {
-		setupLog.Error(err, "Failed to retry for leader lock")
-		os.Exit(1)
+	if os.Getenv("SKIP_LEADER_ELECTION") != "true" {
+		err = leader.Become(context.TODO(), "configure-alertmanager-operator-lock")
+		if err != nil {
+			setupLog.Error(err, "Failed to retry for leader lock")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("Skipping leader election (SKIP_LEADER_ELECTION=true)")
 	}
 
 	if err = (&controllers.SecretReconciler{
