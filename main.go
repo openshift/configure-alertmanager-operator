@@ -129,6 +129,17 @@ func main() {
 		setupLog.Info("running in fedramp environment.")
 	}
 
+	// Leader election: Ensures only one active operator instance modifies the cluster
+	// Set SKIP_LEADER_ELECTION=true ONLY for local testing/development with read-only kubeconfig.
+	// Production deployments MUST use leader election to prevent concurrent writes.
+	//
+	// Why skip for local testing:
+	// - leader.Become() requires write permission to create a ConfigMap lock
+	// - Local testing with read-only ServiceAccount would fail at this step
+	// - Allows running operator locally to profile memory usage without cluster write access
+	//
+	// WARNING: Never set SKIP_LEADER_ELECTION=true in production - it allows multiple
+	// operator instances to run simultaneously and make conflicting changes.
 	if os.Getenv("SKIP_LEADER_ELECTION") != "true" {
 		err = leader.Become(context.TODO(), "configure-alertmanager-operator-lock")
 		if err != nil {
