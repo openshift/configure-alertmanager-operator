@@ -13,6 +13,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	utils "github.com/openshift/configure-alertmanager-operator/test/e2e/utils"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	"github.com/openshift/osde2e-common/pkg/clients/prometheus"
 	amconfig "github.com/prometheus/alertmanager/config"
@@ -204,12 +205,10 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 
 			return nil
 		}).
-			WithPolling(10 * time.Second).
-			WithTimeout(2 * time.Minute).
+			WithPolling(10*time.Second).
+			WithTimeout(2*time.Minute).
 			Should(Succeed(), "validation metric should exist and show config is valid")
 	})
-
-
 
 	// Namespace-scoping specific tests
 	// These tests validate that cluster-scoped resources remain accessible
@@ -1199,6 +1198,106 @@ MC Namespaces in alertmanager config: %v
 Alerts from hosted control plane namespaces will be routed correctly.
 `, infraName, foundNamespaces)
 		}
+	})
+
+	Describe("Alertmanager configuration structure", func() {
+		It("has required config structure with global, route, and receivers", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			Expect(configBytes).ShouldNot(BeEmpty(), "alertmanager config is empty")
+
+			_, err = utils.LoadAndValidateAlertmanagerConfig(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "alertmanager config must pass official validation")
+
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+			Expect(cfg.Global).ShouldNot(BeNil(), "config should have global section")
+			Expect(cfg.Route).ShouldNot(BeNil(), "config should have route section")
+			Expect(cfg.Receivers).ShouldNot(BeEmpty(), "config should have at least one receiver")
+		})
+
+		It("contains expected inhibit rules", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+
+			Expect(cfg.InhibitRules).ShouldNot(BeEmpty(), "config should have inhibit rules")
+			// Critical alerts should inhibit warning/info (operator adds this rule)
+			Expect(utils.HasInhibitRuleWithSourceMatch(cfg, "severity", "critical")).To(BeTrue(),
+				"config should have inhibit rule with source_match severity=critical")
+		})
+	})
+
+	Describe("PagerDuty receiver configuration", func() {
+		It("contains pagerduty receiver when pd-secret exists", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+
+			Expect(utils.ReceiverExists(cfg, "pagerduty")).To(BeTrue(),
+				"config should contain pagerduty receiver when pd-secret exists")
+		})
+
+		It("contains PagerDuty severity receivers", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+
+			Expect(utils.ReceiverExists(cfg, "make-it-warning")).To(BeTrue(), "config should contain make-it-warning receiver")
+			Expect(utils.ReceiverExists(cfg, "make-it-error")).To(BeTrue(), "config should contain make-it-error receiver")
+			Expect(utils.ReceiverExists(cfg, "make-it-critical")).To(BeTrue(), "config should contain make-it-critical receiver")
+		})
+
+		It("has global pagerduty_url set", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+
+			Expect(utils.HasGlobalPagerdutyURL(cfg)).To(BeTrue(),
+				"config should have global.pagerduty_url set when PagerDuty is configured")
+		})
+	})
+
+	Describe("Alert routing rules", func() {
+		It("contains null receiver for alert suppression", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+
+			Expect(utils.ReceiverExists(cfg, "null")).To(BeTrue(), "config should contain null receiver for suppression")
+			Expect(utils.RouteTreeContainsReceiver(cfg.Route, "null")).To(BeTrue(),
+				"route tree should contain routes to null receiver")
+		})
+
+		It("route tree includes namespace-based or default routing", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+
+			Expect(cfg.Route).ToNot(BeNil(), "config should have route tree")
+			Expect(cfg.Route.Routes).ToNot(BeEmpty(), "route tree should have sub-routes")
+		})
+
+		It("when ocmagent receiver exists it is present in route tree", func(ctx context.Context) {
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+
+			// When OCM Agent is configured, ocmagent receiver exists and should appear in the route tree.
+			if utils.ReceiverExists(cfg, "ocmagent") {
+				Expect(utils.RouteTreeContainsReceiver(cfg.Route, "ocmagent")).To(BeTrue(),
+					"ocmagent receiver should appear in route tree when configured")
+				Expect(utils.RouteTreeHasMatch(cfg.Route, "send_managed_notification", "true")).To(BeTrue(),
+					"route tree should have match for send_managed_notification=true when OCM Agent is configured")
+			}
+		})
 	})
 
 	PIt("can be upgraded", func(ctx context.Context) {
