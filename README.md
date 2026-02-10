@@ -11,6 +11,7 @@
   - [Metrics](#metrics)
   - [Alerts](#alerts)
   - [Testing](#testing)
+    - [Local Testing Against Remote Cluster](#local-testing-against-remote-cluster)
     - [Building](#building)
     - [Deploying](#deploying)
       - [Prevent Overwrites](#prevent-overwrites)
@@ -117,9 +118,23 @@ The following alerts are added to Prometheus as part of configure-alertmanager-o
 * Alertmanager config secret does not exist.
 
 ## Testing
-Tips for testing on a personal cluster:
+
+### Local Testing Against Remote Cluster
+
+To run the operator locally on your laptop while connecting to a remote OpenShift cluster (for memory profiling, cache testing, or development), see the comprehensive guide:
+
+**[LOCAL_TESTING.md](LOCAL_TESTING.md)** - Complete setup instructions for running operator locally with read-only credentials
+
+This approach uses:
+- Read-only ServiceAccount and RBAC (prevents cluster modifications)
+- `SKIP_LEADER_ELECTION` environment variable (bypasses leader lock creation)
+- Custom kubeconfig with ServiceAccount token
+
+Use cases include memory profiling, cache behavior validation, and testing code changes without rebuilding container images.
 
 ### Building
+
+Tips for testing on a personal cluster:
 You may build (`make docker-build`) and push (`make docker-push`) the operator image to a personal repository by overriding components of the image URI:
 - `IMAGE_REGISTRY` overrides the *registry* (default: `quay.io`)
 - `IMAGE_REPOSITORY` overrides the *organization* (default: `app-sre`)

@@ -2107,3 +2107,273 @@ func Test_writeAlertManagerConfig_Success(t *testing.T) {
 	}
 }
 
+// Namespace-scoping specific tests
+// These tests validate that cluster-scoped resources (ClusterVersion, Proxy, Infrastructure)
+// are accessible when cache is scoped to openshift-monitoring namespace
+
+// Test_getClusterID_NamespaceScoping validates ClusterVersion access works with namespace scoping
+func Test_getClusterID_NamespaceScoping(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	expectedClusterID := "test-cluster-abc123"
+
+	clusterVersion := &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "version",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: configv1.ClusterID(expectedClusterID),
+		},
+	}
+
+	err := reconciler.Client.Create(context.TODO(), clusterVersion)
+	if err != nil {
+		t.Fatalf("Failed to create ClusterVersion: %v", err)
+	}
+
+	clusterID, err := reconciler.getClusterID()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if clusterID != expectedClusterID {
+		t.Fatalf("Expected cluster ID %s, got: %s", expectedClusterID, clusterID)
+	}
+}
+
+// Test_getClusterProxy_NamespaceScoping validates Proxy access works with namespace scoping
+func Test_getClusterProxy_NamespaceScoping(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	expectedProxy := "https://proxy.example.com:8080"
+
+	proxy := &configv1.Proxy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.ProxyStatus{
+			HTTPSProxy: expectedProxy,
+		},
+	}
+
+	err := reconciler.Client.Create(context.TODO(), proxy)
+	if err != nil {
+		t.Fatalf("Failed to create Proxy: %v", err)
+	}
+
+	proxyURL, err := reconciler.getClusterProxy()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if proxyURL != expectedProxy {
+		t.Fatalf("Expected proxy URL %s, got: %s", expectedProxy, proxyURL)
+	}
+}
+
+// Test_getClusterProxy_Empty validates empty proxy handling
+func Test_getClusterProxy_Empty(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	proxy := &configv1.Proxy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.ProxyStatus{
+			HTTPSProxy: "",
+		},
+	}
+
+	err := reconciler.Client.Create(context.TODO(), proxy)
+	if err != nil {
+		t.Fatalf("Failed to create Proxy: %v", err)
+	}
+
+	proxyURL, err := reconciler.getClusterProxy()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if proxyURL != "" {
+		t.Fatalf("Expected empty proxy URL, got: %s", proxyURL)
+	}
+}
+
+// Test_isManagementCluster_NamespaceScoping validates Infrastructure access works with namespace scoping
+func Test_isManagementCluster_NamespaceScoping(t *testing.T) {
+	tests := []struct {
+		name               string
+		infrastructureName string
+		expected           bool
+	}{
+		{
+			name:               "Management cluster with hs-mc prefix",
+			infrastructureName: "hs-mc-ibv8l52c0-d4v8v",
+			expected:           true,
+		},
+		{
+			name:               "Not a management cluster",
+			infrastructureName: "regular-cluster-abc123",
+			expected:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockReadiness := readiness.NewMockInterface(ctrl)
+			reconciler := createReconciler(t, mockReadiness)
+			createNamespace(reconciler, t)
+
+			infra := &configv1.Infrastructure{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: configv1.InfrastructureStatus{
+					InfrastructureName: tt.infrastructureName,
+				},
+			}
+
+			clusterVersion := &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+			}
+
+			err := reconciler.Client.Create(context.TODO(), infra)
+			if err != nil {
+				t.Fatalf("Failed to create Infrastructure: %v", err)
+			}
+
+			err = reconciler.Client.Create(context.TODO(), clusterVersion)
+			if err != nil {
+				t.Fatalf("Failed to create ClusterVersion: %v", err)
+			}
+
+			result, err := reconciler.isManagementCluster()
+			if err != nil {
+				t.Fatalf("Expected no error, got: %v", err)
+			}
+
+			if result != tt.expected {
+				t.Fatalf("Expected isManagementCluster to return %v, got: %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+// Test_parseMCNamespaceConfigMap validates parsing of management cluster additional namespaces
+func Test_parseMCNamespaceConfigMap(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []struct {
+		name               string
+		configMapExists    bool
+		configMapData      string
+		expectedNamespaces []string
+	}{
+		{
+			name:            "Valid MC namespaces",
+			configMapExists: true,
+			configMapData: `Resources:
+  Namespace:
+  - name: 'dedicated-admin'
+  ManagementCluster:
+    AdditionalNamespaces:
+    - name: 'hypershift'
+    - name: 'clusters'
+    - name: 'local-cluster'`,
+			expectedNamespaces: []string{"^hypershift$", "^clusters$", "^local-cluster$"},
+		},
+		{
+			name:               "ConfigMap does not exist",
+			configMapExists:    false,
+			configMapData:      "",
+			expectedNamespaces: []string{},
+		},
+		{
+			name:            "ConfigMap exists but no ManagementCluster section",
+			configMapExists: true,
+			configMapData: `Resources:
+  Namespace:
+  - name: 'dedicated-admin'
+  - name: 'openshift-backplane'`,
+			expectedNamespaces: []string{},
+		},
+		{
+			name:            "ConfigMap exists with empty ManagementCluster.AdditionalNamespaces",
+			configMapExists: true,
+			configMapData: `Resources:
+  Namespace:
+  - name: 'dedicated-admin'
+  ManagementCluster:
+    AdditionalNamespaces: []`,
+			expectedNamespaces: []string{},
+		},
+		{
+			name:            "ConfigMap exists with ManagementCluster but no AdditionalNamespaces field",
+			configMapExists: true,
+			configMapData: `Resources:
+  Namespace:
+  - name: 'dedicated-admin'
+  ManagementCluster: {}`,
+			expectedNamespaces: []string{},
+		},
+		{
+			name:            "Invalid YAML in ConfigMap",
+			configMapExists: true,
+			configMapData:   "This is invalid YAML: [[[",
+			expectedNamespaces: []string{},
+		},
+		{
+			name:            "Single MC namespace",
+			configMapExists: true,
+			configMapData: `Resources:
+  ManagementCluster:
+    AdditionalNamespaces:
+    - name: 'hypershift'`,
+			expectedNamespaces: []string{"^hypershift$"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockReadiness := readiness.NewMockInterface(ctrl)
+			reconciler := createReconciler(t, mockReadiness)
+			createNamespace(reconciler, t)
+
+			if tt.configMapExists {
+				createConfigMap(reconciler, cmNameManagedNamespaces, cmKeyManagedNamespaces, tt.configMapData)
+			}
+
+			cmList := &corev1.ConfigMapList{}
+			err := reconciler.Client.List(context.TODO(), cmList, &client.ListOptions{})
+			if err != nil {
+				t.Fatalf("Could not list ConfigMaps: %v", err)
+			}
+
+			request := createReconcileRequest(reconciler, cmNameManagedNamespaces)
+			namespaceList := reconciler.parseMCNamespaceConfigMap(reqLogger, cmNameManagedNamespaces, request.Namespace, cmList)
+
+			assertEquals(t, tt.expectedNamespaces, namespaceList, fmt.Sprintf("Test case: %s", tt.name))
+		})
+	}
+}
