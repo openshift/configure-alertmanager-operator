@@ -2377,3 +2377,351 @@ func Test_parseMCNamespaceConfigMap(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// Additional Coverage Tests for SREP-3376
+// These tests address uncovered code paths in validation and write operations
+// ============================================================================
+
+// Test_validateAlertManagerConfig_EmptyConfig verifies graceful handling of minimal/empty configs
+func Test_validateAlertManagerConfig_EmptyConfig(t *testing.T) {
+	// Minimal config with only required fields
+	emptyConfig := &alertmanager.Config{
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, emptyConfig)
+	if err != nil {
+		t.Fatalf("Expected validation to pass for minimal config, got error: %v", err)
+	}
+}
+
+// Test_validateAlertManagerConfig_NilConfig verifies handling of nil config
+func Test_validateAlertManagerConfig_NilConfig(t *testing.T) {
+	// This should fail during marshaling or validation
+	err := validateAlertManagerConfig(reqLogger, nil)
+	if err == nil {
+		t.Fatal("Expected validation to fail for nil config, but it passed")
+	}
+}
+
+// Test_writeAlertManagerConfig_SecretDoesNotExist_CreateSucceeds tests the Update->Create fallback path
+func Test_writeAlertManagerConfig_SecretDoesNotExist_CreateSucceeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create a valid config
+	validConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+		Templates: []string{},
+	}
+
+	// Write the config - since secret doesn't exist, it should be created
+	err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, validConfig)
+	if err != nil {
+		t.Fatalf("Expected write to succeed via Create fallback, got error: %v", err)
+	}
+
+	// Verify the secret was created
+	secret := &corev1.Secret{}
+	err = reconciler.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}, secret)
+	if err != nil {
+		t.Fatalf("Expected secret to exist after Create fallback, got error: %v", err)
+	}
+
+	// Verify secret contains the config
+	if len(secret.Data["alertmanager.yaml"]) == 0 {
+		t.Fatal("Expected secret data to contain alertmanager.yaml")
+	}
+}
+
+// Test_writeAlertManagerConfig_UpdateExistingSecret tests updating an existing secret
+func Test_writeAlertManagerConfig_UpdateExistingSecret(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create the secret first
+	initialSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretNameAlertmanager,
+			Namespace: "openshift-monitoring",
+		},
+		Data: map[string][]byte{
+			"alertmanager.yaml": []byte("initial: config"),
+		},
+	}
+	err := reconciler.Client.Create(context.TODO(), initialSecret)
+	if err != nil {
+		t.Fatalf("Failed to create initial secret: %v", err)
+	}
+
+	// Create a valid config
+	validConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+		Templates: []string{},
+	}
+
+	// Write the config - should update existing secret
+	err = writeAlertManagerConfig(context.Background(), reconciler, reqLogger, validConfig)
+	if err != nil {
+		t.Fatalf("Expected write to succeed via Update, got error: %v", err)
+	}
+
+	// Verify the secret was updated
+	secret := &corev1.Secret{}
+	err = reconciler.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}, secret)
+	if err != nil {
+		t.Fatalf("Expected secret to exist after Update, got error: %v", err)
+	}
+
+	// Verify secret was actually updated (should not be initial value)
+	if string(secret.Data["alertmanager.yaml"]) == "initial: config" {
+		t.Fatal("Expected secret to be updated with new config, but it wasn't changed")
+	}
+}
+
+// Test_writeAlertManagerConfig_ValidationFailure_MetricUpdated verifies metric is updated on validation failure
+func Test_writeAlertManagerConfig_ValidationFailure_MetricUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create an invalid config (invalid resolve_timeout)
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "invalid-time-format",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+	}
+
+	// Attempt to write the invalid config
+	err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected write to fail due to validation error, but it succeeded")
+	}
+
+	// Verify error message indicates validation failure
+	if !strings.Contains(err.Error(), "validation failed") {
+		t.Fatalf("Expected error about validation failure, got: %v", err)
+	}
+
+	// Verify the secret was NOT created (validation should prevent write)
+	secret := &corev1.Secret{}
+	err = reconciler.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}, secret)
+	if err == nil {
+		t.Fatal("Expected secret to NOT exist after validation failure, but it does")
+	}
+}
+
+// Test_writeAlertManagerConfig_Success_MetricUpdated verifies metric is updated on success
+func Test_writeAlertManagerConfig_Success_MetricUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create a valid config
+	validConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+		},
+		Templates: []string{},
+	}
+
+	// Write the config
+	err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, validConfig)
+	if err != nil {
+		t.Fatalf("Expected write to succeed, got error: %v", err)
+	}
+
+	// Verify the secret exists and contains valid data
+	secret := &corev1.Secret{}
+	err = reconciler.Client.Get(context.TODO(), client.ObjectKey{
+		Namespace: "openshift-monitoring",
+		Name:      secretNameAlertmanager,
+	}, secret)
+	if err != nil {
+		t.Fatalf("Expected secret to exist after successful write, got error: %v", err)
+	}
+
+	// Verify we can unmarshal the written config
+	var writtenConfig alertmanager.Config
+	err = yaml.Unmarshal(secret.Data["alertmanager.yaml"], &writtenConfig)
+	if err != nil {
+		t.Fatalf("Expected written config to be valid YAML, got error: %v", err)
+	}
+}
+
+// Test_recordConfigValidationEvent_Success verifies event creation succeeds
+func Test_recordConfigValidationEvent_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	// Create a validation error
+	validationErr := fmt.Errorf("alertmanager config validation failed: test error")
+
+	// Record the event (should succeed with fake client)
+	reconciler.recordConfigValidationEvent(context.Background(), validationErr)
+
+	// Verify event was created
+	eventList := &corev1.EventList{}
+	err := reconciler.Client.List(context.TODO(), eventList, &client.ListOptions{
+		Namespace: "openshift-monitoring",
+	})
+	if err != nil {
+		t.Fatalf("Failed to list events: %v", err)
+	}
+
+	// Check that at least one event exists
+	if len(eventList.Items) == 0 {
+		t.Fatal("Expected at least one event to be created, but found none")
+	}
+
+	// Find the validation failure event
+	found := false
+	for _, event := range eventList.Items {
+		if event.Reason == "AlertmanagerConfigValidationFailure" {
+			found = true
+			// Verify event contains error message
+			if !strings.Contains(event.Message, "test error") {
+				t.Fatalf("Expected event message to contain 'test error', got: %s", event.Message)
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Fatal("Expected to find AlertmanagerConfigValidationFailure event, but didn't")
+	}
+}
+
+// Test_validateAlertManagerConfig_ComplexValidConfig verifies complex but valid configs pass
+func Test_validateAlertManagerConfig_ComplexValidConfig(t *testing.T) {
+	complexConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+			PagerdutyURL:   "https://events.pagerduty.com/v2/enqueue",
+		},
+		Route: &alertmanager.Route{
+			Receiver:       "default",
+			GroupByStr:     []string{"alertname", "cluster", "service"},
+			GroupWait:      "30s",
+			GroupInterval:  "5m",
+			RepeatInterval: "12h",
+			Routes: []*alertmanager.Route{
+				{
+					Match: map[string]string{
+						"severity": "critical",
+					},
+					Receiver: "pagerduty",
+				},
+				{
+					Match: map[string]string{
+						"severity": "warning",
+					},
+					Receiver: "slack",
+				},
+			},
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "default"},
+			{Name: "pagerduty"},
+			{Name: "slack"},
+		},
+		Templates: []string{},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, complexConfig)
+	if err != nil {
+		t.Fatalf("Expected validation to pass for complex valid config, got error: %v", err)
+	}
+}
+
+// Test_validateAlertManagerConfig_InvalidRegexInRoute verifies regex validation
+func Test_validateAlertManagerConfig_InvalidRegexInRoute(t *testing.T) {
+	invalidConfig := &alertmanager.Config{
+		Global: &alertmanager.GlobalConfig{
+			ResolveTimeout: "5m",
+		},
+		Route: &alertmanager.Route{
+			Receiver: "null",
+			Routes: []*alertmanager.Route{
+				{
+					MatchRE: map[string]string{
+						"alertname": "[invalid-regex", // Invalid regex
+					},
+					Receiver: "test",
+				},
+			},
+		},
+		Receivers: []*alertmanager.Receiver{
+			{Name: "null"},
+			{Name: "test"},
+		},
+	}
+
+	err := validateAlertManagerConfig(reqLogger, invalidConfig)
+	if err == nil {
+		t.Fatal("Expected validation to fail for invalid regex in route, but it passed")
+	}
+
+	// Verify error indicates regex issue
+	errStr := err.Error()
+	if !strings.Contains(errStr, "error parsing regexp") && !strings.Contains(errStr, "invalid") {
+		t.Fatalf("Expected error about invalid regex, got: %v", err)
+	}
+}
+
