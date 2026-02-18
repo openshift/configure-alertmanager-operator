@@ -47,3 +47,7 @@ spec:
               value: "configure-alertmanager-operator"
             - name: FEDRAMP
               value: "false"
+          resources:
+            limits:
+              cpu: "200m"
+              memory: "1Gi"
