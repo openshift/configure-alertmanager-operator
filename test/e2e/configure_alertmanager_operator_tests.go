@@ -1300,6 +1300,368 @@ Alerts from hosted control plane namespaces will be routed correctly.
 		})
 	})
 
+	// ========================================================================
+	// Reconciliation and secret lifecycle tests
+	// ========================================================================
+	Describe("Reconciliation and secret lifecycle", Ordered, func() {
+		const (
+			reconcileTimeout  = 2 * time.Minute
+			reconcileInterval = 5 * time.Second
+		)
+
+		// --- 1.1 PagerDuty reconciliation ---
+		Context("PagerDuty secret reconciliation", func() {
+			It("pd-secret exists and config has pagerduty receiver", func(ctx context.Context) {
+				Expect(utils.SecretExists(ctx, client, "pd-secret", namespace)).To(BeTrue(),
+					"pd-secret should exist in namespace %s", namespace)
+
+				configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+				Expect(err).ShouldNot(HaveOccurred())
+				cfg, err := utils.ParseConfigMinimal(configBytes)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(utils.ReceiverExists(cfg, "pagerduty")).To(BeTrue(),
+					"config should contain pagerduty receiver when pd-secret exists")
+
+				query := `am_secret_contains_pd{name="configure-alertmanager-operator"}`
+				Eventually(ctx, func(ctx context.Context) error {
+					results, err := prom.InstantQuery(ctx, query)
+					if err != nil {
+						return fmt.Errorf("prometheus query failed: %w", err)
+					}
+					if len(results) == 0 {
+						return fmt.Errorf("metric not found: %s", query)
+					}
+					if int(results[0].Value) != 1 {
+						return fmt.Errorf("expected am_secret_contains_pd=1, got %d", int(results[0].Value))
+					}
+					return nil
+				}).WithPolling(10 * time.Second).WithTimeout(reconcileTimeout).Should(Succeed())
+			})
+
+			It("updating PAGERDUTY_KEY triggers config update", func(ctx context.Context) {
+				backup, err := utils.BackupSecret(ctx, client, "pd-secret", namespace)
+				Expect(err).ShouldNot(HaveOccurred(), "failed to backup pd-secret")
+				DeferCleanup(func(ctx context.Context) {
+					err := utils.RestoreSecret(ctx, client, backup)
+					Expect(err).ShouldNot(HaveOccurred(), "failed to restore pd-secret")
+					// Wait for operator to reconcile back to original
+					Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "pagerduty")).
+						WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).Should(Succeed())
+				})
+
+				testKey := "test-pagerduty-key-e2e-rotation"
+				err = utils.UpdateSecretKey(ctx, client, "pd-secret", namespace, "PAGERDUTY_KEY", []byte(testKey))
+				Expect(err).ShouldNot(HaveOccurred(), "failed to update PAGERDUTY_KEY")
+
+				Eventually(ctx, utils.WaitForPagerdutyRoutingKey(ctx, client, namespace, testKey)).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "pagerduty receiver should reflect updated PAGERDUTY_KEY")
+			})
+		})
+
+		// --- 1.2 DMS/Watchdog reconciliation ---
+		Context("DMS secret reconciliation", func() {
+			It("dms-secret exists and config has watchdog receiver", func(ctx context.Context) {
+				Expect(utils.SecretExists(ctx, client, "dms-secret", namespace)).To(BeTrue(),
+					"dms-secret should exist in namespace %s", namespace)
+
+				configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+				Expect(err).ShouldNot(HaveOccurred())
+				cfg, err := utils.ParseConfigMinimal(configBytes)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(utils.ReceiverExists(cfg, "watchdog")).To(BeTrue(),
+					"config should contain watchdog receiver when dms-secret exists")
+
+				query := `am_secret_contains_dms{name="configure-alertmanager-operator"}`
+				Eventually(ctx, func(ctx context.Context) error {
+					results, err := prom.InstantQuery(ctx, query)
+					if err != nil {
+						return fmt.Errorf("prometheus query failed: %w", err)
+					}
+					if len(results) == 0 {
+						return fmt.Errorf("metric not found: %s", query)
+					}
+					if int(results[0].Value) != 1 {
+						return fmt.Errorf("expected am_secret_contains_dms=1, got %d", int(results[0].Value))
+					}
+					return nil
+				}).WithPolling(10 * time.Second).WithTimeout(reconcileTimeout).Should(Succeed())
+			})
+
+			It("updating SNITCH_URL triggers config update", func(ctx context.Context) {
+				backup, err := utils.BackupSecret(ctx, client, "dms-secret", namespace)
+				Expect(err).ShouldNot(HaveOccurred(), "failed to backup dms-secret")
+				DeferCleanup(func(ctx context.Context) {
+					err := utils.RestoreSecret(ctx, client, backup)
+					Expect(err).ShouldNot(HaveOccurred(), "failed to restore dms-secret")
+					Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "watchdog")).
+						WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).Should(Succeed())
+				})
+
+				testURL := "https://test-snitch-url.example.com"
+				err = utils.UpdateSecretKey(ctx, client, "dms-secret", namespace, "SNITCH_URL", []byte(testURL))
+				Expect(err).ShouldNot(HaveOccurred(), "failed to update SNITCH_URL")
+
+				Eventually(ctx, utils.WaitForWebhookURL(ctx, client, namespace, "watchdog", testURL)).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "watchdog receiver should reflect updated SNITCH_URL")
+			})
+		})
+
+		// --- 1.3 GoAlert reconciliation ---
+		Context("GoAlert secret reconciliation", func() {
+			// Track whether we created the secret so cleanup knows whether to delete it
+			var goalertCreatedByTest bool
+			var goalertBackup *v1.Secret
+
+			BeforeEach(func(ctx context.Context) {
+				goalertCreatedByTest = false
+				goalertBackup = nil
+
+				if utils.SecretExists(ctx, client, "goalert-secret", namespace) {
+					// Secret already exists; back it up for restore
+					backup, err := utils.BackupSecret(ctx, client, "goalert-secret", namespace)
+					Expect(err).ShouldNot(HaveOccurred(), "failed to backup existing goalert-secret")
+					goalertBackup = backup
+				} else {
+					// Create the secret so the operator can reconcile GoAlert receivers
+					goalertCreatedByTest = true
+					err := utils.CreateSecret(ctx, client, "goalert-secret", namespace, map[string][]byte{
+						"GOALERT_URL_LOW":   []byte("https://goalert-e2e-low.example.com"),
+						"GOALERT_URL_HIGH":  []byte("https://goalert-e2e-high.example.com"),
+						"GOALERT_HEARTBEAT": []byte("https://goalert-e2e-heartbeat.example.com"),
+					})
+					Expect(err).ShouldNot(HaveOccurred(), "failed to create goalert-secret for test")
+				}
+			})
+
+			AfterEach(func(ctx context.Context) {
+				if goalertCreatedByTest {
+					// We created it; delete it and wait for receivers to disappear
+					err := utils.DeleteSecret(ctx, client, "goalert-secret", namespace)
+					Expect(err).ShouldNot(HaveOccurred(), "failed to delete test-created goalert-secret")
+					Eventually(ctx, utils.WaitForReceiverAbsent(ctx, client, namespace, "goalert")).
+						WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).Should(Succeed())
+				} else if goalertBackup != nil {
+					// Restore original
+					err := utils.RestoreSecret(ctx, client, goalertBackup)
+					Expect(err).ShouldNot(HaveOccurred(), "failed to restore goalert-secret")
+					Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "goalert")).
+						WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).Should(Succeed())
+				}
+			})
+
+			It("goalert-secret exists and config has goalert receivers", func(ctx context.Context) {
+				// Wait for operator to reconcile the goalert receivers
+				Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "goalert")).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "goalert receiver should appear after goalert-secret exists")
+				Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "goalert-high")).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "goalert-high receiver should appear after goalert-secret exists")
+
+				query := `am_secret_contains_ga{name="configure-alertmanager-operator"}`
+				Eventually(ctx, func(ctx context.Context) error {
+					results, err := prom.InstantQuery(ctx, query)
+					if err != nil {
+						return fmt.Errorf("prometheus query failed: %w", err)
+					}
+					if len(results) == 0 {
+						return fmt.Errorf("metric not found: %s", query)
+					}
+					if int(results[0].Value) != 1 {
+						return fmt.Errorf("expected am_secret_contains_ga=1, got %d", int(results[0].Value))
+					}
+					return nil
+				}).WithPolling(10 * time.Second).WithTimeout(reconcileTimeout).Should(Succeed())
+			})
+
+			It("updating GoAlert URLs triggers config update", func(ctx context.Context) {
+				// Ensure receivers exist before updating
+				Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "goalert")).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).Should(Succeed())
+
+				testURLLow := "https://test-goalert-low-rotated.example.com"
+				testURLHigh := "https://test-goalert-high-rotated.example.com"
+				err := utils.UpdateSecretKey(ctx, client, "goalert-secret", namespace, "GOALERT_URL_LOW", []byte(testURLLow))
+				Expect(err).ShouldNot(HaveOccurred(), "failed to update GOALERT_URL_LOW")
+				err = utils.UpdateSecretKey(ctx, client, "goalert-secret", namespace, "GOALERT_URL_HIGH", []byte(testURLHigh))
+				Expect(err).ShouldNot(HaveOccurred(), "failed to update GOALERT_URL_HIGH")
+
+				Eventually(ctx, utils.WaitForWebhookURL(ctx, client, namespace, "goalert", testURLLow)).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "goalert receiver should reflect updated GOALERT_URL_LOW")
+				Eventually(ctx, utils.WaitForWebhookURL(ctx, client, namespace, "goalert-high", testURLHigh)).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "goalert-high receiver should reflect updated GOALERT_URL_HIGH")
+			})
+		})
+
+		// --- 1.4 OCM Agent ConfigMap reconciliation ---
+		Context("OCM Agent ConfigMap reconciliation", func() {
+			It("ocm-agent ConfigMap with valid serviceURL produces ocmagent receiver", func(ctx context.Context) {
+				if !utils.ConfigMapExists(ctx, client, "ocm-agent", namespace) {
+					Skip("ocm-agent ConfigMap does not exist on this cluster")
+				}
+
+				configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+				Expect(err).ShouldNot(HaveOccurred())
+				cfg, err := utils.ParseConfigMinimal(configBytes)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(utils.ReceiverExists(cfg, "ocmagent")).To(BeTrue(),
+					"config should contain ocmagent receiver when ocm-agent ConfigMap exists")
+			})
+
+			It("updating ocm-agent serviceURL triggers config update", func(ctx context.Context) {
+				if !utils.ConfigMapExists(ctx, client, "ocm-agent", namespace) {
+					Skip("ocm-agent ConfigMap does not exist on this cluster")
+				}
+
+				backup, err := utils.BackupConfigMap(ctx, client, "ocm-agent", namespace)
+				Expect(err).ShouldNot(HaveOccurred(), "failed to backup ocm-agent ConfigMap")
+				DeferCleanup(func(ctx context.Context) {
+					err := utils.RestoreConfigMap(ctx, client, backup)
+					Expect(err).ShouldNot(HaveOccurred(), "failed to restore ocm-agent ConfigMap")
+					Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "ocmagent")).
+						WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).Should(Succeed())
+				})
+
+				testURL := "https://test-ocmagent-service.example.com/alertmanager-receiver"
+				err = utils.UpdateConfigMapKey(ctx, client, "ocm-agent", namespace, "serviceURL", testURL)
+				Expect(err).ShouldNot(HaveOccurred(), "failed to update ocm-agent serviceURL")
+
+				Eventually(ctx, utils.WaitForWebhookURL(ctx, client, namespace, "ocmagent", testURL)).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "ocmagent receiver should reflect updated serviceURL")
+			})
+		})
+
+		// --- 1.5 Secret deletion reconciliation ---
+		Context("Secret deletion reconciliation", func() {
+			It("deleting pd-secret removes pagerduty receiver from config", func(ctx context.Context) {
+				backup, err := utils.BackupSecret(ctx, client, "pd-secret", namespace)
+				Expect(err).ShouldNot(HaveOccurred(), "failed to backup pd-secret")
+				DeferCleanup(func(ctx context.Context) {
+					err := utils.RestoreSecret(ctx, client, backup)
+					Expect(err).ShouldNot(HaveOccurred(), "failed to restore pd-secret after deletion test")
+					Eventually(ctx, utils.WaitForReceiverPresent(ctx, client, namespace, "pagerduty")).
+						WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+						Should(Succeed(), "pagerduty receiver should reappear after pd-secret restore")
+				})
+
+				err = utils.DeleteSecret(ctx, client, "pd-secret", namespace)
+				Expect(err).ShouldNot(HaveOccurred(), "failed to delete pd-secret")
+
+				Eventually(ctx, utils.WaitForReceiverAbsent(ctx, client, namespace, "pagerduty")).
+					WithPolling(reconcileInterval).WithTimeout(reconcileTimeout).
+					Should(Succeed(), "pagerduty receiver should be removed after pd-secret deletion")
+			})
+		})
+	})
+
+	// --- Reconciliation metrics ---
+	Describe("Reconciliation metrics", func() {
+		It("secret existence metrics reflect cluster state", func(ctx context.Context) {
+			type metricCheck struct {
+				query      string
+				secretName string
+				isSecret   bool // true=secret, false=configmap-derived
+			}
+
+			checks := []metricCheck{
+				{query: `pd_secret_exists{name="configure-alertmanager-operator"}`, secretName: "pd-secret", isSecret: true},
+				{query: `dms_secret_exists{name="configure-alertmanager-operator"}`, secretName: "dms-secret", isSecret: true},
+				{query: `am_secret_exists{name="configure-alertmanager-operator"}`, secretName: "alertmanager-main", isSecret: true},
+			}
+
+			for _, check := range checks {
+				check := check
+				exists := utils.SecretExists(ctx, client, check.secretName, namespace)
+				expectedValue := 0
+				if exists {
+					expectedValue = 1
+				}
+
+				Eventually(ctx, func(ctx context.Context) error {
+					results, err := prom.InstantQuery(ctx, check.query)
+					if err != nil {
+						return fmt.Errorf("prometheus query %q failed: %w", check.query, err)
+					}
+					if len(results) == 0 {
+						return fmt.Errorf("metric not found: %s", check.query)
+					}
+					if int(results[0].Value) != expectedValue {
+						return fmt.Errorf("expected %s=%d (secret exists=%v), got %d",
+							check.query, expectedValue, exists, int(results[0].Value))
+					}
+					return nil
+				}).WithPolling(10*time.Second).WithTimeout(2*time.Minute).Should(Succeed(),
+					"metric %s should reflect secret existence", check.query)
+			}
+
+			// GoAlert secret may or may not exist
+			gaExists := utils.SecretExists(ctx, client, "goalert-secret", namespace)
+			gaExpected := 0
+			if gaExists {
+				gaExpected = 1
+			}
+			gaQuery := `ga_secret_exists{name="configure-alertmanager-operator"}`
+			Eventually(ctx, func(ctx context.Context) error {
+				results, err := prom.InstantQuery(ctx, gaQuery)
+				if err != nil {
+					return fmt.Errorf("prometheus query failed: %w", err)
+				}
+				if len(results) == 0 {
+					return fmt.Errorf("metric not found: %s", gaQuery)
+				}
+				if int(results[0].Value) != gaExpected {
+					return fmt.Errorf("expected ga_secret_exists=%d, got %d", gaExpected, int(results[0].Value))
+				}
+				return nil
+			}).WithPolling(10 * time.Second).WithTimeout(2 * time.Minute).Should(Succeed())
+
+			// Check "contains" metrics match receiver presence
+			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+			Expect(err).ShouldNot(HaveOccurred())
+			cfg, err := utils.ParseConfigMinimal(configBytes)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			containsChecks := []struct {
+				query        string
+				receiverName string
+			}{
+				{query: `am_secret_contains_pd{name="configure-alertmanager-operator"}`, receiverName: "pagerduty"},
+				{query: `am_secret_contains_dms{name="configure-alertmanager-operator"}`, receiverName: "watchdog"},
+				{query: `am_secret_contains_ga{name="configure-alertmanager-operator"}`, receiverName: "goalert"},
+			}
+
+			for _, check := range containsChecks {
+				check := check
+				receiverPresent := utils.ReceiverExists(cfg, check.receiverName)
+				expectedValue := 0
+				if receiverPresent {
+					expectedValue = 1
+				}
+
+				Eventually(ctx, func(ctx context.Context) error {
+					results, err := prom.InstantQuery(ctx, check.query)
+					if err != nil {
+						return fmt.Errorf("prometheus query %q failed: %w", check.query, err)
+					}
+					if len(results) == 0 {
+						return fmt.Errorf("metric not found: %s", check.query)
+					}
+					if int(results[0].Value) != expectedValue {
+						return fmt.Errorf("expected %s=%d (receiver %q present=%v), got %d",
+							check.query, expectedValue, check.receiverName, receiverPresent, int(results[0].Value))
+					}
+					return nil
+				}).WithPolling(10*time.Second).WithTimeout(2*time.Minute).Should(Succeed(),
+					"metric %s should match receiver %q presence", check.query, check.receiverName)
+			}
+		})
+	})
+
 	PIt("can be upgraded", func(ctx context.Context) {
 		log.SetLogger(GinkgoLogr)
 		k8sClient, err := openshift.New(ginkgo.GinkgoLogr)
