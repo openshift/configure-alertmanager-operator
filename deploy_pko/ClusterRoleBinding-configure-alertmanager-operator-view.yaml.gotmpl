@@ -1,0 +1,14 @@
+apiVersion: authorization.openshift.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: configure-alertmanager-operator-view
+  annotations:
+    package-operator.run/phase: rbac
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: configure-alertmanager-operator-view
+subjects:
+- kind: ServiceAccount
+  name: configure-alertmanager-operator
+  namespace: openshift-monitoring
