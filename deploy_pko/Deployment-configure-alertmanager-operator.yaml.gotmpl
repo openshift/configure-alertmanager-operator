@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configure-alertmanager-operator
+  namespace: openshift-monitoring
+  annotations:
+    package-operator.run/phase: deploy
+    package-operator.run/collision-protection: IfNoController
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: configure-alertmanager-operator
+  template:
+    metadata:
+      labels:
+        name: configure-alertmanager-operator
+      annotations:
+        openshift.io/required-scc: restricted-v2
+    spec:
+      serviceAccountName: configure-alertmanager-operator
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/infra
+                operator: Exists
+            weight: 1
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/infra
+        operator: Exists
+      containers:
+      - name: configure-alertmanager-operator
+        image: '{{ .config.image }}'
+        command:
+        - configure-alertmanager-operator
+        imagePullPolicy: Always
+        env:
+        - name: WATCH_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: configure-alertmanager-operator
+        - name: FEDRAMP
+          value: 'false'
+        resources:
+          limits:
+            cpu: 200m
+            memory: 1Gi
