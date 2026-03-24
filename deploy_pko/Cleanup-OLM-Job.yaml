@@ -32,10 +32,39 @@ rules:
     resources:
       - clusterserviceversions
       - subscriptions
+      - catalogsources
     verbs:
       - list
       - get
       - watch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    resourceNames:
+      - configure-alertmanager-operator
+    verbs:
+      - get
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: olm-cleanup-configure-alertmanager-operator
+  annotations:
+    package-operator.run/phase: cleanup-rbac
+    package-operator.run/collision-protection: IfNoController
+rules:
+  # Permission to delete CAMO-specific ClusterRoleBinding
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterrolebindings
+    resourceNames:
+      - configure-alertmanager-operator-prom
+    verbs:
+      - get
       - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -49,6 +78,22 @@ metadata:
 roleRef:
   kind: Role
   name: olm-cleanup
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: olm-cleanup
+    namespace: openshift-monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: olm-cleanup-configure-alertmanager-operator
+  annotations:
+    package-operator.run/phase: cleanup-rbac
+    package-operator.run/collision-protection: IfNoController
+roleRef:
+  kind: ClusterRole
+  name: olm-cleanup-configure-alertmanager-operator
   apiGroup: rbac.authorization.k8s.io
 subjects:
   - kind: ServiceAccount
@@ -82,15 +127,27 @@ spec:
             - |
               #!/bin/sh
               set -euxo pipefail
-              # CUSTOMIZE: Update the label selector for your operator
-              # Example pattern: operators.coreos.com/OPERATOR_NAME.NAMESPACE
+
+              # Clean up OLM resources for configure-alertmanager-operator
+              # Use fully-qualified resource names (subscription.operators.coreos.com, catalogsource.operators.coreos.com)
+              # to explicitly target the OLM API group and avoid ambiguity
+
+              # Delete ClusterServiceVersion
               oc -n openshift-monitoring delete csv -l "operators.coreos.com/configure-alertmanager-operator.openshift-monitoring" || true
-              
-              # CUSTOMIZE: Add any additional cleanup logic here
-              # Examples:
-              # - Delete subscriptions
-              # - Delete operator groups
-              # - Clean up custom resources
+
+              # Delete Subscription
+              oc -n openshift-monitoring delete subscription.operators.coreos.com configure-alertmanager-operator || true
+
+              # Delete CatalogSource
+              oc -n openshift-monitoring delete catalogsource.operators.coreos.com configure-alertmanager-operator-registry || true
+
+              # Delete CAMO-specific ClusterRoleBinding (allows PKO to recreate it)
+              oc delete clusterrolebinding configure-alertmanager-operator-prom || true
+
+              # Delete CAMO ServiceAccount (allows PKO to recreate it without Hive labels)
+              oc -n openshift-monitoring delete serviceaccount configure-alertmanager-operator || true
+
+              # Note: OperatorGroup not deleted - CAMO uses existing openshift-monitoring OperatorGroup
           resources:
             requests:
               cpu: 100m

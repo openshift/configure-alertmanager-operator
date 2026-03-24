@@ -16,6 +16,9 @@ parameters:
   - name: REPO_NAME
     value: configure-alertmanager-operator
     required: true
+  - name: FEDRAMP
+    value: "false"
+    required: false
 metadata:
   name: selectorsyncset-template
 objects:
@@ -43,3 +46,4 @@ objects:
             image: ${PKO_IMAGE}:${IMAGE_TAG}
             config:
               image: ${OPERATOR_IMAGE}:${IMAGE_TAG}
+              fedramp: ${FEDRAMP}

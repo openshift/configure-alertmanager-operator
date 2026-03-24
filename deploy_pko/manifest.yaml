@@ -32,5 +32,9 @@ spec:
         image:
           description: Operator image to deploy
           type: string
-          default: None
-        type: object
+          default: ""
+        fedramp:
+          description: FedRAMP mode flag
+          type: string
+          default: "false"
+      type: object
