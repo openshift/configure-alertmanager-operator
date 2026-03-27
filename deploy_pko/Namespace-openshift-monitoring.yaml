@@ -1,0 +1,15 @@
+---
+# This Namespace resource ensures the operator namespace exists
+# Uses collision-protection to prevent conflicts with existing namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-monitoring
+  labels:
+    openshift.io/cluster-monitoring: "true"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    package-operator.run/phase: namespace
+    package-operator.run/collision-protection: IfNoController
