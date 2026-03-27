@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Template
+parameters:
+  - name: CHANNEL
+    required: false
+  - name: OPERATOR_IMAGE
+    required: true
+  - name: PKO_IMAGE
+    required: true
+  - name: IMAGE_TAG
+    required: true
+  - name: IMAGE_DIGEST
+    required: true
+  - name: NAMESPACE
+    value: openshift-monitoring
+  - name: REPO_NAME
+    value: configure-alertmanager-operator
+    required: true
+  - name: FEDRAMP
+    value: "false"
+    required: false
+metadata:
+  name: clusterpackage-direct-template
+objects:
+  - apiVersion: package-operator.run/v1alpha1
+    kind: ClusterPackage
+    metadata:
+      name: "${REPO_NAME}"
+      annotations:
+        package-operator.run/collision-protection: IfNoController
+    spec:
+      image: ${PKO_IMAGE}:${IMAGE_TAG}
+      config:
+        image: ${OPERATOR_IMAGE}:${IMAGE_TAG}
+        fedramp: ${FEDRAMP}
