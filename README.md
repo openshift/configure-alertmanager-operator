@@ -200,3 +200,4 @@ For example, to ensure the osd-cluster-ready Job is checked in a cluster less th
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
 ```
+
