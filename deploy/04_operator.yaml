@@ -51,3 +51,4 @@ spec:
             limits:
               cpu: "200m"
               memory: "1Gi"
+          terminationMessagePolicy: FallbackToLogsOnError
