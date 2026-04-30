@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
@@ -35,6 +36,7 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		client           *resources.Resources
 		dynamicClient    dynamic.Interface
 		prom             *prometheus.Client
+		amClient         *utils.AlertmanagerClient
 		secrets          = []string{"pd-secret", "dms-secret"}
 		serviceAccounts  = []string{"configure-alertmanager-operator"}
 		deploymentMethod string // "olm", "pko", "both", or "unknown"
@@ -59,12 +61,18 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		dynamicClient, err = dynamic.NewForConfig(cfg)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to configure Dynamic client")
 
+		kubeClient, err := kubernetes.NewForConfig(cfg)
+		Expect(err).ShouldNot(HaveOccurred(), "failed to create kubernetes client")
+
 		// Create openshift client locally for prometheus client setup
 		k8s, err := openshift.New(GinkgoLogr)
 		Expect(err).ShouldNot(HaveOccurred(), "unable to setup openshift client")
 
 		prom, err = prometheus.New(ctx, k8s)
 		Expect(err).ShouldNot(HaveOccurred(), "unable to setup prometheus client")
+
+		amClient, err = utils.NewAlertmanagerClient(ctx, dynamicClient, kubeClient, cfg)
+		Expect(err).ShouldNot(HaveOccurred(), "unable to setup alertmanager client")
 
 		// Detect deployment method (OLM, PKO, both, or unknown)
 		deploymentMethod = detectDeploymentMethod(ctx, dynamicClient, namespace, operatorName)
@@ -1349,6 +1357,64 @@ Alerts from hosted control plane namespaces will be routed correctly.
 				Expect(utils.RouteTreeHasMatch(cfg.Route, "send_managed_notification", "true")).To(BeTrue(),
 					"route tree should have match for send_managed_notification=true when OCM Agent is configured")
 			}
+		})
+	})
+
+	Describe("Alertmanager inhibition behavior", func() {
+		It("ClusterOperatorDegraded inhibits ClusterOperatorDown via synthetic alerts", func(ctx context.Context) {
+			sourceAlert := utils.AlertmanagerV2PostAlert{
+				Labels: map[string]string{
+					"alertname": "ClusterOperatorDegraded",
+					"name":      "camo-inhibit-test",
+					"namespace": "camo-inhibit-test",
+					"severity":  "critical",
+				},
+				Annotations: map[string]string{
+					"summary": "Synthetic alert for CAMO inhibition test",
+				},
+			}
+			targetAlert := utils.AlertmanagerV2PostAlert{
+				Labels: map[string]string{
+					"alertname": "ClusterOperatorDown",
+					"name":      "camo-inhibit-test",
+					"namespace": "camo-inhibit-test",
+					"severity":  "critical",
+				},
+				Annotations: map[string]string{
+					"summary": "Synthetic alert for CAMO inhibition test",
+				},
+			}
+
+			DeferCleanup(func(ctx context.Context) {
+				_ = amClient.ResolveAlerts(ctx, []utils.AlertmanagerV2PostAlert{sourceAlert, targetAlert})
+			})
+
+			ginkgo.By("Injecting synthetic source alert (ClusterOperatorDegraded)")
+			err := amClient.PostAlerts(ctx, []utils.AlertmanagerV2PostAlert{sourceAlert})
+			Expect(err).NotTo(HaveOccurred(), "failed to post source alert")
+
+			ginkgo.By("Injecting synthetic target alert (ClusterOperatorDown)")
+			err = amClient.PostAlerts(ctx, []utils.AlertmanagerV2PostAlert{targetAlert})
+			Expect(err).NotTo(HaveOccurred(), "failed to post target alert")
+
+			ginkgo.By("Verifying ClusterOperatorDown is inhibited via Alertmanager v2 API")
+			Eventually(ctx, func() error {
+				alerts, err := amClient.GetAlertsByName(ctx, "ClusterOperatorDown", "camo-inhibit-test")
+				if err != nil {
+					return fmt.Errorf("failed to query alertmanager: %w", err)
+				}
+				if len(alerts) == 0 {
+					return fmt.Errorf("ClusterOperatorDown not yet present in Alertmanager")
+				}
+				for _, alert := range alerts {
+					if alert.Status.State == "suppressed" {
+						return nil
+					}
+					return fmt.Errorf("ClusterOperatorDown state=%q, expected suppressed", alert.Status.State)
+				}
+				return nil
+			}, 10*time.Second, 1*time.Second).Should(Succeed(),
+				"ClusterOperatorDown should be suppressed by ClusterOperatorDegraded")
 		})
 	})
 

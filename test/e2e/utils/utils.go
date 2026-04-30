@@ -1,16 +1,33 @@
 package utils
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/onsi/gomega"
 	amconfig "github.com/prometheus/alertmanager/config"
 	"gopkg.in/yaml.v2"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport"
 	"sigs.k8s.io/e2e-framework/klient/k8s/resources"
 )
 
@@ -405,4 +422,255 @@ func WaitForResourceVersionChange(ctx context.Context, client *resources.Resourc
 		g.Expect(rv).ShouldNot(gomega.Equal(previousVersion),
 			"alertmanager-main resourceVersion should have changed after reconciliation")
 	}
+}
+
+// --- Alertmanager v2 API client ---
+
+// AlertmanagerV2AlertStatus holds the status fields from the Alertmanager v2 API.
+type AlertmanagerV2AlertStatus struct {
+	State       string   `json:"state"`
+	InhibitedBy []string `json:"inhibitedBy"`
+}
+
+// AlertmanagerV2Alert holds the fields from the Alertmanager v2 API needed for e2e testing.
+type AlertmanagerV2Alert struct {
+	Labels map[string]string         `json:"labels"`
+	Status AlertmanagerV2AlertStatus `json:"status"`
+}
+
+// AlertmanagerClient provides access to the Alertmanager v2 API on an OpenShift cluster.
+// GET requests use the external route; POST requests exec into each alertmanager pod
+// directly to avoid load-balancing issues (alerts posted via the API are not gossiped
+// between peers).
+type AlertmanagerClient struct {
+	baseURL    string
+	httpClient *http.Client
+	kubeClient kubernetes.Interface
+	restConfig *rest.Config
+}
+
+// NewAlertmanagerClient creates an AlertmanagerClient by discovering the alertmanager-main
+// route and setting up bearer token authentication with the cluster's router CA.
+func NewAlertmanagerClient(ctx context.Context, dynClient dynamic.Interface, kubeClient kubernetes.Interface, restConfig *rest.Config) (*AlertmanagerClient, error) {
+	routeGVR := schema.GroupVersionResource{
+		Group:    "route.openshift.io",
+		Version:  "v1",
+		Resource: "routes",
+	}
+	route, err := dynClient.Resource(routeGVR).Namespace("openshift-monitoring").Get(ctx, "alertmanager-main", metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get alertmanager-main route: %w", err)
+	}
+	ingress, found, err := unstructured.NestedSlice(route.Object, "status", "ingress")
+	if err != nil || !found || len(ingress) == 0 {
+		return nil, fmt.Errorf("alertmanager-main route has no ingress status")
+	}
+	var host string
+	for _, entry := range ingress {
+		entryMap, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		conditions, _, _ := unstructured.NestedSlice(entryMap, "conditions")
+		admitted := false
+		for _, cond := range conditions {
+			condMap, ok := cond.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			condType, _, _ := unstructured.NestedString(condMap, "type")
+			condStatus, _, _ := unstructured.NestedString(condMap, "status")
+			if condType == "Admitted" && condStatus == "True" {
+				admitted = true
+				break
+			}
+		}
+		if !admitted {
+			continue
+		}
+		h, found, _ := unstructured.NestedString(entryMap, "host")
+		if found && h != "" {
+			host = h
+			break
+		}
+	}
+	if host == "" {
+		return nil, fmt.Errorf("alertmanager-main route has no admitted ingress with a host")
+	}
+
+	expirationSeconds := int64(24 * time.Hour / time.Second)
+	tokenReq, err := kubeClient.CoreV1().ServiceAccounts("openshift-monitoring").CreateToken(ctx, "prometheus-k8s",
+		&authenticationv1.TokenRequest{
+			Spec: authenticationv1.TokenRequestSpec{ExpirationSeconds: &expirationSeconds},
+		}, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token for prometheus-k8s SA: %w", err)
+	}
+
+	routerCAConfigMap, err := kubeClient.CoreV1().ConfigMaps("openshift-config-managed").Get(ctx, "default-ingress-cert", metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get router CA configmap: %w", err)
+	}
+	bundlePEM := []byte(routerCAConfigMap.Data["ca-bundle.crt"])
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(bundlePEM) {
+		return nil, fmt.Errorf("failed to parse any certificates from router CA bundle")
+	}
+
+	httpClient := &http.Client{
+		Transport: transport.NewBearerAuthRoundTripper(
+			tokenReq.Status.Token,
+			&http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+				TLSHandshakeTimeout: 10 * time.Second,
+				TLSClientConfig: &tls.Config{
+					RootCAs:    roots,
+					ServerName: host,
+					MinVersion: tls.VersionTLS12,
+				},
+			},
+		),
+	}
+
+	return &AlertmanagerClient{
+		baseURL:    "https://" + host,
+		httpClient: httpClient,
+		kubeClient: kubeClient,
+		restConfig: restConfig,
+	}, nil
+}
+
+// GetAlerts queries the Alertmanager v2 API for alerts matching the given filters.
+// Filters use the Alertmanager filter syntax, e.g. `alertname="ClusterOperatorDown"`.
+func (c *AlertmanagerClient) GetAlerts(ctx context.Context, filters ...string) ([]AlertmanagerV2Alert, error) {
+	u, err := url.Parse(c.baseURL + "/api/v2/alerts")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse alertmanager URL: %w", err)
+	}
+	q := u.Query()
+	for _, f := range filters {
+		q.Add("filter", f)
+	}
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("alertmanager request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		preview, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return nil, fmt.Errorf("alertmanager returned status %d: %s", resp.StatusCode, string(preview))
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read alertmanager response: %w", err)
+	}
+
+	var alerts []AlertmanagerV2Alert
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		return nil, fmt.Errorf("failed to parse alertmanager response: %w", err)
+	}
+	return alerts, nil
+}
+
+// GetAlertsByName returns alerts from the Alertmanager v2 API matching the given
+// alertname and optional name label.
+func (c *AlertmanagerClient) GetAlertsByName(ctx context.Context, alertname, name string) ([]AlertmanagerV2Alert, error) {
+	filters := []string{fmt.Sprintf(`alertname="%s"`, alertname)}
+	if name != "" {
+		filters = append(filters, fmt.Sprintf(`name="%s"`, name))
+	}
+	return c.GetAlerts(ctx, filters...)
+}
+
+// AlertmanagerV2PostAlert is the payload for posting synthetic alerts to the Alertmanager v2 API.
+type AlertmanagerV2PostAlert struct {
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	EndsAt      string            `json:"endsAt,omitempty"`
+}
+
+// PostAlerts sends synthetic alerts to every alertmanager pod via exec.
+// Alerts posted to the Alertmanager API are not gossiped between peers,
+// so we must post to each pod individually to ensure the alert is visible
+// regardless of which pod handles subsequent GET requests.
+func (c *AlertmanagerClient) PostAlerts(ctx context.Context, alerts []AlertmanagerV2PostAlert) error {
+	body, err := json.Marshal(alerts)
+	if err != nil {
+		return fmt.Errorf("failed to marshal alerts: %w", err)
+	}
+
+	pods, err := c.kubeClient.CoreV1().Pods("openshift-monitoring").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=alertmanager",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list alertmanager pods: %w", err)
+	}
+
+	for _, pod := range pods.Items {
+		if err := c.execCurlPost(ctx, pod.Name, body); err != nil {
+			return fmt.Errorf("failed to post alerts to %s: %w", pod.Name, err)
+		}
+	}
+	return nil
+}
+
+func (c *AlertmanagerClient) execCurlPost(ctx context.Context, podName string, jsonBody []byte) error {
+	req := c.kubeClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace("openshift-monitoring").
+		SubResource("exec").
+		VersionedParams(&v1.PodExecOptions{
+			Container: "alertmanager",
+			Command: []string{
+				"curl", "-sf",
+				"-X", "POST",
+				"-H", "Content-Type: application/json",
+				"-d", string(jsonBody),
+				"http://localhost:9093/api/v2/alerts",
+			},
+			Stdout: true,
+			Stderr: true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(c.restConfig, "POST", req.URL())
+	if err != nil {
+		return fmt.Errorf("failed to create executor: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}); err != nil {
+		return fmt.Errorf("exec failed (stderr: %s): %w", stderr.String(), err)
+	}
+	return nil
+}
+
+// ResolveAlerts resolves previously posted synthetic alerts by setting endsAt to the past.
+func (c *AlertmanagerClient) ResolveAlerts(ctx context.Context, alerts []AlertmanagerV2PostAlert) error {
+	resolved := make([]AlertmanagerV2PostAlert, len(alerts))
+	past := time.Now().Add(-1 * time.Minute).UTC().Format(time.RFC3339)
+	for i, a := range alerts {
+		resolved[i] = AlertmanagerV2PostAlert{
+			Labels:      a.Labels,
+			Annotations: a.Annotations,
+			EndsAt:      past,
+		}
+	}
+	return c.PostAlerts(ctx, resolved)
 }
