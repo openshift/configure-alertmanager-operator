@@ -37,6 +37,12 @@ spec:
           description: FedRAMP mode flag
           type: string
           default: "false"
+        version:
+          description: Operator version tag for resource naming
+          type: string
+          default: "0000000"
+          pattern: "^[a-z0-9][a-z0-9.-]*$"
+          maxLength: 51
       type: object
 test:
   template:
@@ -49,6 +55,7 @@ test:
       config:
         image: "quay.io/example/configure-alertmanager-operator:test"
         fedramp: "false"
+        version: "testabc123"
   - name: fedramp
     context:
       package:
@@ -58,3 +65,4 @@ test:
       config:
         image: "quay.io/example/configure-alertmanager-operator:test"
         fedramp: "true"
+        version: "testabc123"

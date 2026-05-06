@@ -33,3 +33,4 @@ objects:
       config:
         image: ${OPERATOR_IMAGE}:${IMAGE_TAG}
         fedramp: ${FEDRAMP}
+        version: ${IMAGE_TAG}
