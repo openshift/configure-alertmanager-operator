@@ -45,6 +45,8 @@ spec:
           maxLength: 51
       type: object
 test:
+  kubeconform:
+    kubernetesVersion: v1.28.2
   template:
   - name: default
     context:

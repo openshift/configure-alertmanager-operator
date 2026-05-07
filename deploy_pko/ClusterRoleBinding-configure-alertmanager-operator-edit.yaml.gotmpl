@@ -4,6 +4,7 @@ metadata:
   name: configure-alertmanager-operator-edit
   annotations:
     package-operator.run/phase: rbac
+    package-operator.run/collision-protection: IfNoController
 roleRef:
   kind: ClusterRole
   apiGroup: rbac.authorization.k8s.io
