@@ -741,7 +741,7 @@ func Test_parseConfigMaps(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Generate aggregate list of example namespaces
-	var validNamespaces []string //nolint:prealloc
+	var validNamespaces []string
 	validNamespaces = append(validNamespaces, exampleManagedNamespaces...)
 	validNamespaces = append(validNamespaces, exampleOCPNamespaces...)
 

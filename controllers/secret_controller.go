@@ -615,7 +615,7 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 		return []*alertmanager.Receiver{}
 	}
 
-	receivers := []*alertmanager.Receiver{ //nolint:prealloc
+	receivers := []*alertmanager.Receiver{
 		{
 			Name:             receiverPagerduty,
 			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)},
