@@ -5,6 +5,7 @@ metadata:
   namespace: openshift-monitoring
   annotations:
     package-operator.run/phase: rbac
+    package-operator.run/collision-protection: IfNoController
 rules:
 - apiGroups:
   - ''

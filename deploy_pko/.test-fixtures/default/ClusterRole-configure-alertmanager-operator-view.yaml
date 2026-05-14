@@ -4,6 +4,7 @@ metadata:
   name: configure-alertmanager-operator-view
   annotations:
     package-operator.run/phase: rbac
+    package-operator.run/collision-protection: IfNoController
 rules:
 - apiGroups:
   - ''
