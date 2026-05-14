@@ -10,7 +10,7 @@ Run pre-commit hooks on this repository following the agentic SDLC golden rules 
 ### Step 1 — Preflight checks
 
 1. Confirm `.pre-commit-config.yaml` exists in the repo root. If not, tell the user and stop.
-2. Confirm `pre-commit` is installed: run `which pre-commit`. If not found, run `pip install pre-commit` or `pip3 install pre-commit`.
+2. Confirm `pre-commit` is installed: run `which pre-commit`. If not found, inform the user that they need to install it and stop.
 3. Confirm hooks are installed: check if `.git/hooks/pre-commit` exists. If not, run `pre-commit install`.
 
 ### Step 2 — Run hooks

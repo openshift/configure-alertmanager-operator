@@ -172,9 +172,9 @@ func (impl *Impl) setPromAPI() error {
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			TLSClientConfig: &tls.Config{
-				MinVersion:         tls.VersionTLS12,
-			        // disable "G402 (CWE-295): TLS InsecureSkipVerify set true."
-			        // #nosec G402
+				MinVersion: tls.VersionTLS12,
+				// disable "G402 (CWE-295): TLS InsecureSkipVerify set true."
+				// #nosec G402
 				InsecureSkipVerify: true,
 			},
 			TLSHandshakeTimeout: 10 * time.Second,
@@ -212,7 +212,10 @@ func (impl *Impl) setClusterCreationTime() error {
 	}
 
 	log.Info(fmt.Sprintf("DEBUG: Result of type %s:\n%s\n", result.Type().String(), result.String()))
-	resultVec := result.(model.Vector)
+	resultVec, ok := result.(model.Vector)
+	if !ok {
+		return fmt.Errorf("expected result to be a model.Vector, got %T", result)
+	}
 	earliest := time.Time{}
 	for i := 0; i < resultVec.Len(); i++ {
 		thisTime := time.Unix(int64(resultVec[i].Value), 0)
@@ -248,7 +251,7 @@ func getEnvInt(key string, def int) (int, error) {
 	}
 
 	if intVal, err = strconv.Atoi(strVal); err != nil {
-		return 0, fmt.Errorf("invalid value for env var: %s=%s (expected int): %v", key, strVal, err)
+		return 0, fmt.Errorf("invalid value for env var: %s=%s (expected int): %w", key, strVal, err)
 	}
 
 	return intVal, nil

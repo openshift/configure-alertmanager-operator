@@ -741,7 +741,7 @@ func Test_parseConfigMaps(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Generate aggregate list of example namespaces
-	var validNamespaces []string
+	var validNamespaces []string //nolint:prealloc
 	validNamespaces = append(validNamespaces, exampleManagedNamespaces...)
 	validNamespaces = append(validNamespaces, exampleOCPNamespaces...)
 
@@ -2338,9 +2338,9 @@ func Test_parseMCNamespaceConfigMap(t *testing.T) {
 			expectedNamespaces: []string{},
 		},
 		{
-			name:            "Invalid YAML in ConfigMap",
-			configMapExists: true,
-			configMapData:   "This is invalid YAML: [[[",
+			name:               "Invalid YAML in ConfigMap",
+			configMapExists:    true,
+			configMapData:      "This is invalid YAML: [[[",
 			expectedNamespaces: []string{},
 		},
 		{
@@ -2724,4 +2724,3 @@ func Test_validateAlertManagerConfig_InvalidRegexInRoute(t *testing.T) {
 		t.Fatalf("Expected error about invalid regex, got: %v", err)
 	}
 }
-

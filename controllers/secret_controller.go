@@ -615,7 +615,7 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 		return []*alertmanager.Receiver{}
 	}
 
-	receivers := []*alertmanager.Receiver{
+	receivers := []*alertmanager.Receiver{ //nolint:prealloc
 		{
 			Name:             receiverPagerduty,
 			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)},
@@ -1156,7 +1156,7 @@ func (r *SecretReconciler) isManagementCluster() (bool, error) {
 	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "version"}, &version)
 	if err != nil {
 		// If we can't get the ClusterVersion, don't fail - just return false
-		return false, nil
+		return false, nil //nolint:nilerr
 	}
 
 	// Check if cluster version has hypershift annotations
@@ -1244,7 +1244,7 @@ func readCMKey(r *SecretReconciler, reqLogger logr.Logger, cmName string, cmName
 	if err != nil {
 		reqLogger.Error(err, "Error: Failed to retrieve configMap", "Name", cmName)
 	}
-	return string(configMap.Data[fieldName])
+	return configMap.Data[fieldName]
 }
 
 // readSecretKey fetches the data from a Secret, such as a PagerDuty API key.
