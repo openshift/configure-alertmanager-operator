@@ -422,6 +422,7 @@ func createSubroutes(namespaceList []string, receiver receiverType) *alertmanage
 		// For detail explanation, please check https://issues.redhat.com/browse/OSD-17371
 		// vector alerts
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterLogForwarderRuntimeConfigurationMissingUnmatched", "namespace": "openshift-logging"}},
+		{Receiver: receiverNull, Match: map[string]string{"alertname": "ClusterLogForwarderOutputErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorNodeDown", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorHighErrorRate", "namespace": "openshift-logging"}},
 		{Receiver: receiverNull, Match: map[string]string{"alertname": "CollectorVeryHighErrorRate", "namespace": "openshift-logging"}},
