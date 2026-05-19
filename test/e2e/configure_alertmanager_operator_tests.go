@@ -1291,34 +1291,37 @@ Alerts from hosted control plane namespaces will be routed correctly.
 
 	Describe("PagerDuty receiver configuration", func() {
 		It("contains pagerduty receiver when pd-secret exists", func(ctx context.Context) {
-			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
-			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
-			cfg, err := utils.ParseConfigMinimal(configBytes)
-			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
-
-			Expect(utils.ReceiverExists(cfg, "pagerduty")).To(BeTrue(),
-				"config should contain pagerduty receiver when pd-secret exists")
+			Eventually(ctx, func(g Gomega) {
+				configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+				cfg, err := utils.ParseConfigMinimal(configBytes)
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+				g.Expect(utils.ReceiverExists(cfg, "pagerduty")).To(BeTrue(),
+					"config should contain pagerduty receiver when pd-secret exists")
+			}, 30*time.Second, 10*time.Second).Should(Succeed())
 		})
 
 		It("contains PagerDuty severity receivers", func(ctx context.Context) {
-			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
-			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
-			cfg, err := utils.ParseConfigMinimal(configBytes)
-			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
-
-			Expect(utils.ReceiverExists(cfg, "make-it-warning")).To(BeTrue(), "config should contain make-it-warning receiver")
-			Expect(utils.ReceiverExists(cfg, "make-it-error")).To(BeTrue(), "config should contain make-it-error receiver")
-			Expect(utils.ReceiverExists(cfg, "make-it-critical")).To(BeTrue(), "config should contain make-it-critical receiver")
+			Eventually(ctx, func(g Gomega) {
+				configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+				cfg, err := utils.ParseConfigMinimal(configBytes)
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+				g.Expect(utils.ReceiverExists(cfg, "make-it-warning")).To(BeTrue(), "config should contain make-it-warning receiver")
+				g.Expect(utils.ReceiverExists(cfg, "make-it-error")).To(BeTrue(), "config should contain make-it-error receiver")
+				g.Expect(utils.ReceiverExists(cfg, "make-it-critical")).To(BeTrue(), "config should contain make-it-critical receiver")
+			}, 30*time.Second, 10*time.Second).Should(Succeed())
 		})
 
 		It("has global pagerduty_url set", func(ctx context.Context) {
-			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
-			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
-			cfg, err := utils.ParseConfigMinimal(configBytes)
-			Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
-
-			Expect(utils.HasGlobalPagerdutyURL(cfg)).To(BeTrue(),
-				"config should have global.pagerduty_url set when PagerDuty is configured")
+			Eventually(ctx, func(g Gomega) {
+				configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
+				cfg, err := utils.ParseConfigMinimal(configBytes)
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to parse alertmanager config")
+				g.Expect(utils.HasGlobalPagerdutyURL(cfg)).To(BeTrue(),
+					"config should have global.pagerduty_url set when PagerDuty is configured")
+			}, 30*time.Second, 10*time.Second).Should(Succeed())
 		})
 	})
 
