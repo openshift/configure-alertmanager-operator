@@ -7,6 +7,7 @@ package osde2etests
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -53,18 +54,36 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 
 		cfg, err := config.GetConfig()
 		Expect(err).Should(BeNil(), "failed to get kubeconfig")
+
+		if impersonateUser := os.Getenv("E2E_IMPERSONATE_USER"); impersonateUser != "" {
+			GinkgoLogr.Info("Impersonating user from E2E_IMPERSONATE_USER", "user", impersonateUser)
+			cfg.Impersonate.UserName = impersonateUser
+		}
+
 		client, err = resources.New(cfg)
 		Expect(err).Should(BeNil(), "resources.New error")
 
 		dynamicClient, err = dynamic.NewForConfig(cfg)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to configure Dynamic client")
 
-		// Create openshift client locally for prometheus client setup
 		k8s, err := openshift.New(GinkgoLogr)
-		Expect(err).ShouldNot(HaveOccurred(), "unable to setup openshift client")
-
-		prom, err = prometheus.New(ctx, k8s)
-		Expect(err).ShouldNot(HaveOccurred(), "unable to setup prometheus client")
+		if err != nil {
+			if os.Getenv("E2E_READ_ONLY") == "true" {
+				GinkgoLogr.Info("OpenShift client unavailable (read-only mode) - metric tests will be skipped", "error", err)
+			} else {
+				Expect(err).ShouldNot(HaveOccurred(), "unable to setup openshift client")
+			}
+		} else {
+			prom, err = prometheus.New(ctx, k8s)
+			if err != nil {
+				if os.Getenv("E2E_READ_ONLY") == "true" {
+					GinkgoLogr.Info("Prometheus client unavailable (read-only mode) - metric tests will be skipped", "error", err)
+					prom = nil
+				} else {
+					Expect(err).ShouldNot(HaveOccurred(), "unable to setup prometheus client")
+				}
+			}
+		}
 
 		// Detect deployment method (OLM, PKO, both, or unknown)
 		deploymentMethod = detectDeploymentMethod(ctx, dynamicClient, namespace, operatorName)
@@ -72,7 +91,7 @@ var _ = Describe("Configure AlertManager Operator", Ordered, func() {
 		GinkgoWriter.Printf("Deployment method: %s\n", deploymentMethod)
 	})
 	// Validate deployment method and ensure only one method is active
-	It("has valid deployment method and correct resources", func(ctx context.Context) {
+	It("has valid deployment method and correct resources", Label("read-only"), func(ctx context.Context) {
 		switch deploymentMethod {
 		case "both":
 			Fail(`CRITICAL: Both OLM and PKO deployment artifacts detected simultaneously!
@@ -140,19 +159,19 @@ POSSIBLE CAUSES:
 		}
 	})
 
-	It("service accounts exist", func(ctx context.Context) {
+	It("service accounts exist", Label("read-only"), func(ctx context.Context) {
 		for _, serviceAccount := range serviceAccounts {
 			err := client.Get(ctx, serviceAccount, namespace, &v1.ServiceAccount{})
 			Expect(err).ShouldNot(HaveOccurred(), "Service account %s not found", serviceAccount)
 		}
 	})
 
-	It("deployment exists", func(ctx context.Context) {
+	It("deployment exists", Label("read-only"), func(ctx context.Context) {
 		err := wait.For(conditions.New(client).DeploymentAvailable(operatorName, namespace))
 		Expect(err).ShouldNot(HaveOccurred(), "Deployment %s not available", operatorName)
 	})
 
-	It("roles exist", func(ctx context.Context) {
+	It("roles exist", Label("read-only"), func(ctx context.Context) {
 		if deploymentMethod == "olm" {
 			var roles rbacv1.RoleList
 			err := client.WithNamespace(namespace).List(ctx, &roles, resources.WithLabelSelector(labelSelector))
@@ -164,7 +183,7 @@ POSSIBLE CAUSES:
 		}
 	})
 
-	It("role bindings exist", func(ctx context.Context) {
+	It("role bindings exist", Label("read-only"), func(ctx context.Context) {
 		if deploymentMethod == "olm" {
 			var roleBindings rbacv1.RoleBindingList
 			err := client.WithNamespace(namespace).List(ctx, &roleBindings, resources.WithLabelSelector(labelSelector))
@@ -176,7 +195,7 @@ POSSIBLE CAUSES:
 		}
 	})
 
-	It("cluster roles exist", func(ctx context.Context) {
+	It("cluster roles exist", Label("read-only"), func(ctx context.Context) {
 		if deploymentMethod == "olm" {
 			var clusterRoles rbacv1.ClusterRoleList
 			err := client.WithNamespace(namespace).List(ctx, &clusterRoles, resources.WithLabelSelector(labelSelector))
@@ -190,7 +209,7 @@ POSSIBLE CAUSES:
 		}
 	})
 
-	It("cluster role bindings exist", func(ctx context.Context) {
+	It("cluster role bindings exist", Label("read-only"), func(ctx context.Context) {
 		if deploymentMethod == "olm" {
 			var clusterRoleBindings rbacv1.ClusterRoleBindingList
 			err := client.List(ctx, &clusterRoleBindings, resources.WithLabelSelector(labelSelector))
@@ -204,19 +223,19 @@ POSSIBLE CAUSES:
 		}
 	})
 
-	It("config map exists", func(ctx context.Context) {
+	It("config map exists", Label("read-only"), func(ctx context.Context) {
 		err := client.Get(ctx, configMapLockFile, namespace, &v1.ConfigMap{})
 		Expect(err).ShouldNot(HaveOccurred(), "Failed to get config map %s", configMapLockFile)
 	})
 
-	It("secrets exist", func(ctx context.Context) {
+	It("secrets exist", Label("read-only"), func(ctx context.Context) {
 		for _, secret := range secrets {
 			err := client.Get(ctx, secret, namespace, &v1.Secret{})
 			Expect(err).ShouldNot(HaveOccurred(), "Secret %s not found", secret)
 		}
 	})
 
-	It("alertmanager-main secret contains valid configuration", func(ctx context.Context) {
+	It("alertmanager-main secret contains valid configuration", Label("read-only"), func(ctx context.Context) {
 		// Get the alertmanager-main secret from openshift-monitoring
 		var secret v1.Secret
 		err := client.Get(ctx, "alertmanager-main", namespace, &secret)
@@ -233,7 +252,10 @@ POSSIBLE CAUSES:
 		Expect(err).ShouldNot(HaveOccurred(), "alertmanager config validation failed: %v", err)
 	})
 
-	It("validation metric exists and shows config is valid", func(ctx context.Context) {
+	It("validation metric exists and shows config is valid", Label("read-only"), func(ctx context.Context) {
+		if prom == nil {
+			Skip("Prometheus client unavailable - skipping metric test")
+		}
 		// Query the alertmanager_config_validation_failed metric
 		// Metric value: 0 = validation succeeded, 1 = validation failed
 		query := `alertmanager_config_validation_failed{name="configure-alertmanager-operator"}`
@@ -266,7 +288,7 @@ POSSIBLE CAUSES:
 	// These tests validate that cluster-scoped resources remain accessible
 	// when the operator cache is scoped to openshift-monitoring namespace
 
-	It("can access ClusterVersion cluster-scoped resource", func(ctx context.Context) {
+	It("can access ClusterVersion cluster-scoped resource", Label("read-only"), func(ctx context.Context) {
 		ginkgo.By("Verifying operator can read ClusterVersion despite namespace-scoped cache")
 
 		// ClusterVersion is a cluster-scoped resource that the operator needs for:
@@ -394,7 +416,7 @@ ClusterVersion spec: %+v
 		GinkgoLogr.Info("ClusterVersion access verified", "clusterID", clusterID)
 	})
 
-	It("can access Proxy cluster-scoped resource", func(ctx context.Context) {
+	It("can access Proxy cluster-scoped resource", Label("read-only"), func(ctx context.Context) {
 		ginkgo.By("Verifying operator can read cluster Proxy configuration")
 
 		// Proxy is a cluster-scoped resource that the operator needs for:
@@ -523,7 +545,7 @@ NEXT STEPS:
 		}
 	})
 
-	It("can access Infrastructure cluster-scoped resource", func(ctx context.Context) {
+	It("can access Infrastructure cluster-scoped resource", Label("read-only"), func(ctx context.Context) {
 		ginkgo.By("Verifying operator can read Infrastructure and detect cluster type")
 
 		// Infrastructure is a cluster-scoped resource that the operator needs for:
@@ -723,7 +745,7 @@ If ConfigMap is intentionally missing, this warning can be ignored.
 		}
 	})
 
-	It("operator pod memory usage is within expected limits", func(ctx context.Context) {
+	It("operator pod memory usage is within expected limits", Label("read-only"), func(ctx context.Context) {
 		ginkgo.By("Verifying namespace scoping reduces operator memory footprint")
 
 		// With namespace scoping, the operator should use significantly less memory
@@ -875,7 +897,7 @@ Current Pod: %s (Age: %s)
 		)
 	})
 
-	It("routes alerts for management cluster namespaces when on MC cluster", func(ctx context.Context) {
+	It("routes alerts for management cluster namespaces when on MC cluster", Label("read-only"), func(ctx context.Context) {
 		ginkgo.By("Checking if this is a HyperShift Management Cluster")
 
 		// First, determine if this is a management cluster
@@ -1252,7 +1274,7 @@ Alerts from hosted control plane namespaces will be routed correctly.
 		}
 	})
 
-	Describe("Alertmanager configuration structure", func() {
+	Describe("Alertmanager configuration structure", Label("read-only"), func() {
 		It("has required config structure with global, route, and receivers", func(ctx context.Context) {
 			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
 			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
@@ -1281,7 +1303,7 @@ Alerts from hosted control plane namespaces will be routed correctly.
 		})
 	})
 
-	Describe("PagerDuty receiver configuration", func() {
+	Describe("PagerDuty receiver configuration", Label("read-only"), func() {
 		It("contains pagerduty receiver when pd-secret exists", func(ctx context.Context) {
 			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
 			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
@@ -1314,7 +1336,7 @@ Alerts from hosted control plane namespaces will be routed correctly.
 		})
 	})
 
-	Describe("Alert routing rules", func() {
+	Describe("Alert routing rules", Label("read-only"), func() {
 		It("contains null receiver for alert suppression", func(ctx context.Context) {
 			configBytes, err := utils.GetAlertmanagerConfigBytes(ctx, client, namespace)
 			Expect(err).ShouldNot(HaveOccurred(), "failed to get alertmanager config from secret")
@@ -1355,7 +1377,11 @@ Alerts from hosted control plane namespaces will be routed correctly.
 	// ========================================================================
 	// Reconciliation and secret lifecycle tests
 	// ========================================================================
-	Describe("Reconciliation and secret lifecycle", Ordered, func() {
+	// Some tests in this group are read-only (existence checks, metric queries) but are
+	// labeled mutating because they are ordered prerequisites for the mutating tests that
+	// follow, and the GoAlert Context uses a BeforeEach that creates/backs up secrets.
+	// Moving them out would require a larger refactor of the Ordered test structure.
+	Describe("Reconciliation and secret lifecycle", Label("mutating"), Ordered, func() {
 		const (
 			reconcileTimeout  = 2 * time.Minute
 			reconcileInterval = 5 * time.Second
@@ -1612,8 +1638,11 @@ Alerts from hosted control plane namespaces will be routed correctly.
 	})
 
 	// --- Reconciliation metrics ---
-	Describe("Reconciliation metrics", func() {
+	Describe("Reconciliation metrics", Label("read-only"), func() {
 		It("secret existence metrics reflect cluster state", func(ctx context.Context) {
+			if prom == nil {
+				Skip("Prometheus client unavailable - skipping metric test")
+			}
 			type metricCheck struct {
 				query      string
 				secretName string
