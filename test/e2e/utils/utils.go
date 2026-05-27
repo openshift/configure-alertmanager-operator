@@ -518,15 +518,17 @@ func NewAlertmanagerClient(ctx context.Context, dynClient dynamic.Interface, kub
 	}
 
 	httpClient := &http.Client{
+		Timeout: 5 * time.Second,
 		Transport: transport.NewBearerAuthRoundTripper(
 			tokenReq.Status.Token,
 			&http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				DialContext: (&net.Dialer{
-					Timeout:   30 * time.Second,
+					Timeout:   5 * time.Second,
 					KeepAlive: 30 * time.Second,
 				}).DialContext,
-				TLSHandshakeTimeout: 10 * time.Second,
+				TLSHandshakeTimeout:   5 * time.Second,
+				ResponseHeaderTimeout: 5 * time.Second,
 				TLSClientConfig: &tls.Config{
 					RootCAs:    roots,
 					ServerName: host,
