@@ -1407,7 +1407,7 @@ Alerts from hosted control plane namespaces will be routed correctly.
 					return fmt.Errorf("ClusterOperatorDown not yet present in Alertmanager")
 				}
 				for _, alert := range alerts {
-					if alert.Status.State == "suppressed" {
+					if alert.Status.State == "suppressed" && len(alert.Status.InhibitedBy) > 0 {
 						return nil
 					}
 					return fmt.Errorf("ClusterOperatorDown state=%q, expected suppressed", alert.Status.State)
