@@ -82,7 +82,7 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/openshift/client-go v0.0.0-20260512113608-deb4dc54551a // indirect
-	github.com/openshift/library-go v0.0.0-20260526221523-b67ee3926ad5 // indirect
+	github.com/openshift/library-go v0.0.0-20260527152424-3ad832f9a5a5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
