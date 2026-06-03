@@ -88,9 +88,9 @@ Failed validation events include:
 - **Invalid regex patterns**: MatchRE patterns must be valid regular expressions
 
 ## Cluster Readiness
-To avoid alert noise while a cluster is in the early stages of being installed and configured, this operator waits to configure Pager Duty -- effectively silencing alerts -- until a predetermined set of health checks, performed by [osd-cluster-ready](https://github.com/openshift/osd-cluster-ready/), has completed.
+To avoid alert noise while a cluster is in the early stages of being installed and configured, this operator waits to configure Pager Duty -- effectively silencing alerts -- until all ClusterOperators have stopped progressing (`Progressing=false`).
 
-This determination is made through the presence of a completed `Job` named `osd-cluster-ready` in the `openshift-monitoring` namespace.
+As a fallback, if the cluster is older than `MAX_CLUSTER_AGE_MINUTES` (default: 90 minutes), the operator declares the cluster ready regardless of ClusterOperator state. This is measured from the cluster's initial creation time, and since ROSA Classic clusters take ~45 minutes to install, the fallback only fires if ClusterOperators remain unhealthy for ~45 minutes after install completes.
 
 ## Metrics
 The Configure Alertmanager Operator exposes the following Prometheus metrics:
