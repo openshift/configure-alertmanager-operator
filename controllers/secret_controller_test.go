@@ -953,6 +953,21 @@ func Test_createPagerdutyRoute(t *testing.T) {
 	verifyPagerdutyRoute(t, route, defaultNamespaces)
 }
 
+func Test_createPagerdutyRoute_etcdDatabaseQuotaLowSpace(t *testing.T) {
+	route := createSubroutes(defaultNamespaces, Pagerduty)
+
+	found := false
+	for _, r := range route.Routes {
+		if r.Receiver == receiverMakeItCritical &&
+			r.Match["alertname"] == "etcdDatabaseQuotaLowSpace" &&
+			r.Match["severity"] == "warning" {
+			found = true
+			break
+		}
+	}
+	assertTrue(t, found, "No route to escalate etcdDatabaseQuotaLowSpace warning to critical")
+}
+
 func Test_createGoalertSubroute(t *testing.T) {
 	// test the structure of the Route is sane
 	route := createSubroutes(defaultNamespaces, GoAlert)
