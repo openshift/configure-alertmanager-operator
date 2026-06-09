@@ -263,6 +263,11 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		reqLogger.Error(err, "Error reading cluster id.")
 	}
 
+	clusterRegion, err := r.getClusterRegion(ctx)
+	if err != nil {
+		reqLogger.Error(err, "Error reading cluster region.")
+	}
+
 	alertmanagerconfig := createAlertManagerConfig(reqLogger,
 		pagerdutyRoutingKey,
 		cadPagerdutyRoutingKey,
@@ -272,6 +277,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		watchdogURL,
 		ocmAgentURL,
 		clusterID,
+		clusterRegion,
 		clusterProxy,
 		osdNamespaces)
 
@@ -566,7 +572,7 @@ func createOCMAgentReceiver(ocmAgentURL string) []*alertmanager.Receiver {
 }
 
 // createPagerdutyConfig creates an AlertManager PagerdutyConfig for PagerDuty in memory.
-func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy string) *alertmanager.PagerdutyConfig {
+func createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterRegion string, clusterProxy string) *alertmanager.PagerdutyConfig {
 	detailsMap := map[string]string{
 		"alert_name":   `{{ .CommonLabels.alertname }}`,
 		"link":         `{{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else if .CommonAnnotations.link }}{{ .CommonAnnotations.link }}{{ else if .CommonLabels.link }}{{ .CommonLabels.link }}{{ else }}https://github.com/openshift/ops-sop/tree/master/v4/alerts/{{ .CommonLabels.alertname }}.md{{ end }}`,
@@ -575,6 +581,7 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy s
 		"num_resolved": `{{ .Alerts.Resolved | len }}`,
 		"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 		"cluster_id":   clusterID,
+		"region":       clusterRegion,
 	}
 	clientURL := `{{ template "pagerduty.default.clientURL" . }}`
 
@@ -582,6 +589,7 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy s
 		detailsMap["ocm_link"] = ``
 		detailsMap["resolved"] = ``
 		detailsMap["cluster_id"] = ``
+		detailsMap["region"] = ``
 		detailsMap["firing"] = ``
 
 		// The default value contains the cluster name which is considered sensitive
@@ -600,7 +608,7 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID string, clusterProxy s
 	}
 }
 
-func createCADPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
+func createCADPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterRegion string, clusterProxy string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -608,13 +616,13 @@ func createCADPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterP
 	return []*alertmanager.Receiver{
 		{
 			Name:             receiverCADPagerduty,
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)},
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterRegion, clusterProxy)},
 		},
 	}
 }
 
 // createPagerdutyReceivers creates an AlertManager Receiver for PagerDuty in memory.
-func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProxy string) []*alertmanager.Receiver {
+func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterRegion string, clusterProxy string) []*alertmanager.Receiver {
 	if pagerdutyRoutingKey == "" {
 		return []*alertmanager.Receiver{}
 	}
@@ -622,12 +630,12 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 	receivers := []*alertmanager.Receiver{
 		{
 			Name:             receiverPagerduty,
-			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)},
+			PagerdutyConfigs: []*alertmanager.PagerdutyConfig{createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterRegion, clusterProxy)},
 		},
 	}
 
 	// make-it-warning overrides the severity
-	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)
+	pdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterRegion, clusterProxy)
 	pdconfig.Severity = "warning"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItWarning,
@@ -635,7 +643,7 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 	})
 
 	// make-it-error overrides the severity
-	highpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)
+	highpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterRegion, clusterProxy)
 	highpdconfig.Severity = "error"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItError,
@@ -643,7 +651,7 @@ func createPagerdutyReceivers(pagerdutyRoutingKey, clusterID string, clusterProx
 	})
 
 	// make-it-critical overrides the severity
-	criticalpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterProxy)
+	criticalpdconfig := createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterRegion, clusterProxy)
 	criticalpdconfig.Severity = "critical"
 	receivers = append(receivers, &alertmanager.Receiver{
 		Name:             receiverMakeItCritical,
@@ -755,7 +763,7 @@ func createHttpConfig(clusterProxy string) alertmanager.HttpConfig {
 }
 
 // createAlertManagerConfig creates an AlertManager Config in memory based on the provided input parameters.
-func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, cadPagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID string, clusterProxy string, namespaceList []string) *alertmanager.Config {
+func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, cadPagerdutyRoutingKey, goalertURLlow, goalertURLhigh, goalertURLheartbeat, watchdogURL, ocmAgentURL, clusterID, clusterRegion string, clusterProxy string, namespaceList []string) *alertmanager.Config {
 	routes := []*alertmanager.Route{}
 	receivers := []*alertmanager.Receiver{}
 
@@ -773,13 +781,13 @@ func createAlertManagerConfig(reqLogger logr.Logger, pagerdutyRoutingKey, cadPag
 	if cadPagerdutyRoutingKey != "" {
 		reqLogger.Info("INFO: Configuring a CAD PagerDuty route and receiver")
 		routes = append(routes, createCADPagerdutyRoute())
-		receivers = append(receivers, createCADPagerdutyReceivers(cadPagerdutyRoutingKey, clusterID, clusterProxy)...)
+		receivers = append(receivers, createCADPagerdutyReceivers(cadPagerdutyRoutingKey, clusterID, clusterRegion, clusterProxy)...)
 	}
 
 	if pagerdutyRoutingKey != "" {
 		reqLogger.Info("INFO: Configuring a PagerDuty route and receiver")
 		routes = append(routes, createSubroutes(namespaceList, Pagerduty))
-		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterProxy)...)
+		receivers = append(receivers, createPagerdutyReceivers(pagerdutyRoutingKey, clusterID, clusterRegion, clusterProxy)...)
 	}
 
 	if goalertURLlow != "" && goalertURLhigh != "" {
@@ -1145,6 +1153,48 @@ func (r *SecretReconciler) getClusterProxy() (string, error) {
 	// Only care about HTTPS proxy, as PD and DMS comms will be HTTPS
 	if proxy.Status.HTTPSProxy != "" {
 		return proxy.Status.HTTPSProxy, nil
+	}
+	return "", nil
+}
+
+// getClusterRegion returns the cloud provider region for the cluster by reading
+// the Infrastructure object's PlatformStatus. Supports AWS and GCP; returns an
+// empty string for other platforms or when the region is unavailable.
+func (r *SecretReconciler) getClusterRegion(ctx context.Context) (string, error) {
+	var infra configv1.Infrastructure
+	err := r.Client.Get(ctx, client.ObjectKey{Name: "cluster"}, &infra)
+	if err != nil {
+		return "", err
+	}
+
+	if infra.Status.PlatformStatus == nil {
+		return "", nil
+	}
+
+	switch infra.Status.PlatformStatus.Type {
+	case configv1.AWSPlatformType:
+		if infra.Status.PlatformStatus.AWS != nil {
+			return infra.Status.PlatformStatus.AWS.Region, nil
+		}
+	case configv1.GCPPlatformType:
+		if infra.Status.PlatformStatus.GCP != nil {
+			return infra.Status.PlatformStatus.GCP.Region, nil
+		}
+	case configv1.AzurePlatformType,
+		configv1.BareMetalPlatformType,
+		configv1.LibvirtPlatformType,
+		configv1.OpenStackPlatformType,
+		configv1.NonePlatformType,
+		configv1.VSpherePlatformType,
+		configv1.OvirtPlatformType,
+		configv1.IBMCloudPlatformType,
+		configv1.KubevirtPlatformType,
+		configv1.EquinixMetalPlatformType,
+		configv1.PowerVSPlatformType,
+		configv1.AlibabaCloudPlatformType,
+		configv1.NutanixPlatformType,
+		configv1.ExternalPlatformType:
+		return "", nil
 	}
 	return "", nil
 }

@@ -29,6 +29,7 @@ import (
 const (
 	exampleClusterId = "fake-cluster-id"
 	exampleProxy     = "https://fakeproxy.here"
+	exampleRegion    = "us-east-1"
 )
 
 var reqLogger = logf.Log.WithName("secret_controller")
@@ -961,7 +962,7 @@ func Test_createGoalertSubroute(t *testing.T) {
 }
 
 func Test_createPagerdutyReceivers_WithoutKey(t *testing.T) {
-	assertEquals(t, 0, len(createPagerdutyReceivers("", "", "")), "Number of Receivers")
+	assertEquals(t, 0, len(createPagerdutyReceivers("", "", "", "")), "Number of Receivers")
 }
 
 func Test_createGoalertReceivers_WithoutURL(t *testing.T) {
@@ -971,7 +972,7 @@ func Test_createGoalertReceivers_WithoutURL(t *testing.T) {
 func Test_createPagerdutyReceivers_WithKey(t *testing.T) {
 	key := "abcdefg1234567890"
 
-	receivers := createPagerdutyReceivers(key, exampleClusterId, exampleProxy)
+	receivers := createPagerdutyReceivers(key, exampleClusterId, exampleRegion, exampleProxy)
 
 	verifyPagerdutyReceivers(t, key, exampleProxy, receivers)
 }
@@ -1030,7 +1031,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1055,7 +1056,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1079,7 +1080,7 @@ func Test_createAlertManagerConfig_WithCADPagerDuty(t *testing.T) {
 	pdKey := "general-routing-key"
 	cadKey := "cad-routing-key"
 
-	config := createAlertManagerConfig(reqLogger, pdKey, cadKey, "", "", "", "", "", exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, cadKey, "", "", "", "", "", exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
 	assertEquals(t, 6, len(config.Receivers), "Receivers")
@@ -1099,7 +1100,7 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
-	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1149,6 +1150,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 		wdURL,
 		oaURL,
 		exampleClusterId,
+		exampleRegion,
 		exampleProxy,
 		exampleManagedNamespaces)
 
@@ -1287,6 +1289,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 		wdURL,
 		oaURL,
 		exampleClusterId,
+		exampleRegion,
 		exampleProxy,
 		defaultNamespaces)
 
@@ -1305,6 +1308,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 	createClusterProxy(reconciler)
+	createClusterInfrastructure(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, "pd-secret")
@@ -1330,7 +1334,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1346,6 +1350,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 	createClusterProxy(reconciler)
+	createClusterInfrastructure(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, secretNamePD)
@@ -1379,7 +1384,7 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
-	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1402,6 +1407,7 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 	createClusterProxy(reconciler)
+	createClusterInfrastructure(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, "goalert-secret")
@@ -1427,7 +1433,7 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1450,6 +1456,7 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 	createClusterVersion(reconciler)
 	createClusterProxy(reconciler)
+	createClusterInfrastructure(reconciler)
 
 	// reconcile (one event should config everything)
 	req := createReconcileRequest(reconciler, secretNameGoalert)
@@ -1490,6 +1497,25 @@ func createClusterVersion(reconciler *SecretReconciler) {
 		},
 	}
 	if err := reconciler.Client.Create(context.TODO(), clusterVersion); err != nil {
+		panic(err)
+	}
+}
+
+func createClusterInfrastructure(reconciler *SecretReconciler) {
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					Region: exampleRegion,
+				},
+			},
+		},
+	}
+	if err := reconciler.Client.Create(context.TODO(), infra); err != nil {
 		panic(err)
 	}
 }
@@ -1624,6 +1650,7 @@ func Test_SecretReconciler(t *testing.T) {
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
 		createClusterProxy(reconciler)
+		createClusterInfrastructure(reconciler)
 
 		pdKey := ""
 		wdURL := ""
@@ -1634,7 +1661,7 @@ func Test_SecretReconciler(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", defaultNamespaces)); err != nil {
+			if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", "", defaultNamespaces)); err != nil {
 				t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
 			}
 		}
@@ -1667,7 +1694,7 @@ func Test_SecretReconciler(t *testing.T) {
 			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 		}
 
-		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1741,8 +1768,9 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		createNamespace(reconciler, t)
 		createClusterVersion(reconciler)
 		createClusterProxy(reconciler)
+		createClusterInfrastructure(reconciler)
 
-		if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
+		if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
 			t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
 		}
 
@@ -1785,7 +1813,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 			oaURL = ""
 		}
 
-		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, dmsURL, oaURL, exampleClusterId, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, dmsURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -2216,6 +2244,117 @@ func Test_getClusterProxy_Empty(t *testing.T) {
 	}
 }
 
+// Test_getClusterRegion_AWS validates region extraction from AWS PlatformStatus
+func Test_getClusterRegion_AWS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	expectedRegion := "eu-west-1"
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					Region: expectedRegion,
+				},
+			},
+		},
+	}
+
+	err := reconciler.Client.Create(context.TODO(), infra)
+	if err != nil {
+		t.Fatalf("Failed to create Infrastructure: %v", err)
+	}
+
+	region, err := reconciler.getClusterRegion(context.TODO())
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if region != expectedRegion {
+		t.Fatalf("Expected region %s, got: %s", expectedRegion, region)
+	}
+}
+
+// Test_getClusterRegion_GCP validates region extraction from GCP PlatformStatus
+func Test_getClusterRegion_GCP(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	expectedRegion := "us-central1"
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.GCPPlatformType,
+				GCP: &configv1.GCPPlatformStatus{
+					Region: expectedRegion,
+				},
+			},
+		},
+	}
+
+	err := reconciler.Client.Create(context.TODO(), infra)
+	if err != nil {
+		t.Fatalf("Failed to create Infrastructure: %v", err)
+	}
+
+	region, err := reconciler.getClusterRegion(context.TODO())
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if region != expectedRegion {
+		t.Fatalf("Expected region %s, got: %s", expectedRegion, region)
+	}
+}
+
+// Test_getClusterRegion_NoPlatformStatus validates empty region when PlatformStatus is nil
+func Test_getClusterRegion_NoPlatformStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+	createNamespace(reconciler, t)
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{},
+	}
+
+	err := reconciler.Client.Create(context.TODO(), infra)
+	if err != nil {
+		t.Fatalf("Failed to create Infrastructure: %v", err)
+	}
+
+	region, err := reconciler.getClusterRegion(context.TODO())
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if region != "" {
+		t.Fatalf("Expected empty region, got: %s", region)
+	}
+}
+
 // Test_isManagementCluster_NamespaceScoping validates Infrastructure access works with namespace scoping
 func Test_isManagementCluster_NamespaceScoping(t *testing.T) {
 	tests := []struct {
@@ -2340,9 +2479,9 @@ func Test_parseMCNamespaceConfigMap(t *testing.T) {
 			expectedNamespaces: []string{},
 		},
 		{
-			name:            "Invalid YAML in ConfigMap",
-			configMapExists: true,
-			configMapData:   "This is invalid YAML: [[[",
+			name:               "Invalid YAML in ConfigMap",
+			configMapExists:    true,
+			configMapData:      "This is invalid YAML: [[[",
 			expectedNamespaces: []string{},
 		},
 		{
@@ -2726,4 +2865,3 @@ func Test_validateAlertManagerConfig_InvalidRegexInRoute(t *testing.T) {
 		t.Fatalf("Expected error about invalid regex, got: %v", err)
 	}
 }
-
