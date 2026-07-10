@@ -584,6 +584,7 @@ func createPagerdutyConfig(pagerdutyRoutingKey, clusterID, clusterRegion string,
 		"num_firing":   `{{ .Alerts.Firing | len }}`,
 		"num_resolved": `{{ .Alerts.Resolved | len }}`,
 		"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+		"firing_json":  `{{ .Alerts.Firing | toJson }}`,
 		"cluster_id":   clusterID,
 		"region":       clusterRegion,
 	}
