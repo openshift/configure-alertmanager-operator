@@ -1,6 +1,5 @@
 reviewers:
-- srep-functional-leads
-- srep-team-leads
+- rosa-staff-engineers
 - srep-functional-team-rocket
 - clcollins
 - robotmaxtron
@@ -8,8 +7,7 @@ reviewers:
 - xiaoyu74
 - zmird-r
 approvers:
-- srep-functional-leads
-- srep-team-leads
+- rosa-staff-engineers
 - srep-functional-team-rocket
 - clcollins
 - robotmaxtron
