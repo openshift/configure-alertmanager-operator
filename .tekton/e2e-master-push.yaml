@@ -10,11 +10,11 @@ metadata:
       == "master"
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: configure-alertmanager-operator-master
-    appstudio.openshift.io/component: e2e-master
+    appstudio.openshift.io/application: configure-alertmanager-operator
+    appstudio.openshift.io/component: configure-alertmanager-operator-e2e
     pipelines.appstudio.openshift.io/type: build
   name: e2e-master-on-push
-  namespace: camo-hcm-tenant
+  namespace: configure-alertmanager-operator-tenant
 spec:
   params:
   - name: git-url
@@ -22,13 +22,13 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/camo-hcm-tenant/configure-alertmanager-operator-master/configure-alertmanager-operator-master/e2e:{{revision}}
+    value: quay.io/redhat-user-workloads/configure-alertmanager-operator-tenant/openshift/configure-alertmanager-operator-e2e:{{revision}}
   - name: dockerfile
     value: test/e2e/Dockerfile
   - name: path-context
     value: .
   taskRunTemplate:
-    serviceAccountName: build-pipeline-e2e-master
+    serviceAccountName: build-pipeline-configure-alertmanager-operator-e2e
   workspaces:
   - name: workspace
     volumeClaimTemplate:
