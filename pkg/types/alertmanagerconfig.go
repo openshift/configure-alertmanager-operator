@@ -3,7 +3,7 @@ package alertmanagerconfig
 import (
 	"fmt"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // PDRegexLP is the regular expression used in Pager Duty for any Layered Product namespaces.
@@ -47,12 +47,12 @@ func (c Config) String() string {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Config.
-func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *Config) UnmarshalYAML(value *yaml.Node) error {
 	// We want to set c to the defaults and then overwrite it with the input.
-	// To make unmarshal fill the plain data struct rather than calling UnmarshalYAML
+	// To make Decode fill the plain data struct rather than calling UnmarshalYAML
 	// again, we have to hide it using a type indirection.
 	type plain Config
-	if err := unmarshal((*plain)(c)); err != nil {
+	if err := value.Decode((*plain)(c)); err != nil {
 		return err
 	}
 
