@@ -32,6 +32,8 @@ spec:
     value: true
   - name: image-expires-after
     value: 3d
+  - name: prefetch-input
+    value: gomod
   taskRunTemplate:
     serviceAccountName: build-pipeline-configure-alertmanager-operator-pko
   workspaces:

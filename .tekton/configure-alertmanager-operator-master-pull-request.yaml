@@ -31,6 +31,8 @@ spec:
     value: build/Dockerfile
   - name: path-context
     value: .
+  - name: prefetch-input
+    value: gomod
   taskRunTemplate:
     serviceAccountName: build-pipeline-configure-alertmanager-operator
   workspaces:
