@@ -268,6 +268,25 @@ func verifyCADPagerdutyReceivers(t *testing.T, key string, proxy string, receive
 	assertTrue(t, found, fmt.Sprintf("No '%s' receiver", receiverCADPagerduty))
 }
 
+func verifyMCSPagerdutyRoute(t *testing.T, route *alertmanager.Route) {
+	assertEquals(t, receiverMCSPagerduty, route.Receiver, "Receiver Name")
+	assertEquals(t, routeMCSLabelValue, route.Match[routeMCSLabel], "Match mcs_custom_alert label")
+}
+
+func verifyMCSPagerdutyReceivers(t *testing.T, key string, proxy string, receivers []*alertmanager.Receiver) {
+	found := false
+	for _, receiver := range receivers {
+		if receiver.Name == receiverMCSPagerduty {
+			found = true
+			assertEquals(t, 1, len(receiver.PagerdutyConfigs), "Number of PagerDuty configs")
+			assertEquals(t, key, receiver.PagerdutyConfigs[0].RoutingKey, "RoutingKey")
+			assertEquals(t, proxy, receiver.PagerdutyConfigs[0].HttpConfig.ProxyURL, "Proxy")
+			assertEquals(t, true, receiver.PagerdutyConfigs[0].VSendResolved, "VSendResolved")
+		}
+	}
+	assertTrue(t, found, fmt.Sprintf("No '%s' receiver", receiverMCSPagerduty))
+}
+
 // utility function to verify Goalert Receivers
 func verifyGoalertLowReceivers(t *testing.T, url string, proxy string, receivers []*alertmanager.Receiver) {
 	// there are at least 1 receiver: goalert
@@ -602,6 +621,7 @@ func Test_parseSecrets(t *testing.T) {
 
 	pdKey := "asdfjkl123"
 	cadKey := "cadfgh456"
+	mcsKey := "mcslmn789"
 	dmsURL := "https://hjklasdf09876"
 	gaHighURL := "https://dummy-gahigh-url"
 	gaLowURL := "https://dummy-galow-url"
@@ -610,6 +630,7 @@ func Test_parseSecrets(t *testing.T) {
 	createNamespace(reconciler, t)
 	createSecret(reconciler, secretNamePD, secretKeyPD, pdKey)
 	createSecret(reconciler, secretNameCADPD, secretKeyCADPD, cadKey)
+	createSecret(reconciler, secretNameMCSPD, secretKeyMCSPD, mcsKey)
 	createSecret(reconciler, secretNameDMS, secretKeyDMS, dmsURL)
 	createGoAlertSecret(reconciler,
 		secretNameGoalert,
@@ -627,10 +648,11 @@ func Test_parseSecrets(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
+	assertEquals(t, mcsKey, mcsPagerdutyRoutingKey, "Expected MCS PagerDuty routing keys to match")
 	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
 	assertEquals(t, gaLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
 	assertEquals(t, gaHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
@@ -659,10 +681,11 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
+	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS PagerDuty routing keys to match")
 	assertEquals(t, "", watchdogURL, "Expected DMS URLs to match")
 	assertEquals(t, "", goalertURLlow, "Expected GoAlert Low URLs to match")
 	assertEquals(t, "", goalertURLhigh, "Expected GoAlert High URLs to match")
@@ -689,10 +712,11 @@ func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
+	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS PagerDuty routing keys to match")
 	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URLs to match")
 	assertEquals(t, "", goalertURLlow, "Expected GoAlert Low URLs to match")
 	assertEquals(t, "", goalertURLhigh, "Expected GoAlert High URLs to match")
@@ -728,10 +752,11 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNameGoalert)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
+	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS PagerDuty routing keys to match")
 	assertEquals(t, "", watchdogURL, "Expected DMS URLs to match")
 	assertEquals(t, gaLowURL, goalertURLlow, "Expected GoAlert Low URLs to match")
 	assertEquals(t, gaHighURL, goalertURLhigh, "Expected GoAlert High URLs to match")
@@ -1046,7 +1071,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutURL(t *testing.T) {
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1071,7 +1096,7 @@ func Test_createAlertManagerConfig_WithKey_WithoutURL(t *testing.T) {
 	gaLowURL := ""
 	gaHeartURL := ""
 
-	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1095,7 +1120,7 @@ func Test_createAlertManagerConfig_WithCADPagerDuty(t *testing.T) {
 	pdKey := "general-routing-key"
 	cadKey := "cad-routing-key"
 
-	config := createAlertManagerConfig(reqLogger, pdKey, cadKey, "", "", "", "", "", exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, cadKey, "", "", "", "", "", "", exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
 	assertEquals(t, 6, len(config.Receivers), "Receivers")
@@ -1107,6 +1132,41 @@ func Test_createAlertManagerConfig_WithCADPagerDuty(t *testing.T) {
 	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
 }
 
+func Test_createAlertManagerConfig_WithMCSPagerDuty(t *testing.T) {
+	pdKey := "general-routing-key"
+	mcsKey := "mcs-routing-key"
+
+	config := createAlertManagerConfig(reqLogger, pdKey, "", mcsKey, "", "", "", "", "", exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
+
+	assertEquals(t, 2, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 6, len(config.Receivers), "Receivers")
+
+	verifyMCSPagerdutyRoute(t, config.Route.Routes[0])
+	verifyPagerdutyRoute(t, config.Route.Routes[1], exampleManagedNamespaces)
+
+	verifyMCSPagerdutyReceivers(t, mcsKey, exampleProxy, config.Receivers)
+	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
+}
+
+func Test_createAlertManagerConfig_WithCADAndMCSPagerDuty(t *testing.T) {
+	pdKey := "general-routing-key"
+	cadKey := "cad-routing-key"
+	mcsKey := "mcs-routing-key"
+
+	config := createAlertManagerConfig(reqLogger, pdKey, cadKey, mcsKey, "", "", "", "", "", exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
+
+	assertEquals(t, 3, len(config.Route.Routes), "Route.Routes")
+	assertEquals(t, 7, len(config.Receivers), "Receivers")
+
+	verifyCADPagerdutyRoute(t, config.Route.Routes[0])
+	verifyMCSPagerdutyRoute(t, config.Route.Routes[1])
+	verifyPagerdutyRoute(t, config.Route.Routes[2], exampleManagedNamespaces)
+
+	verifyCADPagerdutyReceivers(t, cadKey, exampleProxy, config.Receivers)
+	verifyMCSPagerdutyReceivers(t, mcsKey, exampleProxy, config.Receivers)
+	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
+}
+
 func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	pdKey := "poiuqwer78902345"
 	wdURL := "http://theinterwebs"
@@ -1115,7 +1175,7 @@ func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
-	config := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
+	config := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, exampleManagedNamespaces)
 
 	// verify static things
 	assertEquals(t, "5m", config.Global.ResolveTimeout, "Global.ResolveTimeout")
@@ -1158,6 +1218,7 @@ func Test_createAlertManagerConfig_WithoutKey_WithoutOA_WithWDURL(t *testing.T) 
 
 	config := createAlertManagerConfig(reqLogger,
 		pdKey,
+		"",
 		"",
 		gaLowURL,
 		gaHighURL,
@@ -1298,6 +1359,7 @@ func Test_createPagerdutySecret_Create(t *testing.T) {
 	configExpected := createAlertManagerConfig(reqLogger,
 		pdKey,
 		"",
+		"",
 		gaLowURL,
 		gaHighURL,
 		gaHeartURL,
@@ -1349,7 +1411,7 @@ func Test_createPagerdutySecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1399,7 +1461,7 @@ func Test_createGoalertSecret_Create(t *testing.T) {
 	gaLowURL := "https://dummy-galow-url"
 	gaHeartURL := "https://dummy-gaheartbeat-url"
 
-	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1448,7 +1510,7 @@ func Test_createGoalertSecret_Update(t *testing.T) {
 	var ret reconcile.Result
 	var err error
 
-	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
+	configExpected := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 	verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1676,7 +1738,7 @@ func Test_SecretReconciler(t *testing.T) {
 
 		// Create the secrets for this specific test.
 		if tt.amExists {
-			if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", "", defaultNamespaces)); err != nil {
+			if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, "", "", "", defaultNamespaces)); err != nil {
 				t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
 			}
 		}
@@ -1709,7 +1771,7 @@ func Test_SecretReconciler(t *testing.T) {
 			createConfigMap(reconciler, cmNameOcmAgent, cmKeyOCMAgent, oaURL)
 		}
 
-		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, wdURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
@@ -1785,7 +1847,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 		createClusterProxy(reconciler)
 		createClusterInfrastructure(reconciler)
 
-		if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
+		if err := writeAlertManagerConfig(context.Background(), reconciler, reqLogger, createAlertManagerConfig(reqLogger, "", "", "", "", "", "", "", "", "", "", "", defaultNamespaces)); err != nil {
 			t.Fatalf("Failed to write alertmanager config in test setup: %v", err)
 		}
 
@@ -1828,7 +1890,7 @@ func Test_SecretReconciler_Readiness(t *testing.T) {
 			oaURL = ""
 		}
 
-		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", gaLowURL, gaHighURL, gaHeartURL, dmsURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
+		configExpected := createAlertManagerConfig(reqLogger, pdKey, "", "", gaLowURL, gaHighURL, gaHeartURL, dmsURL, oaURL, exampleClusterId, exampleRegion, exampleProxy, defaultNamespaces)
 
 		verifyInhibitRules(t, configExpected.InhibitRules)
 
