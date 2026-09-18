@@ -29,6 +29,8 @@ spec:
     value: deploy_pko
   - name: skip-preflight-cert-check
     value: true
+  - name: prefetch-input
+    value: gomod
   taskRunTemplate:
     serviceAccountName: build-pipeline-configure-alertmanager-operator-pko
   workspaces:
