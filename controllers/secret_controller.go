@@ -255,7 +255,11 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		reqLogger.Error(err, "Unable to list configMaps")
 	}
 
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := r.parseSecrets(reqLogger, secretList, request.Namespace, clusterReady)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := r.parseSecrets(ctx, reqLogger, secretList, request.Namespace, clusterReady)
+	if err != nil {
+		reqLogger.Error(err, "Unable to parse secrets")
+		return reconcile.Result{}, err
+	}
 	osdNamespaces := r.parseConfigMaps(reqLogger, cmList, request.Namespace)
 	reqLogger.Info("DEBUG: Adding PagerDuty routes for the following namespaces", "Namespaces", osdNamespaces)
 
@@ -1113,7 +1117,7 @@ func (r *SecretReconciler) readOCMAgentServiceURLFromConfig(reqLogger logr.Logge
 	return serviceURL
 }
 
-func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, cadPagerdutyRoutingKey string, mcsPagerdutyRoutingKey string, watchdogURL string, goalertURLlow string, goalertURLhigh string, goalertURLheartbeat string) {
+func (r *SecretReconciler) parseSecrets(ctx context.Context, reqLogger logr.Logger, secretList *corev1.SecretList, namespace string, clusterReady bool) (pagerdutyRoutingKey string, cadPagerdutyRoutingKey string, mcsPagerdutyRoutingKey string, watchdogURL string, goalertURLlow string, goalertURLhigh string, goalertURLheartbeat string, err error) {
 	// Check for the presence of specific secrets.
 	goalertSecretExists := secretInList(reqLogger, secretNameGoalert, secretList)
 	pagerDutySecretExists := secretInList(reqLogger, secretNamePD, secretList)
@@ -1128,7 +1132,10 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: Pager Duty secret exists")
 		if clusterReady {
 			reqLogger.Info("INFO: Cluster is ready; configuring Pager Duty")
-			pagerdutyRoutingKey = readSecretKey(r, secretNamePD, namespace, secretKeyPD)
+			pagerdutyRoutingKey, err = readSecretKey(ctx, r, secretNamePD, namespace, secretKeyPD)
+			if err != nil {
+				return
+			}
 		} else {
 			reqLogger.Info("INFO: Cluster is not ready; skipping Pager Duty configuration")
 		}
@@ -1140,7 +1147,10 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: CAD Pager Duty secret exists")
 		if clusterReady {
 			reqLogger.Info("INFO: Cluster is ready; configuring CAD Pager Duty")
-			cadPagerdutyRoutingKey = readSecretKey(r, secretNameCADPD, namespace, secretKeyCADPD)
+			cadPagerdutyRoutingKey, err = readSecretKey(ctx, r, secretNameCADPD, namespace, secretKeyCADPD)
+			if err != nil {
+				return
+			}
 			if cadPagerdutyRoutingKey == "" {
 				reqLogger.Info("INFO: CAD Pager Duty secret exists but configuration is empty")
 			}
@@ -1155,7 +1165,10 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: MCS Custom Alerts Pager Duty secret exists")
 		if clusterReady {
 			reqLogger.Info("INFO: Cluster is ready; configuring MCS Custom Alerts Pager Duty")
-			mcsPagerdutyRoutingKey = readSecretKey(r, secretNameMCSPD, namespace, secretKeyMCSPD)
+			mcsPagerdutyRoutingKey, err = readSecretKey(ctx, r, secretNameMCSPD, namespace, secretKeyMCSPD)
+			if err != nil {
+				return
+			}
 			if mcsPagerdutyRoutingKey == "" {
 				reqLogger.Info("INFO: MCS Custom Alerts Pager Duty secret exists but configuration is empty")
 			}
@@ -1168,7 +1181,10 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 
 	if snitchSecretExists {
 		reqLogger.Info("INFO: Dead Man's Snitch secret exists")
-		watchdogURL = readSecretKey(r, secretNameDMS, namespace, secretKeyDMS)
+		watchdogURL, err = readSecretKey(ctx, r, secretNameDMS, namespace, secretKeyDMS)
+		if err != nil {
+			return
+		}
 	} else {
 		reqLogger.Info("INFO: Dead Man's Snitch secret does not exist")
 	}
@@ -1178,9 +1194,18 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: Goalert secret exists")
 		if clusterReady {
 			reqLogger.Info("INFO: Cluster is ready; configuring Goalert")
-			goalertURLlow = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertLow)
-			goalertURLhigh = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertHigh)
-			goalertURLheartbeat = readSecretKey(r, secretNameGoalert, namespace, secretKeyGoalertHeartbeat)
+			goalertURLlow, err = readSecretKey(ctx, r, secretNameGoalert, namespace, secretKeyGoalertLow)
+			if err != nil {
+				return
+			}
+			goalertURLhigh, err = readSecretKey(ctx, r, secretNameGoalert, namespace, secretKeyGoalertHigh)
+			if err != nil {
+				return
+			}
+			goalertURLheartbeat, err = readSecretKey(ctx, r, secretNameGoalert, namespace, secretKeyGoalertHeartbeat)
+			if err != nil {
+				return
+			}
 		} else {
 			reqLogger.Info("INFO: Cluster is not ready; skipping Goalert configuration")
 		}
@@ -1188,7 +1213,7 @@ func (r *SecretReconciler) parseSecrets(reqLogger logr.Logger, secretList *corev
 		reqLogger.Info("INFO: Goalert secret does not exist")
 	}
 
-	return pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat
+	return pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, nil
 }
 
 func (r *SecretReconciler) getClusterID() (string, error) {
@@ -1373,7 +1398,7 @@ func readCMKey(r *SecretReconciler, reqLogger logr.Logger, cmName string, cmName
 }
 
 // readSecretKey fetches the data from a Secret, such as a PagerDuty API key.
-func readSecretKey(r *SecretReconciler, secretName string, secretNamespace string, fieldName string) string {
+func readSecretKey(ctx context.Context, r *SecretReconciler, secretName string, secretNamespace string, fieldName string) (string, error) {
 
 	secret := &corev1.Secret{}
 
@@ -1383,10 +1408,10 @@ func readSecretKey(r *SecretReconciler, secretName string, secretNamespace strin
 		Name:      secretName,
 	}
 
-	// Fetch the key from the secret object.
-	// TODO: Check error from Get(). Right now secret.Data[fieldname] will panic.
-	_ = r.Client.Get(context.TODO(), objectKey, secret)
-	return string(secret.Data[fieldName])
+	if err := r.Client.Get(ctx, objectKey, secret); err != nil {
+		return "", fmt.Errorf("failed to get secret %s/%s: %w", secretNamespace, secretName, err)
+	}
+	return string(secret.Data[fieldName]), nil
 }
 
 // validateAlertManagerConfig validates the alertmanager config using Alertmanager's official validation

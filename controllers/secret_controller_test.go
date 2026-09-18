@@ -648,7 +648,10 @@ func Test_parseSecrets(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
+	if err != nil {
+		t.Fatalf("parseSecrets returned unexpected error: %v", err)
+	}
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -681,7 +684,10 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
+	if err != nil {
+		t.Fatalf("parseSecrets returned unexpected error: %v", err)
+	}
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -712,7 +718,10 @@ func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
+	if err != nil {
+		t.Fatalf("parseSecrets returned unexpected error: %v", err)
+	}
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -752,7 +761,10 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNameGoalert)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
+	if err != nil {
+		t.Fatalf("parseSecrets returned unexpected error: %v", err)
+	}
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
