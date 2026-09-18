@@ -22,6 +22,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -775,6 +776,142 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	assertEquals(t, gaHeartURL, goalertURLheartbeat, "Expected GoAlert Heartbeat URLs to match")
 }
 
+// Test_parseSecrets_MCSNotReady tests that the MCS routing key is empty when the cluster is not ready.
+func Test_parseSecrets_MCSNotReady(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockReadiness := readiness.NewMockInterface(ctrl)
+	reconciler := createReconciler(t, mockReadiness)
+
+	mcsKey := "mcslmn789"
+	createNamespace(reconciler, t)
+	createSecret(reconciler, secretNameMCSPD, secretKeyMCSPD, mcsKey)
+
+	secretList := &corev1.SecretList{}
+	err := reconciler.Client.List(context.TODO(), secretList, &client.ListOptions{})
+	if err != nil {
+		t.Fatalf("Could not list Secrets: %v", err)
+	}
+
+	request := createReconcileRequest(reconciler, secretNameMCSPD)
+	_, _, mcsPagerdutyRoutingKey, _, _, _, _, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, false)
+	if err != nil {
+		t.Fatalf("parseSecrets returned unexpected error: %v", err)
+	}
+	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS key to be empty when cluster is not ready")
+}
+
+// Test_parseSecrets_GetError tests that parseSecrets propagates Client.Get errors for every secret.
+func Test_parseSecrets_GetError(t *testing.T) {
+	tests := []struct {
+		name        string
+		failSecret  string
+		failOnCall  int // for secrets fetched multiple times (GoAlert), fail on the Nth Get (1-based)
+		secretNames []string
+	}{
+		{
+			name:        "PD secret Get fails",
+			failSecret:  secretNamePD,
+			failOnCall:  1,
+			secretNames: []string{secretNamePD},
+		},
+		{
+			name:        "CAD secret Get fails",
+			failSecret:  secretNameCADPD,
+			failOnCall:  1,
+			secretNames: []string{secretNamePD, secretNameCADPD},
+		},
+		{
+			name:        "MCS secret Get fails",
+			failSecret:  secretNameMCSPD,
+			failOnCall:  1,
+			secretNames: []string{secretNamePD, secretNameCADPD, secretNameMCSPD},
+		},
+		{
+			name:        "DMS secret Get fails",
+			failSecret:  secretNameDMS,
+			failOnCall:  1,
+			secretNames: []string{secretNameDMS},
+		},
+		{
+			name:        "GoAlert secret Get fails on low",
+			failSecret:  secretNameGoalert,
+			failOnCall:  1,
+			secretNames: []string{secretNameGoalert},
+		},
+		{
+			name:        "GoAlert secret Get fails on high",
+			failSecret:  secretNameGoalert,
+			failOnCall:  2,
+			secretNames: []string{secretNameGoalert},
+		},
+		{
+			name:        "GoAlert secret Get fails on heartbeat",
+			failSecret:  secretNameGoalert,
+			failOnCall:  3,
+			secretNames: []string{secretNameGoalert},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeScheme := k8sruntime.NewScheme()
+			utilruntime.Must(configv1.AddToScheme(fakeScheme))
+			utilruntime.Must(corev1.AddToScheme(fakeScheme))
+			utilruntime.Must(monitoringv1.AddToScheme(fakeScheme))
+
+			callCount := 0
+			getErr := fmt.Errorf("simulated API error")
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(fakeScheme).
+				WithObjects(createSecretObjects(tt.secretNames)...).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+						if key.Name == tt.failSecret {
+							callCount++
+							if callCount == tt.failOnCall {
+								return getErr
+							}
+						}
+						return cl.Get(ctx, key, obj, opts...)
+					},
+				}).
+				Build()
+
+			reconciler := &SecretReconciler{
+				Client:    fakeClient,
+				Scheme:    fakeScheme,
+				Readiness: &readiness.Impl{},
+			}
+
+			items := make([]corev1.Secret, len(tt.secretNames))
+			for i, name := range tt.secretNames {
+				items[i] = corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: config.OperatorNamespace}}
+			}
+			secretList := &corev1.SecretList{Items: items}
+
+			_, _, _, _, _, _, _, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, config.OperatorNamespace, true)
+			if err == nil {
+				t.Fatal("Expected parseSecrets to return an error when Client.Get fails")
+			}
+			if !strings.Contains(err.Error(), "simulated API error") {
+				t.Fatalf("Expected error to contain 'simulated API error', got: %v", err)
+			}
+		})
+	}
+}
+
+func createSecretObjects(names []string) []client.Object {
+	objects := make([]client.Object, len(names))
+	for i, name := range names {
+		objects[i] = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: config.OperatorNamespace},
+			Data:       map[string][]byte{"dummy": []byte("value")},
+		}
+	}
+	return objects
+}
+
 // Test_parseConfigMaps tests the parseConfigMaps function under various circumstances
 func Test_parseConfigMaps(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -1177,6 +1314,11 @@ func Test_createAlertManagerConfig_WithCADAndMCSPagerDuty(t *testing.T) {
 	verifyCADPagerdutyReceivers(t, cadKey, exampleProxy, config.Receivers)
 	verifyMCSPagerdutyReceivers(t, mcsKey, exampleProxy, config.Receivers)
 	verifyPagerdutyReceivers(t, pdKey, exampleProxy, config.Receivers)
+}
+
+func Test_createMCSPagerdutyReceivers_EmptyKey(t *testing.T) {
+	receivers := createMCSPagerdutyReceivers("", "cluster-id", "us-east-1", "")
+	assertEquals(t, 0, len(receivers), "Expected no receivers for empty routing key")
 }
 
 func Test_createAlertManagerConfig_WithKey_WithWDURL_WithOAURL(t *testing.T) {
