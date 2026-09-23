@@ -58,6 +58,14 @@ var (
 		Name: "am_secret_contains_dms",
 		Help: "AlertManager Config contains configuration for Dead Man's Snitch",
 	}, []string{"name"})
+	metricMCSPDSecretExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "mcs_pd_secret_exists",
+		Help: "MCS Custom Alerts Pager Duty secret exists",
+	}, []string{"name"})
+	metricAMSecretContainsMCS = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "am_secret_contains_mcs",
+		Help: "AlertManager Config contains configuration for MCS Custom Alerts Pager Duty",
+	}, []string{"name"})
 	metricManNSConfigMapExists = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "managed_namespaces_configmap_exists",
 		Help: "managed-namespaces configMap exists",
@@ -79,6 +87,8 @@ var (
 		metricAMSecretContainsGA,
 		metricAMSecretContainsPD,
 		metricAMSecretContainsDMS,
+		metricMCSPDSecretExists,
+		metricAMSecretContainsMCS,
 		metricManNSConfigMapExists,
 		metricOcpNSConfigMapExists,
 		metricAlertmanagerConfigValidationFailed,
@@ -119,9 +129,11 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 	pdSecretExists := false
 	dmsSecretExists := false
 	amSecretExists := false
+	mcsPDSecretExists := false
 	amSecretContainsGA := false
 	amSecretContainsPD := false
 	amSecretContainsDMS := false
+	amSecretContainsMCS := false
 
 	// Update the metric if the secret is found in the SecretList.
 	for _, secret := range list.Items {
@@ -134,10 +146,12 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 			dmsSecretExists = true
 		case "alertmanager-main":
 			amSecretExists = true
+		case "mcs-custom-alerts-pd-secret":
+			mcsPDSecretExists = true
 		}
 	}
 
-	// Check for the presence of GoAlert, PD and DMS configs inside the AlertManager config and report metrics.
+	// Check for the presence of GoAlert, PD, DMS and MCS configs inside the AlertManager config and report metrics.
 	if amSecretExists {
 		if gaSecretExists {
 			for _, receiver := range amconfig.Receivers {
@@ -157,6 +171,13 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 			for _, receiver := range amconfig.Receivers {
 				if receiver.Name == "watchdog" {
 					amSecretContainsDMS = true
+				}
+			}
+		}
+		if mcsPDSecretExists {
+			for _, receiver := range amconfig.Receivers {
+				if receiver.Name == "mcs-custom-alerts-pagerduty" {
+					amSecretContainsMCS = true
 				}
 			}
 		}
@@ -183,6 +204,11 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 	} else {
 		metricAMSecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
 	}
+	if mcsPDSecretExists {
+		metricMCSPDSecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
+	} else {
+		metricMCSPDSecretExists.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
 	if amSecretContainsGA {
 		metricAMSecretContainsGA.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	} else {
@@ -197,6 +223,11 @@ func UpdateSecretsMetrics(list *corev1.SecretList, amconfig *alertmanager.Config
 		metricAMSecretContainsDMS.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
 	} else {
 		metricAMSecretContainsDMS.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
+	}
+	if amSecretContainsMCS {
+		metricAMSecretContainsMCS.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(1))
+	} else {
+		metricAMSecretContainsMCS.With(prometheus.Labels{"name": config.OperatorName}).Set(float64(0))
 	}
 }
 

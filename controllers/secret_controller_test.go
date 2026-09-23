@@ -649,10 +649,7 @@ func Test_parseSecrets(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
-	if err != nil {
-		t.Fatalf("parseSecrets returned unexpected error: %v", err)
-	}
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -685,10 +682,7 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
-	if err != nil {
-		t.Fatalf("parseSecrets returned unexpected error: %v", err)
-	}
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -719,10 +713,7 @@ func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
-	if err != nil {
-		t.Fatalf("parseSecrets returned unexpected error: %v", err)
-	}
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -762,10 +753,7 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNameGoalert)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, true)
-	if err != nil {
-		t.Fatalf("parseSecrets returned unexpected error: %v", err)
-	}
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -794,122 +782,73 @@ func Test_parseSecrets_MCSNotReady(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNameMCSPD)
-	_, _, mcsPagerdutyRoutingKey, _, _, _, _, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, request.Namespace, false)
-	if err != nil {
-		t.Fatalf("parseSecrets returned unexpected error: %v", err)
-	}
+	_, _, mcsPagerdutyRoutingKey, _, _, _, _ := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, false)
 	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS key to be empty when cluster is not ready")
 }
 
-// Test_parseSecrets_GetError tests that parseSecrets propagates Client.Get errors for every secret.
-func Test_parseSecrets_GetError(t *testing.T) {
-	tests := []struct {
-		name        string
-		failSecret  string
-		failOnCall  int // for secrets fetched multiple times (GoAlert), fail on the Nth Get (1-based)
-		secretNames []string
-	}{
-		{
-			name:        "PD secret Get fails",
-			failSecret:  secretNamePD,
-			failOnCall:  1,
-			secretNames: []string{secretNamePD},
-		},
-		{
-			name:        "CAD secret Get fails",
-			failSecret:  secretNameCADPD,
-			failOnCall:  1,
-			secretNames: []string{secretNamePD, secretNameCADPD},
-		},
-		{
-			name:        "MCS secret Get fails",
-			failSecret:  secretNameMCSPD,
-			failOnCall:  1,
-			secretNames: []string{secretNamePD, secretNameCADPD, secretNameMCSPD},
-		},
-		{
-			name:        "DMS secret Get fails",
-			failSecret:  secretNameDMS,
-			failOnCall:  1,
-			secretNames: []string{secretNameDMS},
-		},
-		{
-			name:        "GoAlert secret Get fails on low",
-			failSecret:  secretNameGoalert,
-			failOnCall:  1,
-			secretNames: []string{secretNameGoalert},
-		},
-		{
-			name:        "GoAlert secret Get fails on high",
-			failSecret:  secretNameGoalert,
-			failOnCall:  2,
-			secretNames: []string{secretNameGoalert},
-		},
-		{
-			name:        "GoAlert secret Get fails on heartbeat",
-			failSecret:  secretNameGoalert,
-			failOnCall:  3,
-			secretNames: []string{secretNameGoalert},
+// Test_parseSecrets_MCSGetError tests that an MCS secret read failure is non-blocking:
+// MCS routing key should be empty but other secrets should still be populated.
+func Test_parseSecrets_MCSGetError(t *testing.T) {
+	fakeScheme := k8sruntime.NewScheme()
+	utilruntime.Must(configv1.AddToScheme(fakeScheme))
+	utilruntime.Must(corev1.AddToScheme(fakeScheme))
+	utilruntime.Must(monitoringv1.AddToScheme(fakeScheme))
+
+	pdKey := "pdkey123"
+	cadKey := "cadkey456"
+	dmsURL := "https://dms-url"
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(fakeScheme).
+		WithObjects(
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretNamePD, Namespace: config.OperatorNamespace},
+				Data:       map[string][]byte{secretKeyPD: []byte(pdKey)},
+			},
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretNameCADPD, Namespace: config.OperatorNamespace},
+				Data:       map[string][]byte{secretKeyCADPD: []byte(cadKey)},
+			},
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretNameMCSPD, Namespace: config.OperatorNamespace},
+				Data:       map[string][]byte{secretKeyMCSPD: []byte("mcskey789")},
+			},
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretNameDMS, Namespace: config.OperatorNamespace},
+				Data:       map[string][]byte{secretKeyDMS: []byte(dmsURL)},
+			},
+		).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if key.Name == secretNameMCSPD {
+					return fmt.Errorf("simulated API error")
+				}
+				return cl.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+
+	reconciler := &SecretReconciler{
+		Client:    fakeClient,
+		Scheme:    fakeScheme,
+		Readiness: &readiness.Impl{},
+	}
+
+	secretList := &corev1.SecretList{
+		Items: []corev1.Secret{
+			{ObjectMeta: metav1.ObjectMeta{Name: secretNamePD, Namespace: config.OperatorNamespace}},
+			{ObjectMeta: metav1.ObjectMeta{Name: secretNameCADPD, Namespace: config.OperatorNamespace}},
+			{ObjectMeta: metav1.ObjectMeta{Name: secretNameMCSPD, Namespace: config.OperatorNamespace}},
+			{ObjectMeta: metav1.ObjectMeta{Name: secretNameDMS, Namespace: config.OperatorNamespace}},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeScheme := k8sruntime.NewScheme()
-			utilruntime.Must(configv1.AddToScheme(fakeScheme))
-			utilruntime.Must(corev1.AddToScheme(fakeScheme))
-			utilruntime.Must(monitoringv1.AddToScheme(fakeScheme))
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, _, _, _ := reconciler.parseSecrets(reqLogger, secretList, config.OperatorNamespace, true)
 
-			callCount := 0
-			getErr := fmt.Errorf("simulated API error")
-			fakeClient := fake.NewClientBuilder().
-				WithScheme(fakeScheme).
-				WithObjects(createSecretObjects(tt.secretNames)...).
-				WithInterceptorFuncs(interceptor.Funcs{
-					Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-						if key.Name == tt.failSecret {
-							callCount++
-							if callCount == tt.failOnCall {
-								return getErr
-							}
-						}
-						return cl.Get(ctx, key, obj, opts...)
-					},
-				}).
-				Build()
-
-			reconciler := &SecretReconciler{
-				Client:    fakeClient,
-				Scheme:    fakeScheme,
-				Readiness: &readiness.Impl{},
-			}
-
-			items := make([]corev1.Secret, len(tt.secretNames))
-			for i, name := range tt.secretNames {
-				items[i] = corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: config.OperatorNamespace}}
-			}
-			secretList := &corev1.SecretList{Items: items}
-
-			_, _, _, _, _, _, _, err := reconciler.parseSecrets(context.TODO(), reqLogger, secretList, config.OperatorNamespace, true)
-			if err == nil {
-				t.Fatal("Expected parseSecrets to return an error when Client.Get fails")
-			}
-			if !strings.Contains(err.Error(), "simulated API error") {
-				t.Fatalf("Expected error to contain 'simulated API error', got: %v", err)
-			}
-		})
-	}
-}
-
-func createSecretObjects(names []string) []client.Object {
-	objects := make([]client.Object, len(names))
-	for i, name := range names {
-		objects[i] = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: config.OperatorNamespace},
-			Data:       map[string][]byte{"dummy": []byte("value")},
-		}
-	}
-	return objects
+	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS key to be empty when Get fails")
+	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PD key to still be populated")
+	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD key to still be populated")
+	assertEquals(t, dmsURL, watchdogURL, "Expected DMS URL to still be populated")
 }
 
 // Test_parseConfigMaps tests the parseConfigMaps function under various circumstances
