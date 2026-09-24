@@ -15,7 +15,7 @@ metadata:
     appstudio.openshift.io/application: configure-alertmanager-operator
     appstudio.openshift.io/component: configure-alertmanager-operator
     pipelines.appstudio.openshift.io/type: build
-  name: configure-alertmanager-operator-master-on-pull-request
+  name: configure-alertmanager-operator-on-pull-request
   namespace: configure-alertmanager-operator-tenant
 spec:
   params:
