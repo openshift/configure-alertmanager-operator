@@ -205,15 +205,22 @@ POSSIBLE CAUSES:
 		}
 	})
 
+	// ConfigMap may be provisioned asynchronously; poll instead of checking once.
 	It("config map exists", func(ctx context.Context) {
-		err := client.Get(ctx, configMapLockFile, namespace, &v1.ConfigMap{})
-		Expect(err).ShouldNot(HaveOccurred(), "Failed to get config map %s", configMapLockFile)
+		Eventually(ctx, func(g Gomega) {
+			err := client.Get(ctx, configMapLockFile, namespace, &v1.ConfigMap{})
+			g.Expect(err).ShouldNot(HaveOccurred(), "ConfigMap %s not found", configMapLockFile)
+		}, timeoutDuration, pollingDuration).Should(Succeed())
 	})
 
+	// Secrets (especially dms-secret) may be provisioned asynchronously via
+	// Hive SyncSet, so poll each one individually for a clear error message.
 	It("secrets exist", func(ctx context.Context) {
 		for _, secret := range secrets {
-			err := client.Get(ctx, secret, namespace, &v1.Secret{})
-			Expect(err).ShouldNot(HaveOccurred(), "Secret %s not found", secret)
+			Eventually(ctx, func(g Gomega) {
+				err := client.Get(ctx, secret, namespace, &v1.Secret{})
+				g.Expect(err).ShouldNot(HaveOccurred(), "Secret %s not found", secret)
+			}, timeoutDuration, pollingDuration).Should(Succeed())
 		}
 	})
 
