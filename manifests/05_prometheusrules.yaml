@@ -31,6 +31,14 @@ spec:
       for: 5m
       labels:
         severity: critical
+    - alert: ConfigureAlertmanagerOperatorMismatchMcsSRE
+      annotations:
+        message: "Mismatch between MCS PD secret and MCS AlertManager config"
+        link_url: "https://access.redhat.com/articles/4165971"
+      expr: mcs_pd_secret_exists + am_secret_contains_mcs == 1
+      for: 5m
+      labels:
+        severity: critical
     - alert: ConfigureAlertmanagerOperatorMissingAlermanagerConfigSRE
       annotations:
         message: "Alertmanager config secret does not exist"
