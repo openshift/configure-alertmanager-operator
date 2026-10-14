@@ -1,13 +1,17 @@
 module github.com/openshift/configure-alertmanager-operator
 
-go 1.26.0
+go 1.27
 
 require (
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
+	github.com/openshift/api v0.0.0-20260615110019-261e3a0546f3
+	github.com/openshift/client-go v0.0.0-20260603140539-6892dc3e1ffc
+	github.com/openshift/library-go v0.0.0-20260527152424-3ad832f9a5a5
 	github.com/operator-framework/operator-lib v0.19.0
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.92.1
+	github.com/prometheus/alertmanager v0.33.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common v0.70.0
 	go.uber.org/mock v0.6.0
@@ -17,13 +21,6 @@ require (
 	k8s.io/client-go v0.36.2
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/e2e-framework v0.7.0
-)
-
-require (
-	github.com/openshift/api v0.0.0-20260615110019-261e3a0546f3
-	github.com/openshift/client-go v0.0.0-20260603140539-6892dc3e1ffc
-	github.com/openshift/library-go v0.0.0-20260527152424-3ad832f9a5a5
-	github.com/prometheus/alertmanager v0.33.1
 )
 
 require (
@@ -153,6 +150,6 @@ require (
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
