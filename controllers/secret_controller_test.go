@@ -649,7 +649,7 @@ func Test_parseSecrets(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(context.Background(), reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -682,7 +682,7 @@ func Test_parseSecrets_MissingDMS(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(context.Background(), reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, cadKey, cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -713,7 +713,7 @@ func Test_parseSecrets_MissingPagerDuty(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNamePD)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(context.Background(), reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -753,7 +753,7 @@ func Test_parseSecrets_MissingGoAlert(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNameGoalert)
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, goalertURLlow, goalertURLhigh, goalertURLheartbeat := reconciler.parseSecrets(context.Background(), reqLogger, secretList, request.Namespace, true)
 
 	assertEquals(t, "", pagerdutyRoutingKey, "Expected PagerDuty routing keys to match")
 	assertEquals(t, "", cadPagerdutyRoutingKey, "Expected CAD PagerDuty routing keys to match")
@@ -782,7 +782,7 @@ func Test_parseSecrets_MCSNotReady(t *testing.T) {
 	}
 
 	request := createReconcileRequest(reconciler, secretNameMCSPD)
-	_, _, mcsPagerdutyRoutingKey, _, _, _, _ := reconciler.parseSecrets(reqLogger, secretList, request.Namespace, false)
+	_, _, mcsPagerdutyRoutingKey, _, _, _, _ := reconciler.parseSecrets(context.Background(), reqLogger, secretList, request.Namespace, false)
 	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS key to be empty when cluster is not ready")
 }
 
@@ -843,7 +843,7 @@ func Test_parseSecrets_MCSGetError(t *testing.T) {
 		},
 	}
 
-	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, _, _, _ := reconciler.parseSecrets(reqLogger, secretList, config.OperatorNamespace, true)
+	pagerdutyRoutingKey, cadPagerdutyRoutingKey, mcsPagerdutyRoutingKey, watchdogURL, _, _, _ := reconciler.parseSecrets(context.Background(), reqLogger, secretList, config.OperatorNamespace, true)
 
 	assertEquals(t, "", mcsPagerdutyRoutingKey, "Expected MCS key to be empty when Get fails")
 	assertEquals(t, pdKey, pagerdutyRoutingKey, "Expected PD key to still be populated")
