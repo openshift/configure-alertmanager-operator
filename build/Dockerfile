@@ -8,7 +8,7 @@ COPY . .
 RUN make go-build
 
 ####
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1793050346
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1793578971
 
 ENV USER_UID=1001 \
     USER_NAME=configure-alertmanager-operator
