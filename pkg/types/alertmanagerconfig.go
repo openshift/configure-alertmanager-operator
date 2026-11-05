@@ -3,7 +3,7 @@ package alertmanagerconfig
 import (
 	"fmt"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // PDRegexLP is the regular expression used in Pager Duty for any Layered Product namespaces.
