@@ -15,7 +15,7 @@ import (
 
 	"github.com/onsi/gomega"
 	amconfig "github.com/prometheus/alertmanager/config"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
